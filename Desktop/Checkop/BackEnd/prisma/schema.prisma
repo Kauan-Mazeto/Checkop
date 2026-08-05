@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// Modelo do Banco a seguir: Projeto Checkop
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./database.db"
+}
+
+enum Role {
+  DEV
+  QA
+  PENTESTER
+  STUDENT
+}
+
+enum TargetEnvironment {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+enum ScanStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(DEV)
+  createdAt DateTime @default(now())
+  scans     Scan[]
+}
+
+model Scan {
+  id          String            @id @default(uuid())
+  targetUrl   String
+  environment TargetEnvironment
+  safeMode    Boolean           @default(true)
+  status      ScanStatus        @default(PENDING)
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  findings    Finding[]
+  createdAt   DateTime          @default(now())
+}
+
+model Finding {
+  id          String   @id @default(uuid())
+  scanId      String
+  scan        Scan     @relation(fields: [scanId], references: [id])
+  title       String
+  severity    String
+  cveId       String?
+  rawRequest  String?  @db.Text
+  rawResponse String?  @db.Text
+  remediation String?  @db.Text
+  owaspUrl    String?
+  createdAt   DateTime @default(now())
+}
