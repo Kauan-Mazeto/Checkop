@@ -15,57 +15,50 @@ datasource db {
   url      = "file:./database.db"
 }
 
-enum Role {
-  DEV
-  QA
-  PENTESTER
-  STUDENT
-}
-
-enum TargetEnvironment {
-  DEVELOPMENT
-  STAGING
-  PRODUCTION
-}
-
-enum ScanStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-}
-
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(DEV)
-  createdAt DateTime @default(now())
-  scans     Scan[]
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String    @unique
+  password             String
+  role                 Role      @default(DEV)
+  googleId             String?   
+  resetPasswordToken   String?   
+  resetPasswordExpires DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  scans Scan[]
 }
 
 model Scan {
   id          String            @id @default(uuid())
   targetUrl   String
-  environment TargetEnvironment
+  environment TargetEnvironment @default(DEVELOPMENT)
   safeMode    Boolean           @default(true)
   status      ScanStatus        @default(PENDING)
-  userId      String
-  user        User              @relation(fields: [userId], references: [id])
-  findings    Finding[]
+  startedAt   DateTime?
+  finishedAt  DateTime?
   createdAt   DateTime          @default(now())
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  findings Finding[]
 }
 
 model Finding {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   scanId      String
-  scan        Scan     @relation(fields: [scanId], references: [id])
+  scan        Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)
   title       String
-  severity    String
-  cveId       String?
-  rawRequest  String?  @db.Text
-  rawResponse String?  @db.Text
-  remediation String?  @db.Text
+  description String?
+  severity    FindingSeverity @default(MEDIUM)
+  status      FindingStatus   @default(OPEN)
+  tool        ToolType        
+  affectedUrl String?        
+  parameter   String?        
+  cveId       String?         
+  cvssScore   Float?          
+  rawRequest  String?
+  rawResponse String?
+  remediation String?
   owaspUrl    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
 }
