@@ -18,3 +18,13 @@ export const loginSchema = z.object({
 export const googleLoginSchema = z.object({
   credential: z.string().min(1, 'Credencial do Google é obrigatória.'),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('E-mail inválido.'),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('E-mail inválido.'),
+  code: z.string().trim().regex(/^\d{6}$/, 'Código deve conter 6 dígitos.'),
+  newPassword: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres.'),
+});

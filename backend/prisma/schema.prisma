@@ -55,17 +55,19 @@ enum ToolType {
 }
 
 model User {
-  id                   String    @id @default(uuid())
-  name                 String
-  email                String    @unique
-  password             String?   
-  role                 Role      @default(DEV)
-  googleId             String?   @unique
-  resetPasswordToken   String?
-  resetPasswordExpires DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  scans                Scan[]
+  id                       String    @id @default(uuid())
+  name                     String
+  email                    String    @unique
+  password                 String?
+  role                     Role      @default(DEV)
+  googleId                 String?   @unique
+  resetPasswordToken       String?
+  resetPasswordExpires     DateTime?
+  resetPasswordRequestedAt DateTime?
+  resetPasswordAttempts    Int       @default(0)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  scans                    Scan[]
 }
 
 model Scan {
