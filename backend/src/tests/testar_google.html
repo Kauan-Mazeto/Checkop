@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+    <head><title>Teste Google Login</title></head>
+    <body>
+        <h2>Checkop</h2>
+        <div id="g_id_onload"
+            data-client_id="COLOCAR_O_ID_AQUI_QUANDO_FOR_TESTAR.apps.googleusercontent.com"
+            data-callback="handleCredentialResponse">
+        </div>
+        <div class="g_id_signin" data-type="standard"></div>
+
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+        <script>
+            function handleCredentialResponse(response) {
+            console.log(response.credential);
+            }
+        </script>
+    </body>
+</html>
