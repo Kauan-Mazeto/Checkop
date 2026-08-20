@@ -21,6 +21,12 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// quando for para producao, essa variavel vai ser false, entao ele vai rodar
+// para pegar o ip do usuario e nao do serv
+if (!process.env.MODO_DEV) {
+  app.set('trust proxy', true);
+}
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'API Checkop rodando.' });
 });

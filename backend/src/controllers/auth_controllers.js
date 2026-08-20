@@ -18,17 +18,29 @@ const MAX_RESET_ATTEMPTS = 3;
 const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    // já foi validado pelo Zod
+    // tudo validade pelo Zod
 
     const hashedPassword = await hashPassword(password);
 
-    const newUser = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role,
-      },
+    const newUser = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role,
+        },
+      });
+
+      await tx.termsAcceptance.create({
+        data: {
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] || null,
+        },
+      });
+
+      return user;
     });
 
     const token = await generateToken(newUser);
@@ -160,10 +172,7 @@ const forgotPassword = async (req, res) => {
     // limite de 1 solicitacao a cada 24h por usuario. se estiver dentro do
     // cooldown, ignora silenciosamente - a resposta continua a mesma, pra nao
     // revelar que a conta existe nem que ja tinha um pedido em andamento.
-    const dentroDoCooldown =
-      user?.resetPasswordRequestedAt &&
-      Date.now() - user.resetPasswordRequestedAt.getTime() 
-        RESET_REQUEST_COOLDOWN_HOURS * 60 * 60 * 1000;
+    const dentroDoCooldown = user?.resetPasswordRequestedAt && Date.now() - user.resetPasswordRequestedAt.getTime() < RESET_REQUEST_COOLDOWN_HOURS * 60 * 60 * 1000;
 
     // só gera e envia código se existir uma conta local com senha
     // (contas google-only não têm senha pra redefinir).

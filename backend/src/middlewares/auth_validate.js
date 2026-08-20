@@ -1,28 +1,33 @@
-const validate = (schema) => async (req, res, next) => {
-  try {
-    const validatedData = await schema.parseAsync(req.body);
-    req.body = validatedData;
-    return next();
-  } catch (error) {
-    if (error.issues) {
-      const formattedErrors = error.issues.map((err) => ({
-        field: err.path[0],
-        message: err.message,
-      }));
+import rateLimit from 'express-rate-limit';
 
-      if (process.env.MODO_DEV === "DEV") {
-        return res.status(400).json({
-          error: 'Dados de entrada inválidos.',
-          formattedErrors,
-        });
-      } else {
-        return res.status(400).json({
-          error: 'Dados de entrada inválidos.',
-        });
-      }
-    }
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas solicitações de redefinição de senha. Tente novamente mais tarde.' },
+});
 
-    return res.status(500).json({ error: 'Erro interno ao validar dados de entrada.'})
-  }}
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de redefinição. Tente novamente mais tarde.' },
+});
 
-export default validate;
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login. Tente novamente mais tarde.' },
+});
+
+export const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas contas criadas a partir deste IP. Tente novamente mais tarde.' },
+});

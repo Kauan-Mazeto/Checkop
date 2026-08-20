@@ -68,6 +68,7 @@ model User {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   scans                    Scan[]
+  termsAcceptance          TermsAcceptance?
 }
 
 model Scan {
@@ -102,4 +103,15 @@ model Finding {
   remediation String?
   owaspUrl    String?
   createdAt   DateTime        @default(now())
+}
+
+
+model TermsAcceptance {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version    String   @default("1.0")
+  acceptedAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
 }
