@@ -57,6 +57,6 @@ export const buildCookieOptions = () => ({
   httpOnly: true,
   secure: process.env.MODO_DEV !== 'DEV',
   sameSite: 'strict',
-  maxAge: process.env.EXPIRES_IN,
+  maxAge: 24 * 60 * 60 * 1000,
   path: '/',
 });
