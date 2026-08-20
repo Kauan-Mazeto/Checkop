@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(11);
@@ -51,3 +52,11 @@ export const verifyToken = async (token) => {
     });
   });
 };
+
+export const buildCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.MODO_DEV !== 'DEV',
+  sameSite: 'strict',
+  maxAge: process.env.EXPIRES_IN,
+  path: '/',
+});

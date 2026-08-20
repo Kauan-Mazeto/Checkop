@@ -1,5 +1,6 @@
-import { hashPassword, comparePassword, generateToken } from '../constants/utils.js';
+import { hashPassword, comparePassword, generateToken, buildCookieOptions, generateResetCode, hashResetCode, compareResetCode } from '../constants/utils.js';
 import { verifyGoogleToken } from '../lib/google_client.js';
+import { sendPasswordResetEmail } from '../lib/mailer.js';
 import prisma from '../lib/prisma.js';
 import bcrypt from 'bcryptjs';
 
@@ -18,7 +19,7 @@ const MAX_RESET_ATTEMPTS = 3;
 const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    // tudo validade pelo Zod
+    // tudo validado pelo Zod
 
     const hashedPassword = await hashPassword(password);
 
@@ -45,9 +46,10 @@ const register = async (req, res) => {
 
     const token = await generateToken(newUser);
 
+    res.cookie('token', token, buildCookieOptions());
+
     return res.status(201).json({
       message: 'Usuário cadastrado com sucesso!',
-      token,
       user: {
         id: newUser.id,
         name: newUser.name,
@@ -57,7 +59,7 @@ const register = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'E-mail já cadastrado.' });
+      return res.status(409).json({ error: 'Não foi possível concluir o cadastro. Verifique os dados informados.' });
     }
     console.error('Erro no registro:', error);
     return res.status(500).json({ error: 'Erro interno ao cadastrar usuário.' });
@@ -85,9 +87,10 @@ const login = async (req, res) => {
 
     const token = await generateToken(user);
 
+    res.cookie('token', token, buildCookieOptions());
+
     return res.status(200).json({
       message: 'Login realizado com sucesso!',
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -101,7 +104,7 @@ const login = async (req, res) => {
   }
 };
 
-// RF-03 
+// RF-03
 const googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
@@ -146,9 +149,10 @@ const googleLogin = async (req, res) => {
 
     const token = await generateToken(user);
 
+    res.cookie('token', token, buildCookieOptions());
+
     return res.status(200).json({
       message: 'Login com Google realizado com sucesso!',
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -284,4 +288,14 @@ const resetPassword = async (req, res) => {
   }
 };
 
-export default { register, login, googleLogin, forgotPassword, resetPassword };
+const logout = async (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.MODO_DEV !== 'DEV',
+    path: '/',
+  });
+  return res.status(200).json({ message: 'Logout realizado com sucesso.' });
+};
+
+export default { register, login, googleLogin, forgotPassword, resetPassword, logout };

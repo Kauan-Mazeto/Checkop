@@ -3,24 +3,23 @@ import prisma from '../lib/prisma.js';
 
 const authMiddleware = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = req.cookies.token;
 
-    if (!authHeader) {
+    if (!token) {
       return res.status(401).json({ error: 'Acesso negado. Token não fornecido.' });
     }
 
-    const parts = authHeader.split(' ');
-
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      return res.status(401).json({ error: 'Formato do token inválido. Use: Bearer <TOKEN>' });
-    }
-
-    const token = parts[1];
     const decoded = await verifyToken(token);
 
     const userExists = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { id: true, role: true, email: true },
+      where: { 
+        id: decoded.id 
+      },
+      select: { 
+        id: true, 
+        role: true, 
+        email: true 
+      },
     });
 
     if (!userExists) {

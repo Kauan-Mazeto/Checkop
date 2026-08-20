@@ -1,31 +1,43 @@
-import express from 'express';
-import authController from '../controllers/auth_controllers.js';
-import validate from '../middlewares/auth_validate.js';
-import authMiddleware from '../middlewares/auth_middleware.js';
-import { forgotPasswordLimiter, resetPasswordLimiter } from '../middlewares/rate_limit_middleware.js';
-import {
-  registerSchema,
-  loginSchema,
-  googleLoginSchema,
-  forgotPasswordSchema,
-  resetPasswordSchema,
-} from '../validators/auth_validator.js';
+import rateLimit from 'express-rate-limit';
 
-const router = express.Router();
 
-router.post('/register', validate(registerSchema), authController.register);
-router.post('/login', validate(loginSchema), authController.login);
-router.post('/google', validate(googleLoginSchema), authController.googleLogin);
-router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), authController.forgotPasswor);
-router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), authController.resetPassword);
-
-router.get('/me', authMiddleware, (req, res) => {
-  return res.json({
-    message: 'acesso autorizado.',
-    userId: req.userId,
-    role: req.userRole,
-    email: req.userEmail,
-  });
+// limitar forca bruta especifica em algumas rotas
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas solicitações de redefinição de senha. Tente novamente mais tarde.' },
 });
 
-export default router;
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de redefinição. Tente novamente mais tarde.' },
+});
+
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login. Tente novamente mais tarde.' },
+});
+
+export const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas contas criadas a partir deste IP. Tente novamente mais tarde.' },
+});
+
+export const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Tente novamente mais tarde.' },
+});
