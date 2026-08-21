@@ -59,7 +59,11 @@ const register = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 'P2002') {
+<<<<<<< HEAD
       return res.status(409).json({ error: 'Não foi possível concluir o cadastro. Verifique os dados informados.' });
+=======
+      return res.status(409).json({ error: 'Erro ao inserir informações. Tente novamente.' });
+>>>>>>> a37b3f2 (Commit branch master hotfix)
     }
     console.error('Erro no registro:', error);
     return res.status(500).json({ error: 'Erro interno ao cadastrar usuário.' });

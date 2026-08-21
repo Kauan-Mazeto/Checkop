@@ -12,7 +12,7 @@ import { globalLimiter } from './middlewares/rate_limit_middleware.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL', 'CLIENT_URL', 'PORT'];
 const missing = requiredEnvVars.filter((key) => !process.env[key]);

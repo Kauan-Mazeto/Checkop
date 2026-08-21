@@ -77,12 +77,18 @@ model Scan {
   environment TargetEnvironment @default(DEVELOPMENT)
   safeMode    Boolean           @default(true)
   status      ScanStatus        @default(PENDING)
+  resolvedIp  String?
+  suspiciousEnvironment         Boolean           @default(false)
+  authorizationConfirmedAt      DateTime
+  authorizationIp               String?
   startedAt   DateTime?
   finishedAt  DateTime?
   createdAt   DateTime          @default(now())
   userId   String
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   findings Finding[]
+
+  @@index([suspiciousEnvironment])
 }
 
 model Finding {
