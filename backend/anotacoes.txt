@@ -1,0 +1,2 @@
+npm install private-ip tldts
+rodar em casa
