@@ -45,7 +45,7 @@ const register = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'E-mail já cadastrado.' });
+      return res.status(409).json({ error: 'Erro ao inserir informações. Tente novamente.' });
     }
     console.error('Erro no registro:', error);
     return res.status(500).json({ error: 'Erro interno ao cadastrar usuário.' });
