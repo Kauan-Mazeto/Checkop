@@ -1,11 +1,24 @@
 import prisma from '../lib/prisma.js';
-import { detectEnvironment } from '../lib/environment_detector.js';
+import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
+
+const serializeIps = (ips) => ips.join(',');
+const deserializeIps = (value) => (value ? value.split(',') : []);
 
 const createScan = async (req, res) => {
   try {
     const { targetUrl } = req.body;
 
-    const { environment, resolvedIp, suspicious } = await detectEnvironment(targetUrl);
+    let detection;
+    try {
+      detection = await detectEnvironment(targetUrl);
+    } catch (err) {
+      if (err instanceof ScanValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      throw err;
+    }
+
+    const { environment, resolvedIps, suspicious } = detection;
     const safeMode = environment === 'PRODUCTION';
 
     const scan = await prisma.scan.create({
@@ -13,7 +26,7 @@ const createScan = async (req, res) => {
         targetUrl,
         environment,
         safeMode,
-        resolvedIp,
+        resolvedIps: serializeIps(resolvedIps),
         suspiciousEnvironment: suspicious,
         userId: req.userId,
         authorizationConfirmedAt: new Date(),
@@ -30,6 +43,7 @@ const createScan = async (req, res) => {
         safeMode: scan.safeMode,
         status: scan.status,
         suspiciousEnvironment: scan.suspiciousEnvironment,
+        resolvedIps: deserializeIps(scan.resolvedIps),
         createdAt: scan.createdAt,
       },
     });
@@ -51,13 +65,19 @@ const listScans = async (req, res) => {
         safeMode: true,
         status: true,
         suspiciousEnvironment: true,
+        resolvedIps: true,
         createdAt: true,
         startedAt: true,
         finishedAt: true,
       },
     });
 
-    return res.status(200).json({ scans });
+    const serialized = scans.map((scan) => ({
+      ...scan,
+      resolvedIps: deserializeIps(scan.resolvedIps),
+    }));
+
+    return res.status(200).json({ scans: serialized });
   } catch (error) {
     console.error('Erro ao listar varreduras:', error);
     return res.status(500).json({ error: 'Erro interno ao listar varreduras.' });
@@ -75,13 +95,18 @@ const listSuspiciousScans = async (req, res) => {
       select: {
         id: true,
         targetUrl: true,
-        resolvedIp: true,
+        resolvedIps: true,
         environment: true,
         createdAt: true,
       },
     });
 
-    return res.status(200).json({ scans });
+    const serialized = scans.map((scan) => ({
+      ...scan,
+      resolvedIps: deserializeIps(scan.resolvedIps),
+    }));
+
+    return res.status(200).json({ scans: serialized });
   } catch (error) {
     console.error('Erro ao listar varreduras suspeitas:', error);
     return res.status(500).json({ error: 'Erro interno ao listar varreduras suspeitas.' });
@@ -97,6 +122,7 @@ const getScanById = async (req, res) => {
     return res.status(200).json({
       scan: {
         ...req.resource,
+        resolvedIps: deserializeIps(req.resource.resolvedIps),
         findings,
       },
     });

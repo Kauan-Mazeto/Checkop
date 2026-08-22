@@ -9,6 +9,8 @@ import timeout from 'connect-timeout';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth_routes.js';
 import { globalLimiter } from './middlewares/rate_limit_middleware.js';
+import scanRoutes from './routes/scan_routes.js';
+import privacyRoutes from './routes/privacy_routes.js';
 dotenv.config();
 
 const app = express();
@@ -55,22 +57,13 @@ app.use(cookieParser());
 app.use(mongoSanitize());
 app.use(globalLimiter);
 
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'API Checkop rodando.' });
-});
-
 app.use('/api/auth', authRoutes);
+app.use('/api/scans', scanRoutes);
+app.use('/api/privacy', privacyRoutes);
 
 // fallback, para se nao achar, retornar aqui, sem estourar banco
 app.use((req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });
-});
-
-app.use((err, req, res, next) => {
-  console.error('[ERRO INTERNO]:', err.stack);
-  res.status(err.status || 500).json({
-    error: process.env.MODO_DEV === 'DEV' ? err.message : 'Erro interno no servidor.',
-  });
 });
 
 const server = app.listen(PORT, () => {
