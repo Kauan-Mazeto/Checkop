@@ -1,6 +1,5 @@
 import rateLimit from 'express-rate-limit';
 
-
 // limitar forca bruta especifica em algumas rotas
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -40,4 +39,12 @@ export const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas requisições. Tente novamente mais tarde.' },
+});
+
+export const scanCreationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Limite de varreduras criadas por hora atingido. Tente novamente mais tarde.' },
 });
