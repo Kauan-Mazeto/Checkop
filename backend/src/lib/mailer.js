@@ -1,20 +1,24 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+let transporter;
 
-// envia o código de redefinição de senha por e-mail via SMTP.
-// mudar caso for para prod, aqui tem rate limit, mas por 
-// agora serve, só demonstracao
+const getTransporter = () => {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return transporter;
+};
+
 export const sendPasswordResetEmail = async (to, name, code) => {
-  await transporter.sendMail({
+  await getTransporter().sendMail({
     from: process.env.MAIL_FROM || '"Checkop" <no-reply@checkop.com>',
     to,
     subject: 'Checkop - Código de redefinição de senha',
@@ -33,5 +37,3 @@ export const sendPasswordResetEmail = async (to, name, code) => {
       `<p>Se você não solicitou essa redefinição, ignore este e-mail.</p>`,
   });
 };
-
-export default transporter;

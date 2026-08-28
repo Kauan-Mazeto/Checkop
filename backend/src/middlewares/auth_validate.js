@@ -22,7 +22,8 @@ const validate = (schema) => async (req, res, next) => {
       }
     }
 
-    return res.status(500).json({ error: 'Erro interno ao validar dados de entrada.'})
-  }}
+    return res.status(500).json({ error: 'Erro interno ao validar dados de entrada.' });
+  }
+};
 
 export default validate;

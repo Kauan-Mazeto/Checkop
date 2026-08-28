@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(11);
@@ -10,7 +11,6 @@ export const comparePassword = async (password, hash) => {
   return await bcrypt.compare(password, hash);
 };
 
-// gera um código numérico de 6 dígitos (000000 a 999999)
 export const generateResetCode = () => {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 };
@@ -26,7 +26,7 @@ export const compareResetCode = (code, hash) => {
 export const generateToken = async (user) => {
   return new Promise((resolve, reject) => {
     jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
+      { id: user.id, role: user.role, email: user.email, tokenVersion: user.tokenVersion },
       process.env.JWT_SECRET,
       { expiresIn: process.env.EXPIRES_IN },
       (err, token) => {
@@ -51,3 +51,11 @@ export const verifyToken = async (token) => {
     });
   });
 };
+
+export const buildCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.MODO_DEV !== 'DEV',
+  sameSite: 'strict',
+  maxAge: 24 * 60 * 60 * 1000,
+  path: '/',
+});
