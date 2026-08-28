@@ -65,23 +65,50 @@ model User {
   resetPasswordExpires     DateTime?
   resetPasswordRequestedAt DateTime?
   resetPasswordAttempts    Int       @default(0)
+  failedLoginAttempts      Int       @default(0)
+  accountLockedUntil       DateTime?
+  tokenVersion             Int       @default(0)
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   scans                    Scan[]
+  termsAcceptance          TermsAcceptance?
+  loginAttempts            LoginAttempt[]
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([ipAddress])
+  @@index([createdAt])
 }
 
 model Scan {
-  id          String            @id @default(uuid())
-  targetUrl   String
-  environment TargetEnvironment @default(DEVELOPMENT)
-  safeMode    Boolean           @default(true)
-  status      ScanStatus        @default(PENDING)
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  createdAt   DateTime          @default(now())
-  userId   String
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  findings Finding[]
+  id                       String            @id @default(uuid())
+  targetUrl                String
+  environment              TargetEnvironment @default(DEVELOPMENT)
+  safeMode                 Boolean           @default(true)
+  status                   ScanStatus        @default(PENDING)
+  resolvedIps              String?
+  suspiciousEnvironment    Boolean           @default(false)
+  authorizationConfirmedAt DateTime
+  authorizationIp          String?
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  createdAt                DateTime          @default(now())
+  userId                   String
+  user                     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  findings                 Finding[]
+
+  @@index([suspiciousEnvironment])
+  @@index([userId])
 }
 
 model Finding {
@@ -102,4 +129,15 @@ model Finding {
   remediation String?
   owaspUrl    String?
   createdAt   DateTime        @default(now())
+}
+
+
+model TermsAcceptance {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version    String   @default("1.0")
+  acceptedAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
 }
