@@ -1,3 +1,356 @@
-<p>
-  register-page works!
-</p>
+<div class="checkop">
+  <div class="grid-background"></div>
+  <div class="scanline-overlay"></div>
+
+  <main class="auth-page">
+    <div class="auth-layout">
+      <aside class="auth-showcase fade-up fade-delay-1">
+        <a class="brand" routerLink="/landing" aria-label="Checkop">
+          <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
+          <span class="brand-name">Checkop</span>
+        </a>
+
+        <div class="showcase-content">
+          <div class="environment-label">
+            <span class="environment-tag environment-tag-dev">DEV</span>
+            <span class="environment-plus">+</span>
+            <span class="environment-tag environment-tag-prod">PROD</span>
+            <span class="environment-description">ambientes inteligentes</span>
+          </div>
+
+          <h1 class="showcase-title">
+            Comece a testar
+            <span class="accent-text">de graça, agora</span>
+          </h1>
+
+          <p class="showcase-description">
+            Crie sua conta, escolha seu perfil e o plano ideal. Rode seu primeiro scan de
+            segurança em poucos minutos.
+          </p>
+
+          <div class="terminal-preview">
+            <div class="terminal-header">
+              <span class="terminal-dot terminal-dot-red"></span>
+              <span class="terminal-dot terminal-dot-yellow"></span>
+              <span class="terminal-dot terminal-dot-green"></span>
+              <span class="terminal-title">Checkop — cadastro</span>
+            </div>
+
+            <div class="terminal-body">
+              <div>
+                <span class="terminal-prompt">$</span>
+                checkop auth --register
+              </div>
+              <div class="terminal-muted">→ Criando conta...</div>
+              <div class="terminal-success">✓ Conta criada com sucesso</div>
+              <div class="terminal-muted">→ 5 scans gratuitos disponíveis este mês</div>
+              <div>
+                <span class="terminal-prompt">$</span>
+                <span class="terminal-cursor"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="showcase-stats">
+            <div class="stat-item">
+              <div class="stat-ring"><span>R$0</span></div>
+              <span class="stat-label">Para começar</span>
+            </div>
+
+            <div class="stat-item">
+              <div class="stat-ring"><span>5</span></div>
+              <span class="stat-label">Scans/mês</span>
+            </div>
+
+            <div class="stat-item">
+              <div class="stat-ring"><span>&lt;5s</span></div>
+              <span class="stat-label">Scan time</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="showcase-footer">© 2025 Checkop — Segurança acessível</p>
+      </aside>
+
+      <section class="auth-panel fade-up fade-delay-2">
+        <a class="text-link auth-panel-back" routerLink="/landing">
+          <span aria-hidden="true">←</span>
+          Voltar para o site
+        </a>
+
+        <div class="auth-panel-inner auth-panel-inner-wide">
+          <div class="auth-panel-brand">
+            <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
+            <span class="brand-name">Checkop</span>
+          </div>
+
+          <div class="auth-heading">
+            <h2>Crie sua conta</h2>
+            <p>Comece a proteger suas aplicações gratuitamente</p>
+          </div>
+
+          <ol class="step-indicator">
+            <li
+              *ngFor="let step of steps"
+              class="step-indicator-item"
+              [class.is-active]="currentStep === step.id"
+              [class.is-done]="currentStep > step.id"
+              (click)="goToStep(step.id)"
+            >
+              <span class="step-indicator-dot">
+                <svg *ngIf="currentStep > step.id" class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M8.1 13.4 4.6 9.9l1.1-1.1 2.4 2.4 6-6 1.1 1.1-7.1 7.1Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span *ngIf="currentStep <= step.id">{{ step.id }}</span>
+              </span>
+              <span class="step-indicator-label">{{ step.label }}</span>
+            </li>
+          </ol>
+
+          <div *ngIf="errorMessage" class="auth-error" role="alert">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M10 1.5 1 17h18L10 1.5Zm0 4.4L15.9 15h-11.8L10 5.9ZM9.25 9v3.5h1.5V9h-1.5Zm0 4.75v1.5h1.5v-1.5h-1.5Z"
+                fill="currentColor"
+              />
+            </svg>
+            {{ errorMessage }}
+          </div>
+
+          <!-- Etapa 1: dados da conta -->
+          <form
+            *ngIf="currentStep === 1"
+            class="auth-form"
+            (ngSubmit)="nextStep()"
+            novalidate
+          >
+            <button class="button button-google" type="button">
+              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M19.6 10.23c0-.68-.06-1.32-.17-1.95H10v3.69h5.38c-.23 1.25-.94 2.31-2 3.02v2.5h3.23c1.9-1.75 2.99-4.33 2.99-7.26z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M10 20c2.7 0 4.96-.9 6.61-2.43l-3.23-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.75-5.59-4.11H1.06v2.59A9.99 9.99 0 0 0 10 20z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M4.41 11.92A5.99 5.99 0 0 1 4.09 10c0-.67.11-1.32.32-1.92V5.49H1.06A9.99 9.99 0 0 0 0 10c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M10 3.98c1.47 0 2.79.5 3.83 1.49l2.87-2.87C14.95.99 12.7 0 10 0 6.09 0 2.71 2.24 1.06 5.49l3.35 2.59C5.2 5.72 7.4 3.98 10 3.98z"
+                  fill="#EA4335"
+                />
+              </svg>
+              Continuar com Google
+            </button>
+
+            <div class="auth-divider">
+              <span>ou cadastre-se com e-mail</span>
+            </div>
+
+            <label>
+              Nome
+
+              <div class="input-group">
+                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M10 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 9.5c4.14 0 7.5 2.24 7.5 5v1H2.5v-1c0-2.76 3.36-5 7.5-5Z"
+                    fill="currentColor"
+                  />
+                </svg>
+
+                <input
+                  id="register-name"
+                  name="name"
+                  type="text"
+                  [(ngModel)]="name"
+                  placeholder="Seu nome completo"
+                  autocomplete="name"
+                  required
+                  minlength="2"
+                />
+              </div>
+            </label>
+
+            <label>
+              E-mail
+
+              <div class="input-group">
+                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M2.5 4.5h15A1 1 0 0 1 18.5 5.5v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm0 1.4v.32l7.5 5 7.5-5V5.9l-7.5 5-7.5-5Z"
+                    fill="currentColor"
+                  />
+                </svg>
+
+                <input
+                  id="register-email"
+                  name="email"
+                  type="email"
+                  [(ngModel)]="email"
+                  placeholder="voce@empresa.com"
+                  autocomplete="email"
+                  required
+                  email
+                />
+              </div>
+            </label>
+
+            <label>
+              Senha
+
+              <div class="input-group">
+                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M10 1.67c-2.03 0-3.67 1.64-3.67 3.67v2H5.5A1.5 1.5 0 0 0 4 8.83v7.5A1.5 1.5 0 0 0 5.5 17.83h9a1.5 1.5 0 0 0 1.5-1.5v-7.5A1.5 1.5 0 0 0 14.5 7.33h-.83v-2c0-2.03-1.64-3.67-3.67-3.67Zm0 1.5c1.2 0 2.17.97 2.17 2.17v2H7.83v-2c0-1.2.97-2.17 2.17-2.17ZM10 11a1.25 1.25 0 0 1 .63 2.33v1.34a.63.63 0 1 1-1.26 0v-1.34A1.25 1.25 0 0 1 10 11Z"
+                    fill="currentColor"
+                  />
+                </svg>
+
+                <input
+                  id="register-password"
+                  name="password"
+                  [type]="showPassword ? 'text' : 'password'"
+                  [(ngModel)]="password"
+                  placeholder="Mínimo 8 caracteres"
+                  autocomplete="new-password"
+                  required
+                  minlength="8"
+                />
+
+                <button
+                  class="input-icon-button"
+                  type="button"
+                  (click)="togglePasswordVisibility()"
+                  [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                >
+                  <svg *ngIf="!showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="M10 4.5c-4.5 0-7.6 3.3-8.7 5a1 1 0 0 0 0 1c1.1 1.7 4.2 5 8.7 5s7.6-3.3 8.7-5a1 1 0 0 0 0-1c-1.1-1.7-4.2-5-8.7-5Zm0 8.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+
+                  <svg *ngIf="showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path
+                      d="m2.6 2.6 14.8 14.8-1 1-2.3-2.3A9.9 9.9 0 0 1 10 17c-4.5 0-7.6-3.3-8.7-5a1 1 0 0 1 0-1c.5-.8 1.5-2 2.9-3.1L1.6 3.6l1-1ZM10 7a3 3 0 0 1 3 3c0 .4-.1.8-.2 1.1L9.9 8.2c.03 0 .07 0 .1 0Zm0-3.5c1.7 0 3.2.5 4.5 1.3l-1.2 1.2A8.2 8.2 0 0 0 10 5c-3.3 0-5.9 2.2-7.1 3.7A9.9 9.9 0 0 0 4.4 10c.4.5.9 1.1 1.6 1.6l-1.1 1.1C3.1 11.6 2 10.3 1.3 9.5a1 1 0 0 1 0-1C2.4 6.8 5.5 3.5 10 3.5Zm3.9 3.1 1.1-1.1c1.8 1.1 2.9 2.4 3.6 3.3a1 1 0 0 1 0 1c-1 1.5-3.3 4.2-6.9 4.9L10.5 13.6c2.6-.4 4.5-2.3 5.5-3.6a9.9 9.9 0 0 0-2.1-3.4Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <span class="field-hint">Use pelo menos 8 caracteres.</span>
+            </label>
+
+            <button class="button button-primary button-full" type="submit">
+              Continuar
+              <span aria-hidden="true">→</span>
+            </button>
+
+            <p class="auth-switch">
+              Já tem conta?
+              <a routerLink="/login">Entrar</a>
+            </p>
+          </form>
+
+          <!-- Etapa 2: perfil -->
+          <div *ngIf="currentStep === 2" class="auth-form">
+            <div class="role-field">
+              Qual é o seu perfil?
+              <span class="field-hint">Isso ajusta os relatórios e tutoriais que você vê.</span>
+
+              <div class="role-grid">
+                <button
+                  *ngFor="let role of roles"
+                  type="button"
+                  class="role-selector"
+                  [class.selected]="selectedRole === role.id"
+                  (click)="selectRole(role.id)"
+                >
+                  {{ role.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button class="button button-outline" type="button" (click)="prevStep()">
+                <span aria-hidden="true">←</span>
+                Voltar
+              </button>
+
+              <button class="button button-primary" type="button" (click)="nextStep()">
+                Continuar
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Etapa 3: plano -->
+          <div *ngIf="currentStep === 3" class="auth-form">
+            <div class="plan-field">
+              Escolha seu plano
+              <span class="field-hint">Você pode trocar de plano quando quiser.</span>
+
+              <div class="plan-list">
+                <button
+                  *ngFor="let plan of plans"
+                  type="button"
+                  class="plan-selector"
+                  [class.selected]="selectedPlan === plan.id"
+                  (click)="selectPlan(plan.id)"
+                >
+                  <span *ngIf="plan.badge" class="plan-badge">{{ plan.badge }}</span>
+
+                  <span class="plan-selector-heading">
+                    <strong>{{ plan.name }}</strong>
+                    <span class="plan-selector-price">
+                      {{ plan.price }}
+                      <small>{{ plan.period }}</small>
+                    </span>
+                  </span>
+
+                  <ul class="plan-selector-features">
+                    <li *ngFor="let feature of plan.features">✓ {{ feature }}</li>
+                  </ul>
+                </button>
+              </div>
+            </div>
+
+            <div class="step-actions">
+              <button class="button button-outline" type="button" (click)="prevStep()">
+                <span aria-hidden="true">←</span>
+                Voltar
+              </button>
+
+              <button
+                class="button button-primary"
+                type="button"
+                [disabled]="isSubmitting"
+                (click)="submit()"
+              >
+                <span *ngIf="isSubmitting" class="spinner" aria-hidden="true"></span>
+                {{ isSubmitting ? 'Criando conta...' : 'Criar conta' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="security-badge">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M10 1.5 3 4.2v4.9c0 4.5 3 8.4 7 9.4 4-.9 7-4.9 7-9.4V4.2L10 1.5Zm-1.1 11.3-3-3 1.1-1 1.9 1.9 4.9-4.9 1.1 1-6 6Z"
+                fill="currentColor"
+              />
+            </svg>
+            Conexão segura • criptografia de ponta a ponta
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>

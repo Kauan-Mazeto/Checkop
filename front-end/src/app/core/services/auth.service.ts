@@ -21,6 +21,21 @@ interface LoginResponse {
   user: AuthUser;
 }
 
+// Espelha o corpo de resposta de POST /api/auth/register
+// (backend/src/controllers/auth_controllers.js -> register).
+interface RegisterResponse {
+  message: string;
+  token: string;
+  user: AuthUser;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  role: Exclude<UserRole, 'ADM'>;
+}
+
 // Espelha os formatos de erro do backend:
 // - erro de validação (Zod, via middlewares/auth_validate.js): { error, formattedErrors? }
 // - erro de negócio/infra (controllers, error handler global): { error }
@@ -44,6 +59,19 @@ export class AuthService {
    */
   login(email: string, password: string): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${API_BASE_URL}/auth/login`, { email, password }).pipe(
+      tap((response) => this.persistSession(response)),
+      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+    );
+  }
+
+  /**
+   * Cadastra uma nova conta contra POST /api/auth/register.
+   * O backend já devolve token + usuário no cadastro (auto-login), então o
+   * comportamento espelha login(): persiste a sessão e propaga uma mensagem
+   * de erro pronta pra exibição (409 e-mail já cadastrado, 400 validação, etc).
+   */
+  register(payload: RegisterPayload): Observable<RegisterResponse> {
+    return this.http.post<RegisterResponse>(`${API_BASE_URL}/auth/register`, payload).pipe(
       tap((response) => this.persistSession(response)),
       catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
     );
@@ -96,6 +124,6 @@ export class AuthService {
       return 'Não foi possível conectar ao servidor. Verifique sua conexão.';
     }
 
-    return 'Erro inesperado ao tentar entrar. Tente novamente.';
+    return 'Erro inesperado. Tente novamente.';
   }
 }
