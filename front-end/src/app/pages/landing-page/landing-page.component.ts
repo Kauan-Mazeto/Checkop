@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 type AppView = 'landing' | 'dashboard';
 type DashboardTab = 'overview' | 'scans' | 'reports' | 'logs';
@@ -15,7 +16,7 @@ interface ScanVulnerability {
 @Component({
   selector: 'app-shieldtest',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './landing-page.component.html',
   styleUrl: './landing-page.component.scss',
 })

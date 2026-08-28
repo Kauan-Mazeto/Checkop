@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
-import { landingPageRoute } from './pages/landing-page/landing-page.component.route';
+import { landingPageRoute } from './pages/landing-page/landing-page.route';
+import { loginPageRoute } from './pages/login-page/login-page.route';
 
 export const routes: Routes = [
   {
@@ -8,4 +9,5 @@ export const routes: Routes = [
     pathMatch: 'full',
   },
   landingPageRoute,
+  loginPageRoute,
 ];
