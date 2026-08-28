@@ -555,6 +555,14 @@ a {
     color: var(--primary);
     font-size: 12px;
   }
+
+  a {
+    color: var(--primary);
+
+    &:hover {
+      color: var(--primary-light);
+    }
+  }
 }
 
 .auth-error {
