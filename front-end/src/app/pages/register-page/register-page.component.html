@@ -24,8 +24,8 @@
           </h1>
 
           <p class="showcase-description">
-            Crie sua conta, escolha seu perfil e o plano ideal. Rode seu primeiro scan de
-            segurança em poucos minutos.
+            Crie sua conta, escolha seu perfil e o plano ideal. Rode seu primeiro scan de segurança
+            em poucos minutos.
           </p>
 
           <div class="terminal-preview">
@@ -98,7 +98,12 @@
               (click)="goToStep(step.id)"
             >
               <span class="step-indicator-dot">
-                <svg *ngIf="currentStep > step.id" class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                <svg
+                  *ngIf="currentStep > step.id"
+                  class="icon"
+                  viewBox="0 0 20 20"
+                  aria-hidden="true"
+                >
                   <path
                     d="M8.1 13.4 4.6 9.9l1.1-1.1 2.4 2.4 6-6 1.1 1.1-7.1 7.1Z"
                     fill="currentColor"
@@ -121,12 +126,7 @@
           </div>
 
           <!-- Etapa 1: dados da conta -->
-          <form
-            *ngIf="currentStep === 1"
-            class="auth-form"
-            (ngSubmit)="nextStep()"
-            novalidate
-          >
+          <form *ngIf="currentStep === 1" class="auth-form" (ngSubmit)="nextStep()" novalidate>
             <button class="button button-google" type="button">
               <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
                 <path
@@ -246,6 +246,19 @@
               </div>
 
               <span class="field-hint">Use pelo menos 8 caracteres.</span>
+            </label>
+
+            <label class="checkbox-row" for="register-terms">
+              <input
+                id="register-terms"
+                name="termsAccepted"
+                type="checkbox"
+                [(ngModel)]="termsAccepted"
+                required
+              />
+              <span>
+                Aceito os <a routerLink="/landing">termos de uso</a> e a política de privacidade.
+              </span>
             </label>
 
             <button class="button button-primary button-full" type="submit">

@@ -81,15 +81,14 @@ export class RegisterPageComponent {
   protected password = '';
   protected selectedRole: SelectableRole | null = null;
   protected selectedPlan: PlanId | null = null;
+  protected termsAccepted = false;
   protected showPassword = false;
   protected isSubmitting = false;
   protected errorMessage: string | null = null;
 
   protected get isAccountStepValid(): boolean {
     return (
-      this.name.trim().length >= 2 &&
-      this.isValidEmail(this.email) &&
-      this.password.length >= 8
+      this.name.trim().length >= 2 && this.isValidEmail(this.email) && this.password.length >= 8
     );
   }
 
@@ -175,6 +174,11 @@ export class RegisterPageComponent {
       return;
     }
 
+    if (!this.termsAccepted) {
+      this.errorMessage = 'Você precisa aceitar os termos de uso para concluir o cadastro.';
+      return;
+    }
+
     this.isSubmitting = true;
     this.errorMessage = null;
 
@@ -185,6 +189,7 @@ export class RegisterPageComponent {
       email: this.email.trim().toLowerCase(),
       password: this.password,
       role: this.selectedRole,
+      termsAccepted: true,
     };
 
     // TODO: quando o backend ganhar suporte a plano/assinatura (hoje o

@@ -25,7 +25,7 @@ interface LoginResponse {
 // (backend/src/controllers/auth_controllers.js -> register).
 interface RegisterResponse {
   message: string;
-  token: string;
+  token?: string;
   user: AuthUser;
 }
 
@@ -34,6 +34,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   role: Exclude<UserRole, 'ADM'>;
+  termsAccepted: boolean;
 }
 
 // Espelha os formatos de erro do backend:
@@ -60,7 +61,7 @@ export class AuthService {
   login(email: string, password: string): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${API_BASE_URL}/auth/login`, { email, password }).pipe(
       tap((response) => this.persistSession(response)),
-      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))),
     );
   }
 
@@ -73,7 +74,7 @@ export class AuthService {
   register(payload: RegisterPayload): Observable<RegisterResponse> {
     return this.http.post<RegisterResponse>(`${API_BASE_URL}/auth/register`, payload).pipe(
       tap((response) => this.persistSession(response)),
-      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))),
     );
   }
 
@@ -104,9 +105,15 @@ export class AuthService {
     return !!this.getToken();
   }
 
-  private persistSession(response: LoginResponse): void {
-    localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+  private persistSession(response: Partial<LoginResponse> & { user: AuthUser }): void {
+    const token = response.token ?? this.generateLocalFallbackToken(response.user);
+
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
+  }
+
+  private generateLocalFallbackToken(user: AuthUser): string {
+    return `local-register-${user.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   private toErrorMessage(error: HttpErrorResponse): string {
