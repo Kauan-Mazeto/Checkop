@@ -199,7 +199,7 @@ export class RegisterPageComponent {
     this.auth.register(payload).subscribe({
       next: () => {
         this.isSubmitting = false;
-        this.router.navigateByUrl('/landing');
+        this.router.navigateByUrl('/dashboard');
       },
       error: (message: string) => {
         this.isSubmitting = false;

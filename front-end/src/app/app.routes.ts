@@ -3,6 +3,7 @@ import { landingPageRoute } from './pages/landing-page/landing-page.route';
 import { loginPageRoute } from './pages/login-page/login-page.route';
 import { registerPageRoute } from './pages/register-page/register-page.route';
 import { initialPageRoute } from './pages/initial-page/initial-page.route';
+import { dashboardPageRoute } from './pages/Dashboard-page/Dashboard-page.route';
 
 export const routes: Routes = [
   {
@@ -14,4 +15,5 @@ export const routes: Routes = [
   loginPageRoute,
   registerPageRoute,
   initialPageRoute,
+  dashboardPageRoute,
 ];
