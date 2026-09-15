@@ -32,25 +32,26 @@ const register = async (req, res) => {
 
     const hashedPassword = await hashPassword(password);
 
-    const newUser = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          name,
-          email,
-          password: hashedPassword,
-          role,
-        },
-      });
+    // Sem $transaction de propósito: com o adapter
+    // @prisma/adapter-better-sqlite3, o "tx" de uma transação interativa
+    // (prisma.$transaction(async (tx) => {...})) não está expondo o model
+    // TermsAcceptance (tx.termsAcceptance vem undefined mesmo com o client
+    // corretamente gerado), então os dois writes vão sequenciais aqui.
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+    });
 
-      await tx.termsAcceptance.create({
-        data: {
-          userId: user.id,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'] || null,
-        },
-      });
-
-      return user;
+    await prisma.termsAcceptance.create({
+      data: {
+        userId: newUser.id,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] || null,
+      },
     });
 
     const token = await generateToken(newUser);

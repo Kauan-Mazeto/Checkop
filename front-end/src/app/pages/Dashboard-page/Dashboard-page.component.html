@@ -1,0 +1,198 @@
+<div class="checkop">
+  <div class="grid-background"></div>
+  <div class="scanline-overlay"></div>
+
+  <div class="dashboard" *ngIf="user as currentUser">
+    <header class="topbar">
+      <a class="brand" routerLink="/landing" aria-label="Checkop">
+        <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
+        <span class="brand-name">Checkop</span>
+      </a>
+
+      <div class="topbar-user">
+        <div class="topbar-user-info">
+          <strong>{{ currentUser.name }}</strong>
+          <span class="role-badge" [attr.data-role]="currentUser.role">{{ roleLabel }}</span>
+        </div>
+
+        <button class="button button-primary" type="button" (click)="openNewScan()">
+          + Novo scan
+        </button>
+
+        <button class="button button-outline" type="button" (click)="logout()">Sair</button>
+      </div>
+    </header>
+
+    <main class="dashboard-content">
+      <!-- Núcleo: igual pra todos os perfis -->
+      <section class="stats-grid">
+        <article class="surface-card stat-card">
+          <span>Total de scans</span>
+          <strong>{{ totalScans }}</strong>
+        </article>
+
+        <article class="surface-card stat-card">
+          <span>Concluídos</span>
+          <strong class="text-success">{{ completedScans }}</strong>
+        </article>
+
+        <article class="surface-card stat-card">
+          <span>Ambientes suspeitos</span>
+          <strong [class.text-warning]="suspiciousScans > 0">{{ suspiciousScans }}</strong>
+        </article>
+
+        <article class="surface-card stat-card">
+          <span>Plano atual</span>
+          <strong>Free</strong>
+        </article>
+      </section>
+
+      <div *ngIf="isLoadingScans" class="loading-hint">Carregando seus scans...</div>
+
+      <div *ngIf="scansError" class="auth-error" role="alert">{{ scansError }}</div>
+
+      <ng-container *ngIf="!isLoadingScans && !scansError">
+        <!-- Estado vazio: usuário recém-cadastrado, ainda sem scans -->
+        <section *ngIf="totalScans === 0" class="surface-card empty-state">
+          <h2>Você ainda não rodou nenhum scan</h2>
+          <p>Registre a primeira URL que você tem autorização para testar e acompanhe o resultado aqui.</p>
+          <button class="button button-primary" type="button" (click)="openNewScan()">
+            + Rodar meu primeiro scan
+          </button>
+        </section>
+
+        <!-- Bloco específico do perfil: só UM desses renderiza -->
+        <section *ngIf="totalScans > 0 && widget === 'reports'" class="surface-card dashboard-panel">
+          <h2>Relatórios recentes</h2>
+
+          <ul class="scan-list">
+            <li *ngFor="let scan of recentScans">
+              <div class="scan-list-main">
+                <span class="scan-url">{{ scan.targetUrl }}</span>
+                <span class="environment-tag" [attr.data-env]="scan.environment">
+                  {{ environmentLabel[scan.environment] }}
+                </span>
+              </div>
+              <div class="scan-list-meta">
+                <span class="status-badge" [attr.data-status]="scan.status">
+                  {{ statusLabel[scan.status] }}
+                </span>
+                <button class="text-link" type="button" disabled title="Exportação de relatórios ainda não implementada">
+                  Exportar
+                </button>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section *ngIf="totalScans > 0 && widget === 'alerts'" class="surface-card dashboard-panel">
+          <h2>Alertas automatizados</h2>
+
+          <p *ngIf="flaggedScans.length === 0" class="field-hint">Nenhum alerta no momento — seus scans estão limpos.</p>
+
+          <ul *ngIf="flaggedScans.length > 0" class="alert-list">
+            <li *ngFor="let scan of flaggedScans">
+              <span class="alert-dot" [class.alert-dot-danger]="scan.status === 'FAILED'"></span>
+              <div>
+                <p *ngIf="scan.status === 'FAILED'">Falha ao escanear <code>{{ scan.targetUrl }}</code></p>
+                <p *ngIf="scan.suspiciousEnvironment && scan.status !== 'FAILED'">
+                  <code>{{ scan.targetUrl }}</code> foi sinalizada como possível ambiente de produção
+                </p>
+                <small>{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section *ngIf="totalScans > 0 && widget === 'logs'" class="surface-card dashboard-panel">
+          <h2>Logs técnicos</h2>
+
+          <div class="logs-panel">
+            <div class="log-line" *ngFor="let scan of scans">
+              [{{ scan.createdAt | date: 'HH:mm:ss' }}] {{ scan.targetUrl }} — env={{ scan.environment }}
+              safeMode={{ scan.safeMode }} status={{ scan.status }}
+              ips={{ scan.resolvedIps.join(',') || 'n/a' }}
+            </div>
+          </div>
+        </section>
+
+        <section *ngIf="totalScans > 0 && widget === 'learning'" class="surface-card dashboard-panel">
+          <h2>Trilha de aprendizado</h2>
+
+          <div class="learning-grid">
+            <article class="learning-card">
+              <strong>Modo Seguro vs. Verboso</strong>
+              <p>Em produção o Checkop filtra os detalhes técnicos; em dev/staging você vê tudo (stack trace, payload).</p>
+            </article>
+
+            <article class="learning-card">
+              <strong>Ambiente suspeito</strong>
+              <p>Quando uma URL "de teste" resolve pra um IP público conhecido, marcamos como suspeita — pode ser produção de verdade.</p>
+            </article>
+          </div>
+
+          <p class="field-hint">Seus últimos scans:</p>
+
+          <ul class="scan-list">
+            <li *ngFor="let scan of recentScans">
+              <div class="scan-list-main">
+                <span class="scan-url">{{ scan.targetUrl }}</span>
+                <span class="environment-tag" [attr.data-env]="scan.environment">
+                  {{ environmentLabel[scan.environment] }}
+                </span>
+              </div>
+              <div class="scan-list-meta">
+                <span class="status-badge" [attr.data-status]="scan.status">
+                  {{ statusLabel[scan.status] }}
+                </span>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </ng-container>
+    </main>
+  </div>
+
+  <div *ngIf="isNewScanOpen" class="modal-backdrop" (click)="closeNewScan()">
+    <section class="surface-card auth-modal" (click)="$event.stopPropagation()">
+      <form class="auth-form" (ngSubmit)="submitNewScan()">
+        <div class="modal-heading">
+          <div>
+            <h2>Novo scan</h2>
+            <p>informe a URL alvo</p>
+          </div>
+
+          <button type="button" class="modal-close" (click)="closeNewScan()">×</button>
+        </div>
+
+        <div *ngIf="newScanError" class="auth-error" role="alert">{{ newScanError }}</div>
+
+        <label>
+          URL da aplicação
+          <input
+            type="url"
+            name="targetUrl"
+            [(ngModel)]="newScanUrl"
+            placeholder="https://sua-aplicacao.com"
+            required
+          />
+        </label>
+
+        <label class="checkbox-row" for="new-scan-authorized">
+          <input
+            id="new-scan-authorized"
+            name="authorized"
+            type="checkbox"
+            [(ngModel)]="newScanAuthorized"
+          />
+          Confirmo que possuo autorização para testar esta URL.
+        </label>
+
+        <button class="button button-primary button-full" type="submit" [disabled]="isCreatingScan">
+          <span *ngIf="isCreatingScan" class="spinner" aria-hidden="true"></span>
+          {{ isCreatingScan ? 'Registrando...' : 'Iniciar scan' }}
+        </button>
+      </form>
+    </section>
+  </div>
+</div>
