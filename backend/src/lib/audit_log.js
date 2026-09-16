@@ -1,8 +1,8 @@
 import prisma from './prisma.js';
 
 /**
- * Registra uma tentativa de login (sucesso ou falha) para fins de auditoria
- * de segurança (RNF-23). Nunca lança erro para fora - uma falha ao gravar o
+ * Registra uma tentativa de login (sucesso ou falha) para fins de auditoria;
+ * de segurança (RNF-23). Caso ocorra erro, nunca o retorna diretamente;
  * log não pode derrubar o fluxo de autenticação em si.
  */
 export const logLoginAttempt = async ({ email, success, ip, userAgent, userId = null }) => {
