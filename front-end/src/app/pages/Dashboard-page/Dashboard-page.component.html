@@ -1,7 +1,4 @@
 <div class="checkop">
-  <div class="grid-background"></div>
-  <div class="scanline-overlay"></div>
-
   <div class="dashboard" *ngIf="user as currentUser">
     <header class="topbar">
       <a class="brand" routerLink="/landing" aria-label="Checkop">
@@ -72,6 +69,9 @@
                 <span class="environment-tag" [attr.data-env]="scan.environment">
                   {{ environmentLabel[scan.environment] }}
                 </span>
+                <span class="mode-tag" [class.mode-tag-safe]="scan.safeMode">
+                  {{ scan.safeMode ? 'Modo Seguro' : 'Modo Verboso' }}
+                </span>
               </div>
               <div class="scan-list-meta">
                 <span class="status-badge" [attr.data-status]="scan.status">
@@ -139,6 +139,9 @@
                 <span class="scan-url">{{ scan.targetUrl }}</span>
                 <span class="environment-tag" [attr.data-env]="scan.environment">
                   {{ environmentLabel[scan.environment] }}
+                </span>
+                <span class="mode-tag" [class.mode-tag-safe]="scan.safeMode">
+                  {{ scan.safeMode ? 'Modo Seguro' : 'Modo Verboso' }}
                 </span>
               </div>
               <div class="scan-list-meta">

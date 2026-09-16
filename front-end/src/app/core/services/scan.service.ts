@@ -8,9 +8,8 @@ import { API_BASE_URL } from '../constants/api.constants';
 export type ScanEnvironment = 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
 export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
-// Espelha o "select" de GET /api/scans (backend/src/controllers/scan_controllers.js
-// -> listScans), incluindo a des-serialização de resolvedIps (string -> string[]
-// feita no próprio controller).
+// Espelha o "select" de GET /api/scans (backend/src/controllers/scan_controllers.js),
+//  incluindo a des-serialização de resolvedIps (feita no próprio controller).
 export interface Scan {
   id: string;
   targetUrl: string;
@@ -38,9 +37,8 @@ export class ScanService {
   private readonly http = inject(HttpClient);
 
   /**
-   * GET /api/scans — protegido por authMiddleware (cookie httpOnly), por
-   * isso withCredentials aqui também. Lista só os scans do usuário logado
-   * (o backend já filtra por req.userId).
+   * GET /api/scans, protegido por authMiddleware (cookie httpOnly), por
+   * isso withCredentials aqui também. Lista só os scans do usuário logado.
    */
   listScans(): Observable<Scan[]> {
     return this.http
@@ -52,8 +50,7 @@ export class ScanService {
   }
 
   /**
-   * POST /api/scans — espelha createScanSchema
-   * (backend/src/validators/scan_validator.js): exige targetUrl válida e
+   * POST /api/scans — espelha createScanSchema: exige targetUrl válida e
    * authorizationConfirmed === true (checkbox de "tenho autorização para
    * testar este alvo", obrigatório por lei/ética, não é só forma).
    */

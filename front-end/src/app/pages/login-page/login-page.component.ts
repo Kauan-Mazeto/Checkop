@@ -40,7 +40,7 @@ export class LoginPageComponent {
 
     // trim/lowercase espelha o pré-processamento do zod no backend
     // (z.string().trim().toLowerCase().email(...) em auth_validator.js),
-    // então erros de digitação óbvios já chegam normalizados na API.
+    // então erros de digitação óbvios já chegam normalizados na API
     const normalizedEmail = this.email.trim().toLowerCase();
 
     this.auth.login(normalizedEmail, this.password).subscribe({
