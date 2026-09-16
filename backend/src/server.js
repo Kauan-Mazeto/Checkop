@@ -72,7 +72,6 @@ const server = app.listen(PORT, () => {
 
 // p/ deploy, desligar automaticamente
 process.on('SIGTERM', () => {
-  console.log('SIGTERM recebido, encerrando servidor...');
   server.close(() => {
     console.log('Servidor encerrado.');
     process.exit(0);
