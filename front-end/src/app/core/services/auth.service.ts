@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, tap, throwError } from 'rxjs';
+import { Observable, catchError, map, tap, throwError } from 'rxjs';
 import { API_BASE_URL } from '../constants/api.constants';
 
 // Espelha o campo "role" do enum Role no backend (backend/src/constants/enums.js).
@@ -13,19 +13,16 @@ export interface AuthUser {
   role: UserRole;
 }
 
-// Espelha o corpo de resposta de POST /api/auth/login
-// (backend/src/controllers/auth_controllers.js -> login).
-interface LoginResponse {
+// Espelha o corpo de resposta de POST /api/auth/login e /api/auth/register
+// (backend/src/controllers/auth_controllers.js). IMPORTANTE: o backend não
+// devolve mais um token no corpo da resposta — ele seta um cookie httpOnly
+// (res.cookie('token', ...) em auth_controllers.js) e o auth_middleware.js lê
+// esse cookie (req.cookies?.token), não mais um header Authorization. Por
+// isso toda chamada aqui precisa ir com { withCredentials: true }: é o que
+// faz o navegador guardar/enviar esse cookie em requisições cross-origin
+// (front em :4200, backend em :3000/:8080).
+interface AuthResponse {
   message: string;
-  token: string;
-  user: AuthUser;
-}
-
-// Espelha o corpo de resposta de POST /api/auth/register
-// (backend/src/controllers/auth_controllers.js -> register).
-interface RegisterResponse {
-  message: string;
-  token: string;
   user: AuthUser;
 }
 
@@ -34,6 +31,18 @@ export interface RegisterPayload {
   email: string;
   password: string;
   role: Exclude<UserRole, 'ADM'>;
+  // Obrigatório no backend: registerSchema exige termsAccepted === true
+  // (backend/src/validators/auth_validator.js), e o cadastro cria um
+  // registro de TermsAcceptance vinculado ao usuário.
+  termsAccepted: true;
+}
+
+// Espelha o corpo de resposta de GET /api/auth/me (backend/src/routes/auth_routes.js).
+interface MeResponse {
+  message: string;
+  userId: string;
+  role: UserRole;
+  email: string;
 }
 
 // Espelha os formatos de erro do backend:
@@ -44,7 +53,6 @@ interface ApiErrorBody {
   formattedErrors?: { field: string; message: string }[];
 }
 
-const TOKEN_STORAGE_KEY = 'checkop_token';
 const USER_STORAGE_KEY = 'checkop_user';
 
 @Injectable({ providedIn: 'root' })
@@ -53,40 +61,68 @@ export class AuthService {
 
   /**
    * Autentica via e-mail/senha contra POST /api/auth/login.
-   * Em caso de sucesso, persiste token e usuário localmente.
-   * Em caso de erro, propaga uma mensagem já pronta para exibição
-   * (extraída do corpo de erro padronizado do backend).
+   * O backend seta o cookie de sessão na própria resposta (Set-Cookie);
+   * withCredentials garante que o navegador o aceite e passe a mandá-lo
+   * nas próximas chamadas. Em caso de sucesso, cacheia o usuário localmente
+   * só pra uso imediato de UI (nome/e-mail/role) — quem decide se a sessão
+   * é válida de verdade é sempre o backend, via cookie.
    */
-  login(email: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${API_BASE_URL}/auth/login`, { email, password }).pipe(
-      tap((response) => this.persistSession(response)),
-      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
-    );
+  login(email: string, password: string): Observable<AuthUser> {
+    return this.http
+      .post<AuthResponse>(
+        `${API_BASE_URL}/auth/login`,
+        { email, password },
+        { withCredentials: true }
+      )
+      .pipe(
+        tap((response) => this.cacheUser(response.user)),
+        map((response) => response.user),
+        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+      );
   }
 
   /**
-   * Cadastra uma nova conta contra POST /api/auth/register.
-   * O backend já devolve token + usuário no cadastro (auto-login), então o
-   * comportamento espelha login(): persiste a sessão e propaga uma mensagem
-   * de erro pronta pra exibição (409 e-mail já cadastrado, 400 validação, etc).
+   * Cadastra uma nova conta contra POST /api/auth/register. Mesmo modelo do
+   * login: cookie httpOnly setado pelo backend, sem token no corpo.
    */
-  register(payload: RegisterPayload): Observable<RegisterResponse> {
-    return this.http.post<RegisterResponse>(`${API_BASE_URL}/auth/register`, payload).pipe(
-      tap((response) => this.persistSession(response)),
-      catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
-    );
+  register(payload: RegisterPayload): Observable<AuthUser> {
+    return this.http
+      .post<AuthResponse>(`${API_BASE_URL}/auth/register`, payload, { withCredentials: true })
+      .pipe(
+        tap((response) => this.cacheUser(response.user)),
+        map((response) => response.user),
+        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+      );
   }
 
-  logout(): void {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
+  /**
+   * Consulta GET /api/auth/me para confirmar (com o backend, não com o
+   * cache local) se o cookie de sessão ainda é válido. Útil ao recarregar a
+   * página, já que localStorage sozinho não prova nada sobre a sessão.
+   */
+  me(): Observable<MeResponse> {
+    return this.http
+      .get<MeResponse>(`${API_BASE_URL}/auth/me`, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))));
   }
 
-  getToken(): string | null {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  logout(): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${API_BASE_URL}/auth/logout`, {}, { withCredentials: true })
+      .pipe(
+        tap(() => this.clearCachedUser()),
+        catchError((error: HttpErrorResponse) => {
+          // mesmo se a chamada falhar (ex: cookie já expirado), limpa o
+          // cache local — não faz sentido manter um usuário "logado" na UI
+          // se o servidor não reconhece mais a sessão.
+          this.clearCachedUser();
+          return throwError(() => this.toErrorMessage(error));
+        })
+      );
   }
 
-  getUser(): AuthUser | null {
+  /** Usuário em cache (best-effort, só pra UI). Fonte de verdade é me(). */
+  getCachedUser(): AuthUser | null {
     const raw = localStorage.getItem(USER_STORAGE_KEY);
 
     if (!raw) {
@@ -100,13 +136,12 @@ export class AuthService {
     }
   }
 
-  isAuthenticated(): boolean {
-    return !!this.getToken();
+  private cacheUser(user: AuthUser): void {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
   }
 
-  private persistSession(response: LoginResponse): void {
-    localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.user));
+  private clearCachedUser(): void {
+    localStorage.removeItem(USER_STORAGE_KEY);
   }
 
   private toErrorMessage(error: HttpErrorResponse): string {
