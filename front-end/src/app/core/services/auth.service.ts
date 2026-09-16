@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../constants/api.constants';
 export type UserRole = 'DEV' | 'QA' | 'PENTESTER' | 'STUDENT' | 'ADM';
 
 export interface AuthUser {
+  user: any;
   id: string;
   name: string;
   email: string;
@@ -37,7 +38,7 @@ export interface RegisterPayload {
   termsAccepted: true;
 }
 
-// Espelha o corpo de resposta de GET /api/auth/me (backend/src/routes/auth_routes.js).
+// Espelha o corpo de resposta de GET /api/auth/me
 interface MeResponse {
   message: string;
   userId: string;
@@ -46,8 +47,6 @@ interface MeResponse {
 }
 
 // Espelha os formatos de erro do backend:
-// - erro de validação (Zod, via middlewares/auth_validate.js): { error, formattedErrors? }
-// - erro de negócio/infra (controllers, error handler global): { error }
 interface ApiErrorBody {
   error?: string;
   formattedErrors?: { field: string; message: string }[];
@@ -61,10 +60,10 @@ export class AuthService {
 
   /**
    * Autentica via e-mail/senha contra POST /api/auth/login.
-   * O backend seta o cookie de sessão na própria resposta (Set-Cookie);
-   * withCredentials garante que o navegador o aceite e passe a mandá-lo
+   * O backend seta o cookie de sessão na própria resposta;
+   * withCredentials garante que o navegador aceite ele e passe a mandá-lo
    * nas próximas chamadas. Em caso de sucesso, cacheia o usuário localmente
-   * só pra uso imediato de UI (nome/e-mail/role) — quem decide se a sessão
+   * só pra uso imediato de UI (nome/e-mail/role), quem decide se a sessão
    * é válida de verdade é sempre o backend, via cookie.
    */
   login(email: string, password: string): Observable<AuthUser> {
@@ -113,7 +112,7 @@ export class AuthService {
         tap(() => this.clearCachedUser()),
         catchError((error: HttpErrorResponse) => {
           // mesmo se a chamada falhar (ex: cookie já expirado), limpa o
-          // cache local — não faz sentido manter um usuário "logado" na UI
+          // cache local, não faz sentido manter um usuário "logado" na UI
           // se o servidor não reconhece mais a sessão.
           this.clearCachedUser();
           return throwError(() => this.toErrorMessage(error));
@@ -121,7 +120,7 @@ export class AuthService {
       );
   }
 
-  /** Usuário em cache (best-effort, só pra UI). Fonte de verdade é me(). */
+  // Usuário em cache (só pra UI). Fonte de verdade é me().
   getCachedUser(): AuthUser | null {
     const raw = localStorage.getItem(USER_STORAGE_KEY);
 
