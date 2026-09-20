@@ -463,6 +463,25 @@ a {
   font-size: 12px;
 }
 
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  color: var(--text) !important;
+  font-size: 12px !important;
+
+  input[type='checkbox'] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--primary);
+  }
+
+  a {
+    color: var(--primary);
+  }
+}
+
 .label-row {
   display: flex;
   align-items: center;
