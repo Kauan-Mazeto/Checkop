@@ -211,10 +211,9 @@ const forgotPassword = async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    const dentroDoCooldown =
-      user?.resetPasswordRequestedAt &&
-      Date.now() - user.resetPasswordRequestedAt.getTime() 
-        RESET_REQUEST_COOLDOWN_HOURS * 60 * 60 * 1000;
+    const dentroDoCooldown = user?.resetPasswordRequestedAt &&
+      Date.now() - user.resetPasswordRequestedAt.getTime()
+      RESET_REQUEST_COOLDOWN_HOURS * 60 * 60 * 1000;
 
     if (user && user.password && !dentroDoCooldown) {
       const code = generateResetCode();

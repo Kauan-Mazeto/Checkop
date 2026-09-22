@@ -1,2 +1,5 @@
 npm install private-ip tldts
 rodar em casa
+
+
+go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest

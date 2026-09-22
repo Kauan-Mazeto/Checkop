@@ -14,5 +14,6 @@ router.post('/', scanCreationLimiter, validate(createScanSchema), scanController
 router.get('/', scanController.listScans);
 router.get('/suspicious', scanController.listSuspiciousScans);
 router.get('/:id', requireOwnership('scan'), scanController.getScanById);
+router.post('/:id/run', scanCreationLimiter, requireOwnership('scan'), scanController.runScan);
 
 export default router;
