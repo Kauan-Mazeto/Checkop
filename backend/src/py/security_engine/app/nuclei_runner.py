@@ -31,7 +31,7 @@ class NucleiExecutionError(Exception):
     pass
 
 
-def _build_command(target_url: str, safe_mode: bool, rate_limit: int) -> list[str]:
+def _build_command(target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None) -> list[str]:
     if not NUCLEI_BINARY:
         raise NucleiNotInstalledError(
             "Binário 'nuclei' não encontrado no PATH deste servidor. "
@@ -41,16 +41,18 @@ def _build_command(target_url: str, safe_mode: bool, rate_limit: int) -> list[st
     command = [
         NUCLEI_BINARY,
         "-target", target_url,
-        "-jsonl",             
+        "-jsonl",
         "-silent",
-        "-nc",                 
+        "-nc",
         "-rate-limit", str(rate_limit),  # RF-51 / RNF-15
         "-timeout", "10",
-        "-include-rr",         #(RF-49)
+        "-include-rr",  # RF-49
     ]
 
+    if tags:
+        command += ["-tags", ",".join(tags)]
+
     if safe_mode:
-        # RF-52
         command += ["-etags", ",".join(INTRUSIVE_TAGS)]
 
     return command

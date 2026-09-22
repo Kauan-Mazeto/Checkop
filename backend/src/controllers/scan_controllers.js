@@ -1,14 +1,27 @@
 import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
-import { runNucleiScan, SecurityEngineError } from '../lib/py/security_engine_client.js';
+import { runNucleiScan, runZapScan, runSubdomainEnum, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
+import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
 
 const serializeIps = (ips) => ips.join(',');
 const deserializeIps = (value) => (value ? value.split(',') : []);
 
+// RF-46
+const dedupeFindings = (findings) => {
+  const seen = new Map();
+  for (const finding of findings) {
+    const url = finding.affectedUrl?.toLowerCase();
+    const fallback = finding.rawRequest ?? finding.description ?? finding.id ?? Math.random();
+    const key = `${finding.title?.toLowerCase()}::${url ?? fallback}`;
+    if (!seen.has(key)) seen.set(key, finding);
+  }
+  return [...seen.values()];
+};
+
 const createScan = async (req, res) => {
   try {
-    const { targetUrl } = req.body;
+    const { targetUrl, objective } = req.body;
 
     let detection;
     try {
@@ -26,6 +39,7 @@ const createScan = async (req, res) => {
     const scan = await prisma.scan.create({
       data: {
         targetUrl,
+        objective,
         environment,
         safeMode,
         resolvedIps: serializeIps(resolvedIps),
@@ -41,6 +55,7 @@ const createScan = async (req, res) => {
       scan: {
         id: scan.id,
         targetUrl: scan.targetUrl,
+        objective: scan.objective,
         environment: scan.environment,
         safeMode: scan.safeMode,
         status: scan.status,
@@ -154,15 +169,60 @@ const runScan = async (req, res) => {
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
-    const result = await runNucleiScan({
-      targetUrl: scan.targetUrl,
-      safeMode: scan.safeMode,
-      rateLimit: 10,
+    const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
+    const jobs = [];
+
+    if (config.engines.includes('NUCLEI') && config.nuclei) {
+      jobs.push(
+        runNucleiScan({
+          targetUrl: scan.targetUrl,
+          safeMode: scan.safeMode,
+          rateLimit: 10,
+          tags: config.nuclei.tags,
+        }).then((r) => ({ tool: 'NUCLEI', ...r }))
+      );
+    }
+
+    if (config.engines.includes('ZAP') && config.zap) {
+      jobs.push(
+        runZapScan({
+          targetUrl: scan.targetUrl,
+          safeMode: scan.safeMode,
+          scannerIds: config.zap.scannerIds,
+        }).then((r) => ({ tool: 'ZAP', ...r }))
+      );
+    }
+
+    if (config.engines.includes('SUBFINDER')) {
+      const { hostname } = new URL(scan.targetUrl);
+      jobs.push(
+        runSubdomainEnum({ domain: hostname }).then((r) => ({ tool: 'SUBFINDER', ...r }))
+      );
+    }
+
+    const outcomes = await Promise.allSettled(jobs);
+
+    const rawFindings = [];
+    const toolErrors = [];
+
+    outcomes.forEach((outcome) => {
+      if (outcome.status === 'fulfilled') {
+        rawFindings.push(...outcome.value.findings);
+      } else {
+        toolErrors.push(outcome.reason?.message ?? 'Erro desconhecido em uma das ferramentas.');
+        console.error('Falha em uma das ferramentas de varredura:', outcome.reason);
+      }
     });
+
+    if (outcomes.length > 0 && outcomes.every((o) => o.status === 'rejected')) {
+      throw outcomes[0].reason;
+    }
+
+    const allFindings = dedupeFindings(rawFindings);
 
     await prisma.$transaction([
       prisma.finding.createMany({
-        data: result.findings.map((finding) => ({ ...finding, scanId: scan.id })),
+        data: allFindings.map((finding) => ({ ...finding, scanId: scan.id })),
       }),
       prisma.scan.update({
         where: { id: scan.id },
@@ -174,7 +234,8 @@ const runScan = async (req, res) => {
 
     return res.status(200).json({
       message: 'Varredura concluída.',
-      scan: { id: scan.id, status: 'COMPLETED' },
+      scan: { id: scan.id, status: 'COMPLETED', objective: scan.objective },
+      toolErrors,
       findings: serializeFindings(findings, { safeMode: scan.safeMode }),
     });
   } catch (error) {
