@@ -1,7 +1,7 @@
 import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
-import { runNucleiScan, SecurityEngineError } from '../lib/security_engine_client.js';
-import { serializeFindings } from '../lib/finding_serializer.js';
+import { runNucleiScan, SecurityEngineError } from '../lib/py/security_engine_client.js';
+import { serializeFindings } from '../lib/py/finding_serializer.js';
 
 const serializeIps = (ips) => ips.join(',');
 const deserializeIps = (value) => (value ? value.split(',') : []);

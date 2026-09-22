@@ -46,7 +46,7 @@ def _build_command(target_url: str, safe_mode: bool, rate_limit: int) -> list[st
         "-nc",                 
         "-rate-limit", str(rate_limit),  # RF-51 / RNF-15
         "-timeout", "10",
-        "-include-rr",         (RF-49)
+        "-include-rr",         #(RF-49)
     ]
 
     if safe_mode:
