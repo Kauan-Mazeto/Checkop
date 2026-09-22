@@ -17,10 +17,12 @@ export const createScanSchema = z.object({
       }
     }, 'A URL deve usar o protocolo http ou https.')
     .refine((url) => {
-      // rejeita urls com algo embutido ( pode ser malicioso )
       const parsed = new URL(url);
       return !parsed.username && !parsed.password;
     }, 'A URL não pode conter credenciais embutidas.'),
+  objective: z.enum(Object.keys(SCAN_OBJECTIVES), {
+    errorMap: () => ({ message: `objective deve ser um dos valores: ${Object.keys(SCAN_OBJECTIVES).join(', ')}` }),
+  }).default('FULL_SCAN'),
   authorizationConfirmed: z.literal(true, {
     errorMap: () => ({
       message: 'É necessário confirmar que você possui autorização para testar este alvo.',

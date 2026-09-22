@@ -27,3 +27,23 @@ class NucleiScanResponse(BaseModel):
     findings: list[Finding]
     templatesUsed: int
     durationSeconds: float
+
+class NucleiScanRequest(BaseModel):
+    targetUrl: str
+    safeMode: bool = True
+    rateLimit: int = Field(default=10, ge=1, le=100)
+    tags: list[str] | None = None
+
+
+class ZapScanRequest(BaseModel):
+    targetUrl: str
+    safeMode: bool = True
+    scannerIds: list[str] | None = None
+
+class SubdomainEnumRequest(BaseModel):
+    domain: str
+
+class SubdomainEnumResponse(BaseModel):
+    findings: list[Finding]
+    subdomainsFound: int
+    durationSeconds: float

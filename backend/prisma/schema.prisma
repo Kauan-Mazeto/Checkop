@@ -21,6 +21,23 @@ enum Role {
   STUDENT
 }
 
+enum ToolType {
+  ZAP
+  NUCLEI
+  SUBFINDER
+}
+
+enum ScanObjective {
+  SQL_INJECTION
+  XSS
+  CSRF
+  SSRF
+  OPEN_REDIRECT
+  KNOWN_CVE
+  SUBDOMAIN_ENUM
+  FULL_SCAN
+}
+
 enum TargetEnvironment {
   DEVELOPMENT
   STAGING
@@ -47,11 +64,6 @@ enum FindingStatus {
   FALSE_POSITIVE
   FIXED
   IGNORED
-}
-
-enum ToolType {
-  ZAP
-  NUCLEI
 }
 
 model User {
@@ -93,6 +105,7 @@ model LoginAttempt {
 model Scan {
   id                       String            @id @default(uuid())
   targetUrl                String
+  objective                ScanObjective     @default(FULL_SCAN)
   environment              TargetEnvironment @default(DEVELOPMENT)
   safeMode                 Boolean           @default(true)
   status                   ScanStatus        @default(PENDING)
