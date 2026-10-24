@@ -1,18 +1,12 @@
 from pydantic import BaseModel, Field
 
 
-class NucleiScanRequest(BaseModel):
-    targetUrl: str
-    safeMode: bool = True
-    # limite de requisições/seg contra o alvo (RF-51 / RNF-15 aplicado ao motor)
-    rateLimit: int = Field(default=10, ge=1, le=100)
-
-
 class Finding(BaseModel):
     title: str
     description: str | None = None
-    # severity baseado no prisma - Luidi #21/09/26
+    # severity segue o enum FindingSeverity do Prisma: INFO, LOW, MEDIUM, HIGH, CRITICAL
     severity: str
+    # tool segue o enum ToolType do Prisma: ZAP, NUCLEI, SUBFINDER
     tool: str = "NUCLEI"
     affectedUrl: str | None = None
     cveId: str | None = None
@@ -23,25 +17,38 @@ class Finding(BaseModel):
     owaspUrl: str | None = None
 
 
-class NucleiScanResponse(BaseModel):
-    findings: list[Finding]
-    templatesUsed: int
-    durationSeconds: float
-
+# ---------- Nuclei (RF-10) ----------
 class NucleiScanRequest(BaseModel):
     targetUrl: str
     safeMode: bool = True
+    # limite de requisições/seg contra o alvo (RF-51)
     rateLimit: int = Field(default=10, ge=1, le=100)
     tags: list[str] | None = None
 
 
+class NucleiScanResponse(BaseModel):
+    findings: list[Finding]
+    findingsCount: int
+    durationSeconds: float
+
+
+# ---------- ZAP (RF-09) ----------
 class ZapScanRequest(BaseModel):
     targetUrl: str
     safeMode: bool = True
     scannerIds: list[str] | None = None
 
+
+class ZapScanResponse(BaseModel):
+    findings: list[Finding]
+    alertsFound: int
+    durationSeconds: float
+
+
+# ---------- Subfinder ----------
 class SubdomainEnumRequest(BaseModel):
     domain: str
+
 
 class SubdomainEnumResponse(BaseModel):
     findings: list[Finding]

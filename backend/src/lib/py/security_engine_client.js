@@ -1,6 +1,6 @@
 // (RNF 1)
 const SECURITY_ENGINE_URL = process.env.SECURITY_ENGINE_URL || 'http://localhost:8010';
-const REQUEST_TIMEOUT_MS = 5 * 60 * 1000; // Timeout
+const REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // varredura roda em segundo plano, então pode demorar
 
 export class SecurityEngineError extends Error {
     constructor(message, status) {

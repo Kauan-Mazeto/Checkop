@@ -11,6 +11,7 @@ import { globalLimiter } from './middlewares/rate_limit_middleware.js';
 import sanitizeMiddleware from './middlewares/sanitize_middleware.js';
 import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
+import prisma from './lib/prisma.js';
 dotenv.config();
 
 const app = express();
@@ -66,8 +67,20 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });
 });
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Servidor Checkop rodando na porta ${PORT}`);
+
+  // varreduras rodam em segundo plano dentro deste processo: se o servidor caiu
+  // ou reiniciou no meio de uma, ela ficou presa em RUNNING. Aqui marcamos como
+  // FAILED para o usuário poder executar de novo.
+  try {
+    const { count } = await prisma.scan.updateMany({
+      where: { status: 'RUNNING' },
+      data: { status: 'FAILED', finishedAt: new Date() },
+    });
+  } catch (err) {
+    console.error('Falha ao limpar varreduras interrompidas:', err);
+  }
 });
 
 // p/ deploy, desligar automaticamente
