@@ -1,11 +1,14 @@
 import asyncio
 import os
 import time
-
+import asyncio
+import os
+import re
+import time
 import httpx
 
 from .mapping import map_to_owasp_category, fallback_cvss_for_severity
-from .schemas import Finding
+from .schemas import Finding, ZapAuthConfig
 
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "")
@@ -14,6 +17,7 @@ RISK_TO_SEVERITY = {"0": "INFO", "1": "LOW", "2": "MEDIUM", "3": "HIGH"}
 RISK_TO_CVSS_FALLBACK = {"0": 0.0, "1": 3.0, "2": 5.5, "3": 8.5}
 
 POLL_INTERVAL_SECONDS = 2
+CONTEXT_NAME = "checkop-scan-context"
 
 # Limite de tempo por fase. Se estourar, o ZAP é parado e seguimos com o que já
 # foi encontrado (resultado parcial) em vez de perder a varredura inteira.
@@ -22,6 +26,7 @@ POLL_INTERVAL_SECONDS = 2
 SPIDER_MAX_SECONDS = int(os.getenv("ZAP_SPIDER_MAX_SECONDS", "300"))
 PASSIVE_MAX_SECONDS = int(os.getenv("ZAP_PASSIVE_MAX_SECONDS", "120"))
 ACTIVE_MAX_SECONDS = int(os.getenv("ZAP_ACTIVE_MAX_SECONDS", "1200"))
+AJAX_SPIDER_MAX_SECONDS = int(os.getenv("ZAP_AJAX_SPIDER_MAX_SECONDS", "300"))
 
 
 class ZapNotAvailableError(Exception):
@@ -96,22 +101,108 @@ async def _set_active_scanners(client: httpx.AsyncClient, scanner_ids: list[str]
     await _get(client, "/JSON/ascan/action/disableAllScanners/", {})
     await _get(client, "/JSON/ascan/action/setEnabledScanners/", {"ids": ",".join(scanner_ids)})
 
+async def _setup_authentication(client: httpx.AsyncClient, target_url: str, auth: ZapAuthConfig) -> str:
+    ctx_data = await _get(client, "/JSON/context/action/newContext/", {"contextName": CONTEXT_NAME})
+    context_id = ctx_data.get("contextId")
+    if context_id is None:
+        raise ZapExecutionError(f"Não foi possível criar o contexto do ZAP: {ctx_data}")
+
+    include_regex = re.escape(target_url.rstrip("/")) + ".*"
+    await _get(client, "/JSON/context/action/includeInContext/", {
+        "contextName": CONTEXT_NAME,
+        "regex": include_regex,
+    })
+
+    login_request_data = f"{auth.usernameField}={{%username%}}&{auth.passwordField}={{%password%}}"
+    auth_config = (
+        f"loginUrl={auth.loginUrl}&loginRequestData={login_request_data}"
+    )
+    await _get(client, "/JSON/authentication/action/setAuthenticationMethod/", {
+        "contextId": context_id,
+        "authMethodName": "formBasedAuthentication",
+        "authMethodConfigParams": auth_config,
+    })
+
+    if auth.loggedInIndicator:
+        await _get(client, "/JSON/authentication/action/setLoggedInIndicator/", {
+            "contextId": context_id,
+            "loggedInIndicatorRegex": auth.loggedInIndicator,
+        })
+    if auth.loggedOutIndicator:
+        await _get(client, "/JSON/authentication/action/setLoggedOutIndicator/", {
+            "contextId": context_id,
+            "loggedOutIndicatorRegex": auth.loggedOutIndicator,
+        })
+
+    user_data = await _get(client, "/JSON/users/action/newUser/", {
+        "contextId": context_id,
+        "name": "checkop-scan-user",
+    })
+    user_id = user_data.get("userId")
+    if user_id is None:
+        raise ZapExecutionError(f"Não foi possível criar o usuário de teste no ZAP: {user_data}")
+
+    await _get(client, "/JSON/users/action/setAuthenticationCredentials/", {
+        "contextId": context_id,
+        "userId": user_id,
+        "authCredentialsConfigParams": f"username={auth.username}&password={auth.password}",
+    })
+    await _get(client, "/JSON/users/action/setUserEnabled/", {
+        "contextId": context_id,
+        "userId": user_id,
+        "enabled": "true",
+    })
+
+    await _get(client, "/JSON/forcedUser/action/setForcedUser/", {
+        "contextId": context_id,
+        "userId": user_id,
+    })
+    await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "true"})
+
+    return context_id
+
+
+async def _run_ajax_spider(client: httpx.AsyncClient, target_url: str, max_seconds: float) -> None:
+    started = await _get(client, "/JSON/ajaxSpider/action/scan/", {"url": target_url, "inScope": "true"})
+    if started.get("Result") not in ("OK", None):
+        raise ZapExecutionError(f"O ZAP não iniciou o Spider AJAX: {started}")
+
+    elapsed = 0.0
+    while elapsed < max_seconds:
+        status = await _get(client, "/JSON/ajaxSpider/view/status/", {})
+        if status.get("status") == "stopped":
+            return
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        elapsed += POLL_INTERVAL_SECONDS
+
+    await _get(client, "/JSON/ajaxSpider/action/stop/", {})
 
 async def run_zap_scan(
-    target_url: str, safe_mode: bool, scanner_ids: list[str] | None = None
+    target_url: str,
+    safe_mode: bool,
+    scanner_ids: list[str] | None = None,
+    auth: ZapAuthConfig | None = None,
+    use_ajax_spider: bool = False,
 ) -> tuple[list[Finding], float]:
     started_at = time.monotonic()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
 
-        # 1) spider: mapeia a superfície de ataque (RF-33)
-        spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
-        spider_id = spider_data.get("scan")
-        if spider_id is None:
-            raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
-        if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
-            await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
+        if auth is not None:
+            await _setup_authentication(client, target_url, auth)
+
+        # 1) spider: mapeia a superfície de ataque (RF-33).
+        # AJAX spider para SPAs (Angular/React); spider tradicional, senão.
+        if use_ajax_spider:
+            await _run_ajax_spider(client, target_url, AJAX_SPIDER_MAX_SECONDS)
+        else:
+            spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
+            spider_id = spider_data.get("scan")
+            if spider_id is None:
+                raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
+            if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
+                await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
 
         # 2) varredura passiva: espera a fila de análise esvaziar
         elapsed = 0.0
@@ -133,6 +224,10 @@ async def run_zap_scan(
                 await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
 
         alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
+
+        if auth is not None:
+            # desliga o modo forçado para não vazar pra scans futuros na mesma instância do ZAP
+    await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "false"})
 
     duration = time.monotonic() - started_at
     findings = [_parse_alert(a) for a in alerts_data.get("alerts", [])]

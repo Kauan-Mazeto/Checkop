@@ -58,6 +58,8 @@ async def scan_with_zap(payload: ZapScanRequest):
             target_url=payload.targetUrl,
             safe_mode=payload.safeMode,
             scanner_ids=payload.scannerIds,
+            auth=payload.auth,
+            use_ajax_spider=payload.useAjaxSpider,
         )
     except ZapNotAvailableError as err:
         raise HTTPException(status_code=503, detail=str(err))
