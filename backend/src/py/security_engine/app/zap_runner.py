@@ -1,6 +1,6 @@
 import asyncio
-import time
 import os
+import time
 
 import httpx
 
@@ -14,7 +14,14 @@ RISK_TO_SEVERITY = {"0": "INFO", "1": "LOW", "2": "MEDIUM", "3": "HIGH"}
 RISK_TO_CVSS_FALLBACK = {"0": 0.0, "1": 3.0, "2": 5.5, "3": 8.5}
 
 POLL_INTERVAL_SECONDS = 2
-MAX_POLL_SECONDS = 600
+
+# Limite de tempo por fase. Se estourar, o ZAP é parado e seguimos com o que já
+# foi encontrado (resultado parcial) em vez de perder a varredura inteira.
+# Dá para ajustar por variável de ambiente. Soma dos padrões = 27 min, abaixo do
+# timeout de 30 min do cliente Node (security_engine_client.js).
+SPIDER_MAX_SECONDS = int(os.getenv("ZAP_SPIDER_MAX_SECONDS", "300"))
+PASSIVE_MAX_SECONDS = int(os.getenv("ZAP_PASSIVE_MAX_SECONDS", "120"))
+ACTIVE_MAX_SECONDS = int(os.getenv("ZAP_ACTIVE_MAX_SECONDS", "1200"))
 
 
 class ZapNotAvailableError(Exception):
@@ -32,21 +39,32 @@ def _params(extra: dict) -> dict:
 async def _get(client: httpx.AsyncClient, path: str, params: dict) -> dict:
     try:
         resp = await client.get(f"{ZAP_API_URL}{path}", params=_params(params))
-        resp.raise_for_status()
-        return resp.json()
     except httpx.HTTPError as err:
+        # não conseguiu falar com o ZAP (fora do ar, porta errada, timeout)
         raise ZapNotAvailableError(f"Motor OWASP ZAP indisponível: {err}") from err
 
+    if resp.status_code >= 400:
+        # o ZAP respondeu, mas recusou (ex.: api key errada, URL inválida)
+        raise ZapExecutionError(f"ZAP recusou a requisição ({resp.status_code}): {resp.text[:200]}")
 
-async def _wait_until(client: httpx.AsyncClient, status_path: str, params: dict) -> None:
-    elapsed = 0
-    while elapsed < MAX_POLL_SECONDS:
+    try:
+        return resp.json()
+    except ValueError as err:
+        raise ZapExecutionError("Resposta inesperada (não-JSON) do ZAP.") from err
+
+
+async def _wait_until(
+    client: httpx.AsyncClient, status_path: str, params: dict, max_seconds: float
+) -> bool:
+    """Espera o ZAP chegar a 100%. Retorna True se terminou, False se estourou o tempo."""
+    elapsed = 0.0
+    while elapsed < max_seconds:
         data = await _get(client, status_path, params)
         if int(data.get("status", 0)) >= 100:
-            return
+            return True
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
         elapsed += POLL_INTERVAL_SECONDS
-    raise ZapExecutionError("Tempo limite excedido aguardando o ZAP concluir a varredura.")
+    return False
 
 
 def _parse_alert(alert: dict) -> Finding:
@@ -71,9 +89,10 @@ def _parse_alert(alert: dict) -> Finding:
         owaspUrl=map_to_owasp_category(tags) if tags else None,
     )
 
+
 async def _set_active_scanners(client: httpx.AsyncClient, scanner_ids: list[str] | None) -> None:
     if not scanner_ids:
-        return  
+        return
     await _get(client, "/JSON/ascan/action/disableAllScanners/", {})
     await _get(client, "/JSON/ascan/action/setEnabledScanners/", {"ids": ",".join(scanner_ids)})
 
@@ -86,21 +105,32 @@ async def run_zap_scan(
     async with httpx.AsyncClient(timeout=30.0) as client:
         await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
 
+        # 1) spider: mapeia a superfície de ataque (RF-33)
         spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
-        await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_data.get("scan")})
+        spider_id = spider_data.get("scan")
+        if spider_id is None:
+            raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
+        if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
+            await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
 
-        elapsed = 0
-        while elapsed < MAX_POLL_SECONDS:
+        # 2) varredura passiva: espera a fila de análise esvaziar
+        elapsed = 0.0
+        while elapsed < PASSIVE_MAX_SECONDS:
             pscan_data = await _get(client, "/JSON/pscan/view/recordsToScan/", {})
             if int(pscan_data.get("recordsToScan", 0)) == 0:
                 break
             await asyncio.sleep(POLL_INTERVAL_SECONDS)
             elapsed += POLL_INTERVAL_SECONDS
 
+        # 3) varredura ativa: só fora de produção (RF-52)
         if not safe_mode:
             await _set_active_scanners(client, scanner_ids)
             ascan_data = await _get(client, "/JSON/ascan/action/scan/", {"url": target_url, "recurse": "true"})
-            await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_data.get("scan")})
+            ascan_id = ascan_data.get("scan")
+            if ascan_id is None:
+                raise ZapExecutionError(f"O ZAP não iniciou a varredura ativa: {ascan_data}")
+            if not await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_id}, ACTIVE_MAX_SECONDS):
+                await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
 
         alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
 

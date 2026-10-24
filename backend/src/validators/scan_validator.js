@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
 
 const MAX_URL_LENGTH = 2048;
 

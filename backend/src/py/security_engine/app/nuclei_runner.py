@@ -57,6 +57,13 @@ def _build_command(target_url: str, safe_mode: bool, rate_limit: int, tags: list
 
     return command
 
+def _as_list(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return [str(item) for item in value]
+
 
 def _parse_line(raw_line: str) -> Finding | None:
     raw_line = raw_line.strip()
@@ -76,13 +83,18 @@ def _parse_line(raw_line: str) -> Finding | None:
     if cvss_score is None:
         cvss_score = fallback_cvss_for_severity(info.get("severity"))
 
-    cve_ids = classification.get("cve-id") or []
+    cve_ids = _as_list(classification.get("cve-id"))
     cve_id = cve_ids[0] if cve_ids else None
 
-    references = info.get("reference") or []
-    owasp_url = references[0] if references else None
+    # as tags do Nuclei ficam em info.tags (não no topo da linha)
+    tags = _as_list(info.get("tags"))
+    cwe_ids = _as_list(classification.get("cwe-id"))
+    references = _as_list(info.get("reference"))
 
-    request_response = entry.get("request"), entry.get("response")
+    # templates quase nunca trazem "remediation"; as referências ajudam a corrigir (RF-21)
+    remediation = info.get("remediation")
+    if not remediation and references:
+        remediation = "Referências: " + ", ".join(references[:3])
 
     return Finding(
         title=info.get("name") or entry.get("template-id") or "Achado do Nuclei",
@@ -92,15 +104,14 @@ def _parse_line(raw_line: str) -> Finding | None:
         affectedUrl=entry.get("matched-at") or entry.get("host"),
         cveId=cve_id,
         cvssScore=cvss_score,
-        rawRequest=request_response[0],
-        rawResponse=request_response[1],
-        remediation=info.get("remediation"),
-        owaspUrl=owasp_url or map_to_owasp_category(entry.get("tags") or []),
+        rawRequest=entry.get("request"),
+        rawResponse=entry.get("response"),
+        remediation=remediation,
+        owaspUrl=map_to_owasp_category(tags, cwe_ids),  # RF-47
     )
 
-
-async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int) -> tuple[list[Finding], float]:
-    command = _build_command(target_url, safe_mode, rate_limit)
+async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None) -> tuple[list[Finding], float]:
+    command = _build_command(target_url, safe_mode, rate_limit, tags)
     started_at = time.monotonic()
 
     process = await asyncio.create_subprocess_exec(
