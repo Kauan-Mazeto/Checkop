@@ -4,9 +4,7 @@ from pydantic import BaseModel, Field
 class Finding(BaseModel):
     title: str
     description: str | None = None
-    # severity segue o enum FindingSeverity do Prisma: INFO, LOW, MEDIUM, HIGH, CRITICAL
     severity: str
-    # tool segue o enum ToolType do Prisma: ZAP, NUCLEI, SUBFINDER
     tool: str = "NUCLEI"
     affectedUrl: str | None = None
     cveId: str | None = None
@@ -15,6 +13,15 @@ class Finding(BaseModel):
     rawResponse: str | None = None
     remediation: str | None = None
     owaspUrl: str | None = None
+
+class ZapAuthConfig(BaseModel):
+    loginUrl: str
+    usernameField: str
+    passwordField: str
+    username: str
+    password: str
+    loggedInIndicator: str | None = None
+    loggedOutIndicator: str | None = None
 
 
 # ---------- Nuclei (RF-10) ----------
@@ -37,6 +44,8 @@ class ZapScanRequest(BaseModel):
     targetUrl: str
     safeMode: bool = True
     scannerIds: list[str] | None = None
+    auth: ZapAuthConfig | None = None
+    useAjaxSpider: bool = False
 
 
 class ZapScanResponse(BaseModel):

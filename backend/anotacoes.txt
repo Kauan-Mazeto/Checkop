@@ -5,3 +5,36 @@ rodar em casa
 go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
 go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
+
+Falha	Cobertura	Quem detecta
+SQL Injection	Sim	ZAP ativo
+XSS refletido	Sim	ZAP ativo
+Command injection	Sim	ZAP ativo
+Path traversal / LFI	Sim	ZAP e Nuclei
+XXE	Sim	ZAP ativo
+SSTI	Sim	ZAP ativo
+CRLF / header injection	Sim	ZAP ativo
+Open redirect	Sim	ZAP e Nuclei
+Falta de headers de segurança	Sim	ZAP passivo
+Cookies sem HttpOnly/Secure/SameSite	Sim	ZAP passivo
+Clickjacking	Sim	ZAP passivo
+CORS mal configurado	Sim	Nuclei e ZAP
+Directory listing	Sim	Nuclei e ZAP
+Arquivos expostos (.git, .env, backups)	Sim	Nuclei
+Painéis admin e login padrão	Sim	Nuclei
+Vazamento de informação (stack trace, versões)	Sim	ZAP e Nuclei
+Componentes desatualizados e CVEs	Sim	Nuclei
+Swagger / GraphQL expostos	Sim	Nuclei
+XSS armazenado	Parcial	ZAP, só quando o spider alcança o ponto
+CSRF	Parcial	detecta falta de token, não prova exploração
+SSRF	Parcial	depende de callback externo, que não está configurado
+Subdomain takeover	Parcial	Nuclei, mas só no alvo, não nos subdomínios achados
+TLS/SSL fraco	Parcial	existem templates, mas o objetivo atual não usa a tag ssl
+JWT inseguro	Parcial	só casos conhecidos
+Sessão fraca / fixation	Parcial	
+Deserialização insegura	Parcial	só via CVE conhecida
+Força bruta / senha fraca	Não	
+IDOR / escalonamento de privilégio	Não	exige login e contexto do negócio
+Upload inseguro	Não	
+Lógica de negócio / race condition	Não	nenhum scanner automático faz bem

@@ -219,13 +219,7 @@ const getScanById = async (req, res) => {
   }
 };
 
-// dispara a execução real da varredura (RF-10) contra o alvo já registrado e
-// validado em createScan. Idempotente contra reexecução: só roda se o status
-// ainda for PENDING ou FAILED (evita disparar duas vezes a mesma varredura
-// em paralelo, ou repetir uma já concluída sem intenção).
-// Executa a varredura em segundo plano (chamada SEM await pelo runScan).
-// Quem consulta o andamento é o GET /api/scans/:id (campo status).
-const executeScan = async (scan) => {
+const executeScan = async (scan, runOptions = {}) => {
   try {
     const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
     const jobs = [];
@@ -247,6 +241,8 @@ const executeScan = async (scan) => {
           targetUrl: scan.targetUrl,
           safeMode: scan.safeMode,
           scannerIds: config.zap.scannerIds,
+          auth: runOptions.auth,
+          useAjaxSpider: runOptions.useAjaxSpider,
         }).then((r) => ({ tool: 'ZAP', ...r }))
       );
     }
@@ -306,6 +302,7 @@ const executeScan = async (scan) => {
 const runScan = async (req, res) => {
   try {
     const scan = req.resource;
+    const { auth, useAjaxSpider } = req.body;
 
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).
@@ -323,8 +320,7 @@ const runScan = async (req, res) => {
       return res.status(409).json({ error: message });
     }
 
-    // sem await de propósito: roda em segundo plano
-    executeScan(scan);
+    executeScan(scan, { auth, useAjaxSpider });
 
     return res.status(202).json({
       message: 'Varredura iniciada. Acompanhe o status em GET /api/scans/:id.',

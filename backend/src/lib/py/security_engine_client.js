@@ -45,14 +45,14 @@ export const runNucleiScan = async ({ targetUrl, safeMode, rateLimit, tags }) =>
 };
 
 
-export const runZapScan = async ({ targetUrl, safeMode, scannerIds }) => {
+export const runZapScan = async ({ targetUrl, safeMode, scannerIds, auth, useAjaxSpider }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
         const response = await fetch(`${SECURITY_ENGINE_URL}/scans/zap`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUrl, safeMode, scannerIds }),
+            body: JSON.stringify({ targetUrl, safeMode, scannerIds, auth, useAjaxSpider }),
             signal: controller.signal,
         });
         const data = await response.json().catch(() => null);
@@ -61,8 +61,12 @@ export const runZapScan = async ({ targetUrl, safeMode, scannerIds }) => {
         }
         return data;
     } catch (err) {
-        if (err.name === 'AbortError') throw new SecurityEngineError('Tempo limite excedido ao executar a varredura ZAP.', 504);
-        if (err instanceof SecurityEngineError) throw err;
+        if (err.name === 'AbortError') {
+            throw new SecurityEngineError('Tempo limite excedido ao executar a varredura ZAP.', 504);
+        }
+        if (err instanceof SecurityEngineError) {
+            throw err;
+        }
         throw new SecurityEngineError('Motor de segurança (ZAP) indisponível.', 503);
     } finally {
         clearTimeout(timeoutId);

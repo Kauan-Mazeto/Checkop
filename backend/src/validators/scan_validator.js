@@ -30,3 +30,18 @@ export const createScanSchema = z.object({
     }),
   }),
 });
+
+export const runScanAuthSchema = z.object({
+  auth: z
+    .object({
+      loginUrl: z.string().trim().url('loginUrl deve ser uma URL válida.'),
+      usernameField: z.string().min(1),
+      passwordField: z.string().min(1),
+      username: z.string().min(1),
+      password: z.string().min(1),
+      loggedInIndicator: z.string().optional(),
+    loggedOutIndicator: z.string().optional(),
+    })
+    .optional(),
+  useAjaxSpider: z.boolean().default(false),
+});
