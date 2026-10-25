@@ -71,12 +71,22 @@ export class AuthService {
       .post<AuthResponse>(
         `${API_BASE_URL}/auth/login`,
         { email, password },
-        { withCredentials: true }
+        { withCredentials: true },
       )
       .pipe(
         tap((response) => this.cacheUser(response.user)),
         map((response) => response.user),
-        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))),
+      );
+  }
+
+  googleLogin(credential: string): Observable<AuthUser> {
+    return this.http
+      .post<AuthResponse>(`${API_BASE_URL}/auth/google`, { credential }, { withCredentials: true })
+      .pipe(
+        tap((response) => this.cacheUser(response.user)),
+        map((response) => response.user),
+        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))),
       );
   }
 
@@ -90,7 +100,7 @@ export class AuthService {
       .pipe(
         tap((response) => this.cacheUser(response.user)),
         map((response) => response.user),
-        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+        catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error))),
       );
   }
 
@@ -116,7 +126,7 @@ export class AuthService {
           // se o servidor não reconhece mais a sessão.
           this.clearCachedUser();
           return throwError(() => this.toErrorMessage(error));
-        })
+        }),
       );
   }
 

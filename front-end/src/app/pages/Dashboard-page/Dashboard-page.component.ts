@@ -45,8 +45,8 @@ const ENVIRONMENT_LABEL: Record<Scan['environment'], string> = {
   selector: 'app-dashboard-page',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
-  templateUrl: './dashboard-page.component.html',
-  styleUrl: './dashboard-page.component.scss',
+  templateUrl: './Dashboard-page.component.html',
+  styleUrl: './Dashboard-page.component.scss',
 })
 export class DashboardPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
@@ -110,7 +110,9 @@ export class DashboardPageComponent implements OnInit {
   }
 
   protected get flaggedScans(): Scan[] {
-    return this.scans.filter((scan) => scan.status === 'FAILED' || scan.suspiciousEnvironment).slice(0, 5);
+    return this.scans
+      .filter((scan) => scan.status === 'FAILED' || scan.suspiciousEnvironment)
+      .slice(0, 5);
   }
 
   protected openNewScan(): void {

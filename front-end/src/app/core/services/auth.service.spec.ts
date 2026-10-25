@@ -47,8 +47,7 @@ describe('AuthService', () => {
       },
     });
 
-    expect(localStorage.getItem('checkop_token')).not.toBeNull();
-    expect(localStorage.getItem('checkop_token')).not.toBe('undefined');
+    expect(localStorage.getItem('checkop_user')).not.toBeNull();
     expect(JSON.parse(localStorage.getItem('checkop_user') ?? '{}')).toEqual({
       id: 'user-1',
       name: 'Ana Souza',

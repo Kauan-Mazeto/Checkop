@@ -68,7 +68,7 @@
           </div>
         </div>
 
-        <p class="showcase-footer">© 2025 Checkop — Segurança acessível</p>
+
       </aside>
 
       <section class="auth-panel fade-up fade-delay-2">
@@ -88,7 +88,13 @@
             <p>Entre com suas credenciais para acessar sua conta</p>
           </div>
 
-          <button class="button button-google" type="button">
+          <button
+            class="button button-google"
+            type="button"
+            (click)="loginWithGoogle()"
+            [disabled]="isGoogleSubmitting || isSubmitting"
+            aria-label="Continuar com Google"
+          >
             <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
               <path
                 d="M19.6 10.23c0-.68-.06-1.32-.17-1.95H10v3.69h5.38c-.23 1.25-.94 2.31-2 3.02v2.5h3.23c1.9-1.75 2.99-4.33 2.99-7.26z"
@@ -107,7 +113,7 @@
                 fill="#EA4335"
               />
             </svg>
-            Continuar com Google
+            {{ isGoogleSubmitting ? 'Entrando...' : 'Continuar com Google' }}
           </button>
 
           <div class="auth-divider">
@@ -196,7 +202,11 @@
               </div>
             </label>
 
-            <button class="button button-primary button-full" type="submit" [disabled]="isSubmitting">
+            <button
+              class="button button-primary button-full"
+              type="submit"
+              [disabled]="isSubmitting"
+            >
               <span *ngIf="isSubmitting" class="spinner" aria-hidden="true"></span>
               {{ isSubmitting ? 'Entrando...' : 'Entrar' }}
             </button>

@@ -4,7 +4,8 @@ import validate from '../middlewares/auth_validate.js';
 import authMiddleware from '../middlewares/auth_middleware.js';
 import { requireOwnership } from '../middlewares/ownership_middleware.js';
 import { scanCreationLimiter } from '../middlewares/rate_limit_middleware.js';
-import { createScanSchema } from '../validators/scan_validator.js';
+import { createScanSchema, runScanAuthSchema} from '../validators/scan_validator.js';
+
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.post('/', scanCreationLimiter, validate(createScanSchema), scanController
 router.get('/', scanController.listScans);
 router.get('/suspicious', scanController.listSuspiciousScans);
 router.get('/:id', requireOwnership('scan'), scanController.getScanById);
+router.post('/:id/run', scanCreationLimiter, requireOwnership('scan'), validate(runScanAuthSchema), scanController.runScan);
 
 export default router;
