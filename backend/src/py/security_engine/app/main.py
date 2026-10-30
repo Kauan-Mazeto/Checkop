@@ -6,6 +6,7 @@ from .nuclei_runner import (
     run_nuclei_scan,
     update_templates,
 )
+
 from .schemas import (
     NucleiScanRequest,
     NucleiScanResponse,
@@ -14,11 +15,13 @@ from .schemas import (
     ZapScanRequest,
     ZapScanResponse,
 )
+
 from .subfinder_runner import (
     SubfinderExecutionError,
     SubfinderNotInstalledError,
     run_subdomain_enum,
 )
+
 from .zap_runner import ZapExecutionError, ZapNotAvailableError, run_zap_scan
 
 app = FastAPI(title="Checkop", version="1.0.0")
