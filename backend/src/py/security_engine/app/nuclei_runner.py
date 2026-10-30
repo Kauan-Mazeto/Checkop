@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import shutil
 import time
 
@@ -13,6 +14,10 @@ from .mapping import (
 from .schemas import Finding
 
 NUCLEI_BINARY = shutil.which("nuclei")
+
+# Protege contra um scan que trava e nunca libera o processo (ex.: alvo que
+# aceita conexão mas nunca responde). Ajustável por variável de ambiente.
+NUCLEI_TIMEOUT_SECONDS = int(os.getenv("NUCLEI_TIMEOUT_SECONDS", "900"))
 
 SEVERITY_MAP = {
     "info": "INFO",
@@ -119,7 +124,16 @@ async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int, tag
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await process.communicate()
+
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=NUCLEI_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise NucleiExecutionError(
+            f"O Nuclei excedeu o tempo limite de {NUCLEI_TIMEOUT_SECONDS}s e foi interrompido."
+        )
+
     duration = time.monotonic() - started_at
 
     if process.returncode != 0 and not stdout:
@@ -132,7 +146,6 @@ async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int, tag
             findings.append(finding)
 
     return findings, duration
-
 
 def update_templates() -> None:
     if not NUCLEI_BINARY:

@@ -35,6 +35,8 @@ enum ScanObjective {
   OPEN_REDIRECT
   KNOWN_CVE
   SUBDOMAIN_ENUM
+  SSL_TLS
+  DNS_CHECK
   FULL_SCAN
 }
 

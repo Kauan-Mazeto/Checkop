@@ -37,10 +37,16 @@ export const SCAN_OBJECTIVES = {
         nuclei: { tags: ['cve', 'misconfig', 'exposure', 'default-login'] },
         zap: null,
     },
-    SUBDOMAIN_ENUM: {
-        label: 'Enumeração de subdomínios',
-        engines: ['SUBFINDER'],
-        nuclei: null,
+    SSL_TLS: {
+        label: 'TLS/SSL (certificado, protocolos e cifras obsoletas)',
+        engines: ['NUCLEI'],
+        nuclei: { tags: ['ssl', 'tls'] },
+        zap: null,
+    },
+    DNS_CHECK: {
+        label: 'DNS e subdomain takeover',
+        engines: ['NUCLEI'],
+        nuclei: { tags: ['dns', 'takeover'] },
         zap: null,
     },
     FULL_SCAN: {
