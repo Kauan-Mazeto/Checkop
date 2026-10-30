@@ -34,7 +34,7 @@ const Role = Object.freeze({
   });
   
   const ToolType = Object.freeze({
-    OWASP_ZAP: 'OWASP_ZAP',
+    ZAP: 'ZAP',
     NUCLEI: 'NUCLEI'
   });
   

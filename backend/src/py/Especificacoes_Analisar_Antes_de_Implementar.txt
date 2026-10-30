@@ -1,0 +1,195 @@
+## Feature: Varredura por Objetivo vs. Varredura Completa
+
+Em vez de executar obrigatoriamente a varredura completa, o utilizador pode escolher **o que deseja validar especificamente** (ex.: apenas "SQL Injection", "XSS", "Enumeração de Subdomínios" ou "Cabeçalhos de Segurança"). 
+
+O motor de orquestração (**VulnFlow Engine**) traduz a escolha do utilizador automaticamente em:
+- **Tags específicas do Nuclei** (`-tags sqli`, `-tags xss`, `-tags misconfig`, `-tags cve`, etc.)
+- **Scanners específicos do OWASP ZAP** (ativação seletiva dos IDs de scanner por categoria)
+- **Ferramentas dedicadas** (ex.: Subfinder para enumeração de subdomínios)
+
+Isso acelera o processo e permite validações pontuais e ágeis durante os ciclos de desenvolvimento e testes de QA.
+
+## Relação Completa de Validações do Sistema (Escopo do TCC)
+
+O Checkop executa verificações automatizadas cobrindo os seguintes grupos de vulnerabilidades:
+
+1. **Reconhecimento de Superfície**:
+   - Enumeração de subdomínios (Subfinder)
+   - Mapeamento de rotas e diretórios (OWASP ZAP Spider)
+   - Identificação de tecnologias e servidores (Nuclei Fingerprinting)
+2. **Injeções (OWASP A03)**:
+   - SQL Injection (SQLi: Blind, Error-based, Time-based, UNION-based)
+   - Cross-Site Scripting (XSS: Refletido, Armazenado, DOM-based)
+   - Injeção de Comandos de Sistema Operativo (OS Command Injection)
+3. **Configurações Incorretas (OWASP A05)**:
+   - Ausência/Má configuração de cabeçalhos HTTP (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)
+   - Exposição de arquivos sensíveis (.env, .git, backups .bak/.zip)
+   - Listagem aberta de diretórios (Directory Listing)
+   - Exposição de Stack Traces em páginas de erro
+4. **Autenticação e Sessões (OWASP A07)**:
+   - Cookies sem flags HttpOnly, Secure e SameSite
+   - Tokens JWT expostos ou sem assinatura
+   - Ausência de Rate Limiting / Proteção contra Brute Force em login
+5. **Controle de Acesso Quebrado (OWASP A01)**:
+   - Travessia de diretórios (Path/Directory Traversal)
+   - Referência Direta Insegura a Objetos (IDOR)
+   - Métodos HTTP inseguros ativados (PUT, DELETE, TRACE)
+6. **Falhas Criptográficas (OWASP A02)**:
+   - Tráfego em texto simples (HTTP) e Conteúdo Misto (Mixed Content)
+   - Certificados SSL/TLS expirados ou cifras fracas
+7. **Componentes Vulneráveis (OWASP A06)**:
+   - Deteção de CVEs conhecidos em frameworks e bibliotecas (via Nuclei)
+8. **Server-Side Request Forgery (OWASP A10)**:
+   - Testes de SSRF e acesso não autorizado a metadados de infraestrutura
+
+
+
+Validações que o CHECKOP deveria fazer:
+
+Injeções (Injection)
+SQL Injection (SQLi): Blind, Error-based, Time-based e UNION-based
+
+NoSQL Injection (MongoDB, Redis, CouchDB)
+
+Command Injection (OS Command Injection)
+
+LDAP Injection
+
+XPath e XQuery Injection
+
+Server-Side Template Injection (SSTI)
+
+Expression Language (EL) Injection
+
+XML External Entity (XXE) Injection
+
+CRLF Injection / HTTP Response Splitting
+
+HTML Injection
+
+Server-Side Includes (SSI) Injection
+
+Vulnerabilidades no Lado do Cliente (Client-Side)
+Cross-Site Scripting (XSS) Refletido
+
+Cross-Site Scripting (XSS) Armazenado
+
+Cross-Site Scripting (XSS) baseado em DOM
+
+Cross-Site Request Forgery (CSRF)
+
+Clickjacking (UI Redressing) e Tapjacking
+
+Cross-Origin Resource Sharing (CORS) Misconfiguration
+
+Open Redirect / Redirecionamento não validado
+
+Host Header Injection
+
+DOM Clobbering
+
+CSS Injection
+
+Vulnerabilidades em WebSockets (origem não validada, falta de autenticação)
+
+Autenticação e Gestão de Sessões
+Ataques de Força Bruta (Brute Force) e Credential Stuffing
+
+Sequestro de Sessão (Session Hijacking)
+
+Fixação de Sessão (Session Fixation)
+
+Falhas em JWT: Algoritmo none, chave fraca, ausência de expiração e validação
+
+Bypass de Autenticação Multifator (MFA Bypass)
+
+Uso de Credenciais Padrão ou Fracas (Weak/Default Credentials)
+
+Fluxo Inseguro de Redefinição de Senha
+
+Vazamento de Tokens de Sessão em URLs ou Logs
+
+Atributos Inseguros em Cookies (HttpOnly, Secure, SameSite ausentes)
+
+Controle de Acesso e Autorização
+Referência Direta Insegura a Objetos (IDOR)
+
+Autorização Incorreta em Nível de Objeto em APIs (BOLA)
+
+Autorização Incorreta em Nível de Função (BFLA)
+
+Elevação de Privilégios Vertical (Usuário comum para Admin)
+
+Elevação de Privilégios Horizontal (Acesso a dados de outro usuário de mesmo nível)
+
+Directory / Path Traversal (../../etc/passwd)
+
+Bypass de Controles de Acesso via Métodos HTTP (PUT, DELETE, TRACE, HEAD)
+
+Configurações Incorretas (Security Misconfigurations)
+Ausência/Incorreção de Cabeçalhos de Segurança (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
+
+Exposição de Arquivos Sensíveis (.env, .git, .svn, .DS_Store, .bak, .zip)
+
+Listagem Aberta de Diretórios (Directory Listing / Indexing)
+
+Mensagens de Erro Verbosas / Exposição de Stack Traces
+
+Buckets de Nuvem e Bancos Expostos (S3, GCP, Elasticsearch, Redis)
+
+Métodos HTTP Perigosos Habilitados
+
+Painéis e Interfaces Administrativas Expostas Publicamente
+
+Lógica de Servidor e Execução Remota
+Server-Side Request Forgery (SSRF)
+
+Deserialização Insegura (Insecure Deserialization)
+
+Upload Inseguro de Arquivos (Unrestricted File Upload)
+
+Local File Inclusion (LFI)
+
+Remote File Inclusion (RFI)
+
+Remote Code Execution (RCE)
+
+HTTP Request Smuggling / Desincronização de Socket
+
+Criptografia e Segurança em Trânsito
+Tráfego em Texto Simples (Uso de HTTP em vez de HTTPS)
+
+Protocolos TLS/SSL Obsoletos (SSLv2, SSLv3, TLS 1.0, TLS 1.1)
+
+Algoritmos de Hash e Cifras Fracas (MD5, SHA1, DES, RC4)
+
+Conteúdo Misto (Mixed Content - HTTP dentro de HTTPS)
+
+Certificados SSL Expirados, Inválidos ou Autoassinados
+
+Armazenamento Inseguro de Senhas (Sem Hash ou sem Salt)
+
+Componentes Vulneráveis e Cadeia de Suprimentos
+Uso de Bibliotecas e Dependências com CVEs Públicos Conhecidos
+
+Uso de Frameworks, Linguagens e Servidores Descontinuados (End-of-Life)
+
+Injeção na Cadeia de Suprimentos (Dependency Confusion / Typosquatting)
+
+Negação de Serviço na Camada de Aplicação (DoS)
+Regular Expression Denial of Service (ReDoS)
+
+Hash Collision DoS
+
+Esgotamento de Recursos por Requisições sem Paginação/Limite
+
+XML Bomb (Billion Laughs Attack)
+
+Falhas de Lógica de Negócio (Business Logic)
+Condições de Corrida (Race Conditions)
+
+Adulteração de Parâmetros de Preço, Quantidade ou Valor
+
+Bypass de Etapas Obrigatórias de Fluxos (Workflow Bypass)
+
+Abuso Automatizado de Funcionalidades de Negócio (Botting)
