@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
 
 const MAX_URL_LENGTH = 2048;
 
@@ -17,13 +18,30 @@ export const createScanSchema = z.object({
       }
     }, 'A URL deve usar o protocolo http ou https.')
     .refine((url) => {
-      // rejeita urls com algo embutido ( pode ser malicioso )
       const parsed = new URL(url);
       return !parsed.username && !parsed.password;
     }, 'A URL não pode conter credenciais embutidas.'),
+  objective: z.enum(Object.keys(SCAN_OBJECTIVES), {
+    errorMap: () => ({ message: `objective deve ser um dos valores: ${Object.keys(SCAN_OBJECTIVES).join(', ')}` }),
+  }).default('FULL_SCAN'),
   authorizationConfirmed: z.literal(true, {
     errorMap: () => ({
       message: 'É necessário confirmar que você possui autorização para testar este alvo.',
     }),
   }),
+});
+
+export const runScanAuthSchema = z.object({
+  auth: z
+    .object({
+      loginUrl: z.string().trim().url('loginUrl deve ser uma URL válida.'),
+      usernameField: z.string().min(1),
+      passwordField: z.string().min(1),
+      username: z.string().min(1),
+      password: z.string().min(1),
+      loggedInIndicator: z.string().optional(),
+    loggedOutIndicator: z.string().optional(),
+    })
+    .optional(),
+  useAjaxSpider: z.boolean().default(false),
 });

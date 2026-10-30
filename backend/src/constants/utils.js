@@ -20,7 +20,10 @@ export const hashResetCode = (code) => {
 };
 
 export const compareResetCode = (code, hash) => {
-  return hashResetCode(code) === hash;
+  const a = Buffer.from(hashResetCode(code), 'hex');
+  const b = Buffer.from(hash, 'hex');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 
 export const generateToken = async (user) => {
