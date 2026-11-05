@@ -1,0 +1,134 @@
+
+# DOCUMENTO DE ESPECIFICAÇÃO TÉCNICA E FUNCIONAL
+## SISTEMA: Plataforma de Pentest & Análise de Segurança Web (SaaS)
+**Objetivo:** Orientar a Inteligência Artificial no desenvolvimento dos módulos de visualização de relatórios de segurança, divididos entre os planos Free (Análise Básica de URL) e Premium (Análise Avançada de URL + Análise de Código/SAST).
+
+---
+
+## 1. ARQUITETURA DO PRODUTO (FREE VS. PREMIUM)
+
+
+[MÓDULO DE SCAN]
+│
+├──► PLANO FREE ───► Scanner Externo (Black-Box) ──► Relatório Sintomático (Macro)
+│
+└──► PLANO PREMIUM ─► Scanner Dinâmico (DAST) ─────► Evidências (PoC), Payloads, Compliance
+└─► Scanner Estático (SAST) ───► Análise de Código Fonte + Code Diff
+
+---
+
+## 2. ESPECIFICAÇÃO DO PLANO FREE: SCANNER DE URL BÁSICO
+
+### 2.1. Objetivo da Interface
+Apresentar um diagnóstico macro, focado no **sintoma** externo da vulnerabilidade. O relatório deve ser educativo, direto e conter gatilhos de conversão (*paywall amigável*).
+
+### 2.2. Elementos Obrigatórios no Retorno da Tela
+*   **Card de Status Rápido:** Indicador visual de risco utilizando badges coloridos:
+    *   `🔴 Crítico / Alto` (Vulnerabilidades que expõem o servidor ou banco de dados).
+    *   `🟡 Médio` (Falhas de configuração ou lógica).
+    *   `🔵 Baixo / Informativo` (Boas práticas ausentes).
+*   **Veredito Geral:** Uma frase simples resumindo o impacto para o negócio.
+*   **Descrição da Falha:** Texto curto em linguagem universal explicando o erro, sem expor dados confidenciais de infraestrutura.
+*   **Paywall de Upgrade:** Um banner posicionado logo abaixo das informações básicas convidando o usuário a assinar o Premium para ver a correção exata.
+
+### 2.3. Exemplo de Layout de Saída (Mockup Texto)
+```text
+[Badge: 🟡 RISCO MÉDIO] Falha de Segurança: Cross-Site Scripting (XSS) Refletido
+--------------------------------------------------------------------------------
+• Onde ocorre: Na URL do seu site (campo de busca/parâmetros de entrada).
+• Impacto: Um criminoso pode criar um link malicioso e enviá-lo para seus clientes. 
+  Se clicado, o navegador do cliente pode executar scripts que roubam cookies e dados da sessão.
+
+⭐ RECURSO PREMIUM BLOQUEADO
+Quer ver o payload exato que nossa ferramenta usou e o trecho de código que gerou isso?
+[ Botão: Desbloquear Análise Avançada de Código ]
+```
+
+---
+
+## 3. ESPECIFICAÇÃO DO PLANO PREMIUM: SCANNER AVANÇADO + SAST
+
+### 3.1. Módulo A: Análise Dinâmica de URL (DAST) Avançada
+O usuário pago recebe a **Prova de Conceito (PoC)**, confirmando que a vulnerabilidade é real e não um falso positivo.
+
+*   **Payload Injetado:** Exibir exatamente a requisição HTTP modificada enviada pelo scanner.
+*   **Evidência de Resposta:** Mostrar o comportamento do servidor (seja o tempo de resposta estendido ou o código HTML retornado).
+*   **Mapeamento Cirúrgico:** Indicar o parâmetro exato da URL que aceitou a injeção.
+
+#### Estrutura de Dados JSON Sugerida para o Backend:
+```json
+{
+  "vuln_id": "SEC-2026-9942",
+  "title": "SQL Injection (Time-Based)",
+  "severity": "CRITICAL",
+  "cvss_score": 9.8,
+  "target": {
+    "url": "https://seusite.com",
+    "parameter": "category_id",
+    "method": "GET"
+  },
+  "poc": {
+    "http_raw_payload": "GET /v1/products?category_id=5+AND+(SELECT+1+FROM+(SELECT(SLEEP(5)))x) HTTP/1.1\nHost: ://seusite.com",
+    "evidence_description": "O banco de dados aceitou o comando SLEEP(5). O tempo de resposta padrão mudou de 120ms para 5140ms."
+  }
+}
+```
+
+---
+
+### 3.2. Módulo B: Análise Estática de Código (SAST)
+Quando o usuário envia arquivos, trechos de código ou conecta o GitHub, o sistema atua como um revisor automático de segurança.
+
+#### Diretrizes de Visualização da Tela:
+1.  **Visualizador de Código (Estilo IDE):** Renderizar o arquivo de código original do usuário.
+2.  **Destaque de Linha Crítica:** Pintar a linha vulnerável de vermelho com um ícone de alerta.
+3.  **Code Diff (Correção Lado a Lado):** Mostrar na esquerda o código inseguro (vermelho) e na direita o código corrigido sugerido pela IA (verde).
+
+#### Exemplo Visual do Componente de Código:
+```text
+[ ARQUIVO: /src/controllers/productController.js ]
+
+Linha 13 |  const category = req.query.category_id;
+Linha 14 |  // ❌ ERRO DE INJEÇÃO DETECTADO:
+Linha 15 |🔴 const query = `SELECT * FROM products WHERE cat_id = ${category}`;
+Linha 16 |  const result = await db.execute(query);
+```
+
+#### Sugestão de Correção (Lado a Lado / Git Diff):
+```diff
+- 15 | const query = `SELECT * FROM products WHERE cat_id = ${category}`;
++ 15 | const query = 'SELECT * FROM products WHERE cat_id = ?';
++ 16 | const result = await db.execute(query, [category]);
+```
+
+---
+
+### 3.3. Módulo C: Inteligência de Mapeamento de Conformidade (Compliance)
+Cada vulnerabilidade Premium detectada deve acionar um motor de regras que valida automaticamente se a empresa está em conformidade com as leis de mercado.
+
+*   **LGPD (Lei Geral de Proteção de Dados):**
+    *   *Regra:* Se a falha permitir vazamento de dados de tabelas de usuários, marcar como **Não Conforme (Artigo 46)**.
+    *   *Mensagem:* "Risco de sanções e multas de até 2% do faturamento por vazamento de dados pessoais."
+*   **PCI-DSS v4.0 (Padrão de Cartões de Crédito):**
+    *   *Regra:* Se houver falhas do OWASP Top 10 (como Injection ou Broken Auth), marcar como **Falha no Requisito 6.2.4**.
+    *   *Mensagem:* "Sua aplicação será reprovada no Scan ASV trimestral obrigatório para processamento de cartões."
+
+---
+
+## 4. INSTRUÇÃO DIRETIVA PARA A INTELIGÊNCIA ARTIFICIAL (PROMPT BASE)
+
+*Copie e envie o texto abaixo para a IA que irá programar o seu sistema:*
+
+> "Atue como um Engenheiro de Software Fullstack e Especialista em Cyber Security. Com base no documento de especificações fornecido, programe as telas de relatório de vulnerabilidades do sistema. 
+> 
+> Quando o usuário for **Plano Free**, renderize apenas o componente macro e amigável, escondendo os dados técnicos atrás de um banner de upgrade (Paywall). 
+> 
+> Quando o usuário for **Plano Premium**, monte uma interface rica em abas: 
+> 1. Uma aba para a resposta da URL com o payload e a prova temporal/visual (PoC).
+> 2. Uma aba com o visualizador de código (IDE mockada) apontando a linha do erro e exibindo um 'Code Diff' com a sugestão de correção automática baseada na linguagem escolhida (Node, PHP, Python).
+> 3. Um painel lateral de conformidade vinculando a falha aos artigos da LGPD e requisitos do PCI-DSS. "
+
+
+
+use oque já existe, se precisar add mais alguma coisa pode adicionar, melhore a forma de apresentar o resultado dos scans para o usuario (se quiser add gráficos, etc..).
+
