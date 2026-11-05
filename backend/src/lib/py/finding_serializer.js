@@ -1,7 +1,11 @@
+import { getComplianceNotes } from '../../constants/compliance_mapping.js';
+
 // RF-07 / RF-08
 export const serializeFinding = (finding, { safeMode }) => {
+    const compliance = getComplianceNotes(finding.owaspUrl);
+
     if (!safeMode) {
-        return finding;
+        return { ...finding, compliance };
     }
 
     return {
@@ -16,6 +20,7 @@ export const serializeFinding = (finding, { safeMode }) => {
         owaspUrl: finding.owaspUrl,
         remediation: finding.remediation,
         createdAt: finding.createdAt,
+        compliance,
     };
 };
 

@@ -14,6 +14,44 @@ const deserializeIps = (value) => (value ? value.split(',') : []);
 const SEVERITY_RANK = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 const FILL_FIELDS = ['description', 'cveId', 'cvssScore', 'rawRequest', 'rawResponse', 'remediation', 'owaspUrl'];
 
+const SEVERITY_BADGE = {
+  CRITICAL: { emoji: '🔴', label: 'Crítico', color: 'red' },
+  HIGH: { emoji: '🔴', label: 'Alto', color: 'red' },
+  MEDIUM: { emoji: '🟡', label: 'Médio', color: 'yellow' },
+  LOW: { emoji: '🔵', label: 'Baixo', color: 'blue' },
+  INFO: { emoji: '🔵', label: 'Informativo', color: 'blue' },
+};
+
+// Monta o resumo de alto nível de um scan (espec.txt, seção 2.2):
+// badge colorido, veredito em uma frase e contagem por severidade.
+const buildScanSummary = (findings) => {
+  const severityCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+
+  if (findings.length === 0) {
+    return {
+      badge: { emoji: '🟢', label: 'Nenhum achado', color: 'green' },
+      verdict: 'Nenhuma vulnerabilidade foi identificada nesta varredura.',
+      severityCounts,
+    };
+  }
+
+  let worst = findings[0];
+  for (const f of findings) {
+    severityCounts[f.severity] = (severityCounts[f.severity] ?? 0) + 1;
+    if ((SEVERITY_RANK[f.severity] ?? 0) > (SEVERITY_RANK[worst.severity] ?? 0)) worst = f;
+  }
+
+  const total = findings.length;
+  const verdict =
+    worst.severity === 'CRITICAL' || worst.severity === 'HIGH'
+      ? `Foram encontradas ${total} falha(s), incluindo pelo menos uma de alto impacto. Correção prioritária recomendada.`
+      : worst.severity === 'MEDIUM'
+        ? `Foram encontradas ${total} falha(s) de risco moderado. Recomenda-se correção em breve.`
+        : `Foram encontradas ${total} falha(s) de baixo risco ou informativas.`;
+
+  return { badge: SEVERITY_BADGE[worst.severity], verdict, severityCounts };
+};
+
 const VULN_CLASSES = [
   ['sqli', /sql[\s-]*inj|sqli/i],
   ['xss', /xss|cross[\s-]*site[\s-]*scripting/i],
@@ -200,6 +238,59 @@ const listSuspiciousScans = async (req, res) => {
   }
 };
 
+// Dados agregados de todos os scans do usuário, prontos pra gráfico
+// (pizza de severidade, barra por objetivo, linha do tempo, etc.)
+const getScanStats = async (req, res) => {
+  try {
+    const scans = await prisma.scan.findMany({
+      where: { userId: req.userId },
+      select: { id: true, status: true, objective: true, environment: true, createdAt: true },
+    });
+
+    const findings = await prisma.finding.findMany({
+      where: { scan: { userId: req.userId } },
+      select: { severity: true, tool: true, owaspUrl: true, status: true, createdAt: true },
+    });
+
+    const countBy = (items, key) =>
+      items.reduce((acc, item) => {
+        const k = item[key] ?? 'UNKNOWN';
+        acc[k] = (acc[k] ?? 0) + 1;
+        return acc;
+      }, {});
+
+    // últimos 30 dias, agrupado por dia (AAAA-MM-DD) — pra gráfico de tendência
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const timelineLast30Days = {};
+    for (const f of findings) {
+      if (f.createdAt < since) continue;
+      const day = f.createdAt.toISOString().slice(0, 10);
+      timelineLast30Days[day] = (timelineLast30Days[day] ?? 0) + 1;
+    }
+
+    return res.status(200).json({
+      scans: {
+        total: scans.length,
+        byStatus: countBy(scans, 'status'),
+        byObjective: countBy(scans, 'objective'),
+        byEnvironment: countBy(scans, 'environment'),
+      },
+      findings: {
+        total: findings.length,
+        bySeverity: countBy(findings, 'severity'),
+        byTool: countBy(findings, 'tool'),
+        byOwaspCategory: countBy(findings, 'owaspUrl'),
+        byStatus: countBy(findings, 'status'),
+        timelineLast30Days,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao gerar estatísticas:', error);
+    return res.status(500).json({ error: 'Erro interno ao gerar estatísticas.' });
+  }
+};
+
 const getScanById = async (req, res) => {
   try {
     const findings = await prisma.finding.findMany({
@@ -210,6 +301,7 @@ const getScanById = async (req, res) => {
       scan: {
         ...req.resource,
         resolvedIps: deserializeIps(req.resource.resolvedIps),
+        summary: buildScanSummary(findings),
         findings: serializeFindings(findings, { safeMode: req.resource.safeMode }),
       },
     });
@@ -332,4 +424,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { createScan, listScans, listSuspiciousScans, getScanById, runScan };
+export default { createScan, listScans, listSuspiciousScans, getScanStats, getScanById, runScan };

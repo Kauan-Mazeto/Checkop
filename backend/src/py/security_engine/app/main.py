@@ -1,25 +1,10 @@
 from fastapi import FastAPI, HTTPException
 
-from .nuclei_runner import (
-    NucleiExecutionError,
-    NucleiNotInstalledError,
-    run_nuclei_scan,
-    update_templates,
-)
-from .schemas import (
-    NucleiScanRequest,
-    NucleiScanResponse,
-    SubdomainEnumRequest,
-    SubdomainEnumResponse,
-    ZapScanRequest,
-    ZapScanResponse,
-)
-from .subfinder_runner import (
-    SubfinderExecutionError,
-    SubfinderNotInstalledError,
-    run_subdomain_enum,
-)
+from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan,update_templates)
+from .schemas import ZapScanRequest, NucleiScanRequest, SubdomainScanRequest, SastScanRequest
+from .subfinder_runner import (SubfinderExecutionError, SubfinderNotInstalledError, run_subdomain_enum)
 from .zap_runner import ZapExecutionError, ZapNotAvailableError, run_zap_scan
+from .sast_runner import run_sast_scan, SastExecutionError
 
 app = FastAPI(title="Checkop", version="1.0.0")
 
@@ -87,6 +72,19 @@ async def scan_subdomains(payload: SubdomainEnumRequest):
         subdomainsFound=len(findings),
         durationSeconds=round(duration, 2),
     )
+
+@app.post("/scans/sast")
+async def scan_with_sast(payload: SastScanRequest):
+    try:
+        findings, duration = await run_sast_scan(payload.files)
+    except SastExecutionError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {
+        "findings": findings,
+        "findingsCount": len(findings),
+        "durationSeconds": round(duration, 2),
+    }
 
 
 # RF-45

@@ -227,7 +227,7 @@ async def run_zap_scan(
 
         if auth is not None:
             # desliga o modo forçado para não vazar pra scans futuros na mesma instância do ZAP
-    await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "false"})
+            await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "false"})
 
     duration = time.monotonic() - started_at
     findings = [_parse_alert(a) for a in alerts_data.get("alerts", [])]

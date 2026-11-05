@@ -53,6 +53,9 @@ class ZapScanResponse(BaseModel):
     alertsFound: int
     durationSeconds: float
 
+class SastScanRequest(BaseModel):
+    # { "nome_arquivo.ext": "conteúdo" }
+    files: dict[str, str]
 
 # ---------- Subfinder ----------
 class SubdomainEnumRequest(BaseModel):

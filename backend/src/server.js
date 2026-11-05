@@ -11,6 +11,7 @@ import { globalLimiter } from './middlewares/rate_limit_middleware.js';
 import sanitizeMiddleware from './middlewares/sanitize_middleware.js';
 import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
+import sastRoutes from './routes/sast_routes.js';
 import prisma from './lib/prisma.js';
 dotenv.config();
 
@@ -52,7 +53,7 @@ app.use(cors({
 
 app.use(timeout('25s'));
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 app.use(sanitizeMiddleware);
@@ -60,6 +61,7 @@ app.use(globalLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/scans', scanRoutes);
+app.use('/api/sast', sastRoutes);
 app.use('/api/privacy', privacyRoutes);
 
 // fallback, para se nao achar, retornar aqui, sem estourar banco
