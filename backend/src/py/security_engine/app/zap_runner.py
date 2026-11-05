@@ -17,7 +17,6 @@ RISK_TO_SEVERITY = {"0": "INFO", "1": "LOW", "2": "MEDIUM", "3": "HIGH"}
 RISK_TO_CVSS_FALLBACK = {"0": 0.0, "1": 3.0, "2": 5.5, "3": 8.5}
 
 POLL_INTERVAL_SECONDS = 2
-CONTEXT_NAME = "checkop-scan-context"
 
 # Limite de tempo por fase. Se estourar, o ZAP é parado e seguimos com o que já
 # foi encontrado (resultado parcial) em vez de perder a varredura inteira.

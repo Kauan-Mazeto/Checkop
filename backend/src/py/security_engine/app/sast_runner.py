@@ -7,6 +7,7 @@ import time
 
 from .schemas import Finding
 from .mapping import map_to_owasp_category
+from .translator import translate_many
 
 SEMGREP_BINARY = shutil.which("semgrep")
 SAST_TIMEOUT_SECONDS = int(os.getenv("SAST_TIMEOUT_SECONDS", "120"))
@@ -26,6 +27,7 @@ REMEDIATION_SUGGESTIONS = {
 }
 
 
+
 class SastExecutionError(Exception):
     pass
 
@@ -38,25 +40,53 @@ def _suggest_fix(check_id: str) -> str:
     return "Revise o trecho apontado conforme a mensagem da regra e a documentação da categoria OWASP relacionada."
 
 
-def _parse_result(result: dict) -> Finding:
+def _safe_relative_path(filename: str) -> str | None:
+    # mantém subpastas (evita colisão de index.js) e descarta "..", "." e "/" iniciais
+    parts = [p for p in filename.replace("\\", "/").split("/") if p not in ("", ".", "..")]
+    return "/".join(parts) or None
+
+
+def _relative_to(path: str, base_dir: str) -> str:
+    # o Semgrep devolve o caminho dentro da pasta temporária; mostramos só o nome enviado
+    if path.startswith(base_dir):
+        return path[len(base_dir):].lstrip("/\\")
+    return path
+
+
+def _extract_snippet(content: str | None, start: int | None, end: int | None) -> str:
+    # sem login no Semgrep o campo "lines" vem como "requires login"; lemos do código enviado
+    if not content or not start:
+        return ""
+    return "\n".join(content.splitlines()[start - 1:(end or start)])
+
+
+def _rule_name(check_id: str) -> str:
+    return check_id.split(".")[-1].replace("-", " ").capitalize() or "Problema de segurança"
+
+
+def _parse_result(result: dict, base_dir: str, contents: dict[str, str], translations: dict[str, str]) -> Finding:
     extra = result.get("extra", {})
     severity = SEVERITY_MAP.get(extra.get("severity", "INFO"), "LOW")
     metadata = extra.get("metadata", {})
-    cwe_ids = metadata.get("cwe", [])
-    owasp_tags = metadata.get("owasp", [])
+    cwe_ids = metadata.get("cwe") or []
+    owasp_tags = metadata.get("owasp") or []
 
-    tags = [str(t) for t in owasp_tags] if owasp_tags else []
+    tags = [str(t) for t in (owasp_tags if isinstance(owasp_tags, list) else [owasp_tags])]
     owasp_category = map_to_owasp_category(tags, cwe_ids if isinstance(cwe_ids, list) else [cwe_ids])
 
-    file_path = result.get("path", "arquivo")
+    file_path = _relative_to(result.get("path", "arquivo"), base_dir)
     line = result.get("start", {}).get("line")
     end_line = result.get("end", {}).get("line")
     snippet = extra.get("lines", "")
+    if not snippet or snippet == "requires login":
+        snippet = _extract_snippet(contents.get(file_path), line, end_line)
     check_id = result.get("check_id", "")
+    rule_name = _rule_name(check_id)
+    message = extra.get("message", "")
 
     return Finding(
-        title=f"{check_id.split('.')[-1].replace('-', ' ').title()} ({file_path}:{line})",
-        description=extra.get("message", ""),
+        title=f"{translations.get(rule_name, rule_name)} ({file_path}:{line})",
+        description=translations.get(message, message),
         severity=severity,
         tool="SAST",
         affectedUrl=f"{file_path}:{line}" + (f"-{end_line}" if end_line and end_line != line else ""),
@@ -78,9 +108,16 @@ async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         for filename, content in files.items():
-            safe_name = os.path.basename(filename)  # evita path traversal no próprio upload
-            with open(os.path.join(tmp_dir, safe_name), "w", encoding="utf-8") as f:
-                f.write(content)
+            relative_name = _safe_relative_path(filename)  # evita path traversal no próprio upload
+            if relative_name is None:
+                raise SastExecutionError(f"Nome de arquivo inválido: {filename!r}")
+            destination = os.path.join(tmp_dir, relative_name)
+            try:
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                with open(destination, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except OSError as err:
+                raise SastExecutionError(f"Não foi possível gravar {filename!r}: {err}") from err
 
         command = [SEMGREP_BINARY, "--config=auto", "--json", "--quiet", tmp_dir]
 
@@ -104,5 +141,19 @@ async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
         except json.JSONDecodeError:
             raise SastExecutionError(stderr.decode(errors="replace") or "Falha ao interpretar a saída do Semgrep.")
 
-        findings = [_parse_result(r) for r in payload.get("results", [])]
+        results = payload.get("results", [])
+
+        # 0 = sem achados, 1 = achados. Qualquer outro código sem resultado é falha real
+        # (ex.: sem internet para baixar as regras do --config=auto) e não pode virar "código limpo".
+        if process.returncode not in (0, 1) and not results:
+            error_messages = "; ".join(e.get("message", "") for e in payload.get("errors", []) if e.get("message"))
+            detail = stderr.decode(errors="replace").strip() or error_messages
+            raise SastExecutionError(detail or f"O Semgrep terminou com código {process.returncode}.")
+
+        contents = {_safe_relative_path(name): code for name, code in files.items()}
+        texts = {_rule_name(r.get("check_id", "")) for r in results}
+        texts |= {r.get("extra", {}).get("message", "") for r in results}
+        translations = await translate_many(texts)
+
+        findings = [_parse_result(r, tmp_dir, contents, translations) for r in results]
         return findings, duration

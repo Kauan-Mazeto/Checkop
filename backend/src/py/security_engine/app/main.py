@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 
-from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan,update_templates)
+from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan, update_templates)
 from .schemas import (NucleiScanRequest, NucleiScanResponse, ZapScanRequest, ZapScanResponse, SubdomainEnumRequest, SubdomainEnumResponse, SastScanRequest)
 from .subfinder_runner import (SubfinderExecutionError, SubfinderNotInstalledError, run_subdomain_enum)
 from .zap_runner import ZapExecutionError, ZapNotAvailableError, run_zap_scan
@@ -23,6 +23,7 @@ async def scan_with_nuclei(payload: NucleiScanRequest):
             rate_limit=payload.rateLimit,
             tags=payload.tags,
     )
+        
     except NucleiNotInstalledError as err:
         raise HTTPException(status_code=503, detail=str(err))
     except NucleiExecutionError as err:
