@@ -1,10 +1,10 @@
 import asyncio
 import os
-import time
-import asyncio
-import os
 import re
 import time
+import uuid
+from urllib.parse import quote
+
 import httpx
 
 from .mapping import map_to_owasp_category, fallback_cvss_for_severity
@@ -101,22 +101,29 @@ async def _set_active_scanners(client: httpx.AsyncClient, scanner_ids: list[str]
     await _get(client, "/JSON/ascan/action/disableAllScanners/", {})
     await _get(client, "/JSON/ascan/action/setEnabledScanners/", {"ids": ",".join(scanner_ids)})
 
-async def _setup_authentication(client: httpx.AsyncClient, target_url: str, auth: ZapAuthConfig) -> str:
-    ctx_data = await _get(client, "/JSON/context/action/newContext/", {"contextName": CONTEXT_NAME})
+def _enc(value: str) -> str:
+    return quote(value, safe="")
+
+
+async def _setup_authentication(
+    client: httpx.AsyncClient, target_url: str, auth: ZapAuthConfig, context_name: str
+) -> None:
+    ctx_data = await _get(client, "/JSON/context/action/newContext/", {"contextName": context_name})
     context_id = ctx_data.get("contextId")
     if context_id is None:
         raise ZapExecutionError(f"Não foi possível criar o contexto do ZAP: {ctx_data}")
 
+    # regex: URL do alvo escapada + qualquer coisa depois
     include_regex = re.escape(target_url.rstrip("/")) + ".*"
     await _get(client, "/JSON/context/action/includeInContext/", {
-        "contextName": CONTEXT_NAME,
+        "contextName": context_name,
         "regex": include_regex,
     })
 
+    # O ZAP lê esses parâmetros em dois níveis, então o valor aninhado
+    # (loginRequestData) e a URL precisam ir URL-encoded dentro do config.
     login_request_data = f"{auth.usernameField}={{%username%}}&{auth.passwordField}={{%password%}}"
-    auth_config = (
-        f"loginUrl={auth.loginUrl}&loginRequestData={login_request_data}"
-    )
+    auth_config = f"loginUrl={_enc(auth.loginUrl)}&loginRequestData={_enc(login_request_data)}"
     await _get(client, "/JSON/authentication/action/setAuthenticationMethod/", {
         "contextId": context_id,
         "authMethodName": "formBasedAuthentication",
@@ -142,10 +149,11 @@ async def _setup_authentication(client: httpx.AsyncClient, target_url: str, auth
     if user_id is None:
         raise ZapExecutionError(f"Não foi possível criar o usuário de teste no ZAP: {user_data}")
 
+    # usuário e senha também vão codificados (senha com & ou = não pode quebrar o parse)
     await _get(client, "/JSON/users/action/setAuthenticationCredentials/", {
         "contextId": context_id,
         "userId": user_id,
-        "authCredentialsConfigParams": f"username={auth.username}&password={auth.password}",
+        "authCredentialsConfigParams": f"username={_enc(auth.username)}&password={_enc(auth.password)}",
     })
     await _get(client, "/JSON/users/action/setUserEnabled/", {
         "contextId": context_id,
@@ -153,17 +161,35 @@ async def _setup_authentication(client: httpx.AsyncClient, target_url: str, auth
         "enabled": "true",
     })
 
+    # Limitação: o modo "forced user" é global na instância do ZAP. Enquanto um scan
+    # autenticado roda, qualquer outro scan no mesmo ZAP também sai como esse usuário.
     await _get(client, "/JSON/forcedUser/action/setForcedUser/", {
         "contextId": context_id,
         "userId": user_id,
     })
     await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "true"})
 
-    return context_id
 
+async def _cleanup_authentication(client: httpx.AsyncClient, context_name: str) -> None:
+    # melhor esforço: roda sempre (sucesso ou erro) para não vazar sessão/contexto
+    # para os próximos scans na mesma instância do ZAP.
+    for path, params in (
+        ("/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "false"}),
+        ("/JSON/context/action/removeContext/", {"contextName": context_name}),
+    ):
+        try:
+            await _get(client, path, params)
+        except (ZapNotAvailableError, ZapExecutionError):
+            pass
 
-async def _run_ajax_spider(client: httpx.AsyncClient, target_url: str, max_seconds: float) -> None:
-    started = await _get(client, "/JSON/ajaxSpider/action/scan/", {"url": target_url, "inScope": "true"})
+async def _run_ajax_spider(
+    client: httpx.AsyncClient, target_url: str, max_seconds: float, context_name: str | None
+) -> None:
+    # subtreeOnly mantém o spider restrito ao alvo, sem depender de escopo/contexto.
+    params = {"url": target_url, "subtreeOnly": "true"}
+    if context_name:
+        params["contextName"] = context_name
+    started = await _get(client, "/JSON/ajaxSpider/action/scan/", params)
     if started.get("Result") not in ("OK", None):
         raise ZapExecutionError(f"O ZAP não iniciou o Spider AJAX: {started}")
 
@@ -177,6 +203,7 @@ async def _run_ajax_spider(client: httpx.AsyncClient, target_url: str, max_secon
 
     await _get(client, "/JSON/ajaxSpider/action/stop/", {})
 
+
 async def run_zap_scan(
     target_url: str,
     safe_mode: bool,
@@ -185,49 +212,51 @@ async def run_zap_scan(
     use_ajax_spider: bool = False,
 ) -> tuple[list[Finding], float]:
     started_at = time.monotonic()
+    # nome único por varredura: o ZAP recusa criar dois contextos com o mesmo nome
+    context_name = f"checkop-{uuid.uuid4().hex[:8]}" if auth is not None else None
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
+        try:
+            await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
 
-        if auth is not None:
-            await _setup_authentication(client, target_url, auth)
+            if auth is not None:
+                await _setup_authentication(client, target_url, auth, context_name)
 
-        # 1) spider: mapeia a superfície de ataque (RF-33).
-        # AJAX spider para SPAs (Angular/React); spider tradicional, senão.
-        if use_ajax_spider:
-            await _run_ajax_spider(client, target_url, AJAX_SPIDER_MAX_SECONDS)
-        else:
-            spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
-            spider_id = spider_data.get("scan")
-            if spider_id is None:
-                raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
-            if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
-                await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
+            # 1) spider: mapeia a superfície de ataque (RF-33).
+            # AJAX spider para SPAs (Angular/React); spider tradicional, senão.
+            if use_ajax_spider:
+                await _run_ajax_spider(client, target_url, AJAX_SPIDER_MAX_SECONDS, context_name)
+            else:
+                spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
+                spider_id = spider_data.get("scan")
+                if spider_id is None:
+                    raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
+                if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
+                    await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
 
-        # 2) varredura passiva: espera a fila de análise esvaziar
-        elapsed = 0.0
-        while elapsed < PASSIVE_MAX_SECONDS:
-            pscan_data = await _get(client, "/JSON/pscan/view/recordsToScan/", {})
-            if int(pscan_data.get("recordsToScan", 0)) == 0:
-                break
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
-            elapsed += POLL_INTERVAL_SECONDS
+            # 2) varredura passiva: espera a fila de análise esvaziar
+            elapsed = 0.0
+            while elapsed < PASSIVE_MAX_SECONDS:
+                pscan_data = await _get(client, "/JSON/pscan/view/recordsToScan/", {})
+                if int(pscan_data.get("recordsToScan", 0)) == 0:
+                    break
+                await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                elapsed += POLL_INTERVAL_SECONDS
 
-        # 3) varredura ativa: só fora de produção (RF-52)
-        if not safe_mode:
-            await _set_active_scanners(client, scanner_ids)
-            ascan_data = await _get(client, "/JSON/ascan/action/scan/", {"url": target_url, "recurse": "true"})
-            ascan_id = ascan_data.get("scan")
-            if ascan_id is None:
-                raise ZapExecutionError(f"O ZAP não iniciou a varredura ativa: {ascan_data}")
-            if not await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_id}, ACTIVE_MAX_SECONDS):
-                await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
+            # 3) varredura ativa: só fora de produção (RF-52)
+            if not safe_mode:
+                await _set_active_scanners(client, scanner_ids)
+                ascan_data = await _get(client, "/JSON/ascan/action/scan/", {"url": target_url, "recurse": "true"})
+                ascan_id = ascan_data.get("scan")
+                if ascan_id is None:
+                    raise ZapExecutionError(f"O ZAP não iniciou a varredura ativa: {ascan_data}")
+                if not await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_id}, ACTIVE_MAX_SECONDS):
+                    await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
 
-        alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
-
-        if auth is not None:
-            # desliga o modo forçado para não vazar pra scans futuros na mesma instância do ZAP
-            await _get(client, "/JSON/forcedUser/action/setForcedUserModeEnabled/", {"boolean": "false"})
+            alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
+        finally:
+            if context_name is not None:
+                await _cleanup_authentication(client, context_name)
 
     duration = time.monotonic() - started_at
     findings = [_parse_alert(a) for a in alerts_data.get("alerts", [])]

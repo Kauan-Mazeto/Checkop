@@ -22,7 +22,7 @@ async def scan_with_nuclei(payload: NucleiScanRequest):
             safe_mode=payload.safeMode,
             rate_limit=payload.rateLimit,
             tags=payload.tags,
-        )
+    )
     except NucleiNotInstalledError as err:
         raise HTTPException(status_code=503, detail=str(err))
     except NucleiExecutionError as err:

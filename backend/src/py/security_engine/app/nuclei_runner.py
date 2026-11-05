@@ -115,7 +115,9 @@ def _parse_line(raw_line: str) -> Finding | None:
         owaspUrl=map_to_owasp_category(tags, cwe_ids),  # RF-47
     )
 
-async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None) -> tuple[list[Finding], float]:
+async def run_nuclei_scan(
+    target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None
+) -> tuple[list[Finding], float]:
     command = _build_command(target_url, safe_mode, rate_limit, tags)
     started_at = time.monotonic()
 
@@ -123,27 +125,45 @@ async def run_nuclei_scan(target_url: str, safe_mode: bool, rate_limit: int, tag
         *command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        # linhas do -include-rr (request/response) podem passar de 64 KB
+        limit=16 * 1024 * 1024,
     )
 
+    findings: list[Finding] = []
+
+    async def _read_stdout() -> None:
+        # lê linha a linha: o que já foi encontrado fica guardado mesmo se estourar o tempo
+        async for raw_line in process.stdout:
+            finding = _parse_line(raw_line.decode(errors="replace"))
+            if finding:
+                findings.append(finding)
+        await process.wait()
+
+    stderr_task = asyncio.create_task(process.stderr.read())
+    timed_out = False
+
     try:
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=NUCLEI_TIMEOUT_SECONDS)
+        await asyncio.wait_for(_read_stdout(), timeout=NUCLEI_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
+        timed_out = True
         process.kill()
         await process.wait()
-        raise NucleiExecutionError(
-            f"O Nuclei excedeu o tempo limite de {NUCLEI_TIMEOUT_SECONDS}s e foi interrompido."
-        )
 
+    stderr = await stderr_task
     duration = time.monotonic() - started_at
 
-    if process.returncode != 0 and not stdout:
+    if timed_out:
+        if not findings:
+            raise NucleiExecutionError(
+                f"O Nuclei excedeu o tempo limite de {NUCLEI_TIMEOUT_SECONDS}s e foi interrompido."
+            )
+        # varredura incompleta, mas com achados: devolve o que deu tempo de achar
+        print(
+            f"[nuclei] tempo limite de {NUCLEI_TIMEOUT_SECONDS}s atingido; "
+            f"devolvendo {len(findings)} achado(s) parcial(is)."
+        )
+    elif process.returncode != 0 and not findings:
         raise NucleiExecutionError(stderr.decode(errors="replace") or "Falha ao executar o Nuclei.")
-
-    findings = []
-    for line in stdout.decode(errors="replace").splitlines():
-        finding = _parse_line(line)
-        if finding:
-            findings.append(finding)
 
     return findings, duration
 

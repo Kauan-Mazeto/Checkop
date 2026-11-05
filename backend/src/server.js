@@ -51,12 +51,17 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(timeout('25s'));
+const timeoutPadrao = timeout('25s');
+const timeoutSast = timeout('3m'); // o Semgrep pode levar até 120s
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? timeoutSast : timeoutPadrao)(req, res, next));
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10mb' }));
+// 10kb para a API toda; só o /api/sast recebe arquivos de código (até 10mb)
+const jsonPequeno = express.json({ limit: '10kb' });
+const jsonGrande = express.json({ limit: '10mb' });
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? jsonGrande : jsonPequeno)(req, res, next));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
-app.use(sanitizeMiddleware);
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? next() : sanitizeMiddleware(req, res, next)));
 app.use(globalLimiter);
 
 app.use('/api/auth', authRoutes);

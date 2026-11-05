@@ -31,7 +31,7 @@ export const createScanSchema = z.object({
   }),
 });
 
-export const runScanAuthSchema = z.object({
+export const runScanAuthSchema = z.preprocess((value) => value ?? {}, z.object({
   auth: z
     .object({
       loginUrl: z.string().trim().url('loginUrl deve ser uma URL válida.'),
@@ -44,4 +44,4 @@ export const runScanAuthSchema = z.object({
     })
     .optional(),
   useAjaxSpider: z.boolean().default(false),
-});
+}));
