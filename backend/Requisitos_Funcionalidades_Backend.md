@@ -25,11 +25,10 @@ RF-12 — Exportação de relatórios: o sistema deve gerar relatórios de varre
 RF-13 — Histórico de análises: o sistema deve armazenar e exibir o histórico de varreduras realizadas por cada usuário, persistido em banco de dados.
 2. Requisitos Não Funcionais Especificados na Proposta Original
 RNF-01 — Arquitetura modular: o sistema deve seguir uma arquitetura de microsserviços, separando o backend principal (Node.js/Express) dos módulos de orquestração de segurança (Python).
-RNF-02 — Integração contínua: o sistema deve executar testes automatizados a cada commit via GitHub Actions.
 RNF-03 — Responsividade e acessibilidade: as interfaces devem ser responsivas e acessíveis em diferentes dispositivos.
 RNF-04 — Autenticação stateless: o mecanismo de autenticação deve utilizar JWT, evitando dependência de estado de sessão no servidor.
 RNF-05 — Custo de hospedagem controlado: a infraestrutura deve operar dentro da faixa orçamentária estimada (R$ 30,00–R$ 80,00/mês para o plano básico de VPS).
-RNF-06 — Persistência relacional: os dados devem ser armazenados em PostgreSQL, com acesso via Prisma ORM.
+RNF-06 — Persistência relacional: os dados devem ser armazenados em sqlite, com acesso via Prisma ORM.
 3. Funcionalidades Propostas (Complementares — Não Existentes na Proposta Original)
 
 Funcionalidades adicionais sugeridas para tornar o produto mais completo, sem sobrepor o que já foi especificado.
