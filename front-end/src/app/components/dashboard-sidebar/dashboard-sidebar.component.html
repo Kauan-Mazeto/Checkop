@@ -1,0 +1,53 @@
+<aside class="rail" aria-label="Navegação principal">
+  <a class="brand" routerLink="/landing" aria-label="Checkop">
+    <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
+    <span class="brand-name">Checkop</span>
+  </a>
+
+  <nav class="nav-list" aria-label="Seções">
+    <button
+      type="button"
+      class="nav-item"
+      [class.is-active]="activeSection() === 'overview'"
+      [attr.aria-current]="activeSection() === 'overview' ? 'page' : null"
+      (click)="goTo('overview')"
+    >
+      Painel
+    </button>
+    <button
+      type="button"
+      class="nav-item"
+      [class.is-active]="activeSection() === 'scan'"
+      (click)="goTo('scan')"
+    >
+      Scans
+    </button>
+    <button
+      type="button"
+      class="nav-item"
+      [class.is-active]="activeSection() === 'history'"
+      (click)="goTo('history')"
+    >
+      {{ state.planDefinition().canViewHistory ? 'Histórico' : 'Último scan' }}
+    </button>
+    <button type="button" class="nav-item" disabled title="Em breve">Configurações</button>
+  </nav>
+
+  <div class="rail-foot">
+    <div class="identity">
+      <span>Perfil atual</span>
+      <strong>{{ roleLabel[state.role()] }} · {{ state.planDefinition().name }}</strong>
+    </div>
+
+    <button
+      type="button"
+      class="button button-outline"
+      [attr.aria-pressed]="state.highContrast()"
+      (click)="state.toggleHighContrast()"
+    >
+      Alto contraste
+    </button>
+
+    <button type="button" class="button button-outline" (click)="logout()">Sair</button>
+  </div>
+</aside>

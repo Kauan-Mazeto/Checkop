@@ -1,17 +1,17 @@
 :host {
-  --background: #0d0809;
-  --surface: #150d0f;
-  --surface-light: #1b1013;
-  --text: #f0d0d4;
-  --muted: #a66b75;
-  --muted-dark: #69434b;
-  --primary: #ff3347;
-  --primary-light: #ff5f6d;
-  --primary-dark: #b91f31;
-  --primary-rgb: 255, 51, 71;
-  --success: #39d98a;
-  --warning: #ffb52e;
-  --blue: #31b7ff;
+  --background: #111213;
+  --surface: #191a1c;
+  --surface-light: #202124;
+  --text: #f1f1f2;
+  --muted: #b0b0b5;
+  --muted-dark: #85858b;
+  --primary: #d84a56;
+  --primary-light: #e16a73;
+  --primary-dark: #a73540;
+  --primary-rgb: 216, 74, 86;
+  --success: #7eaa8c;
+  --warning: #c5a66c;
+  --blue: #8299ad;
   display: block;
   min-height: 100vh;
 }
@@ -37,47 +37,14 @@ a {
 .checkop {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
   background: var(--background);
   color: var(--text);
-  font-family: 'Space Grotesk', sans-serif;
-}
-
-.grid-background {
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(var(--primary-rgb), 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--primary-rgb), 0.035) 1px, transparent 1px);
-  background-size: 40px 40px;
-  animation: grid-scroll 8s linear infinite;
-}
-
-.scanline-overlay {
-  position: fixed;
-  z-index: 1;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-
-  &::after {
-    position: absolute;
-    top: -10%;
-    left: 0;
-    width: 100%;
-    height: 8%;
-    background: linear-gradient(transparent, rgba(var(--primary-rgb), 0.035), transparent);
-    content: '';
-    animation: scanline 6s linear infinite;
-  }
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .app-view,
 .dashboard-view {
   position: relative;
-  z-index: 2;
   min-height: 100vh;
 }
 
@@ -115,7 +82,6 @@ a {
 
 .brand-name {
   color: var(--primary);
-  font-family: 'JetBrains Mono', monospace;
   font-size: 18px;
   font-weight: 700;
 }
@@ -168,14 +134,12 @@ a {
   align-items: center;
   justify-content: center;
   min-height: 42px;
-  border-radius: 6px;
+  border-radius: 5px;
   font-size: 14px;
   font-weight: 600;
   transition:
     background 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.25s ease;
+    border-color 0.25s ease;
 
   &:disabled {
     cursor: wait;
@@ -183,31 +147,29 @@ a {
   }
 
   &:hover:not(:disabled) {
-    transform: translateY(-1px);
+    border-color: var(--primary-light);
   }
 }
 
 .button-primary {
   border: 1px solid var(--primary);
   background: var(--primary);
-  color: var(--background);
-  box-shadow: 0 0 24px rgba(var(--primary-rgb), 0.14);
+  color: #fff;
 
   &:hover:not(:disabled) {
     background: var(--primary-light);
-    box-shadow: 0 0 36px rgba(var(--primary-rgb), 0.3);
   }
 }
 
 .button-secondary,
 .button-outline {
-  border: 1px solid rgba(var(--primary-rgb), 0.25);
-  background: rgba(var(--primary-rgb), 0.07);
-  color: var(--primary);
+  border: 1px solid #444549;
+  background: transparent;
+  color: var(--text);
 
   &:hover:not(:disabled) {
-    border-color: rgba(var(--primary-rgb), 0.6);
-    background: rgba(var(--primary-rgb), 0.14);
+    border-color: #77787e;
+    background: var(--surface-light);
   }
 }
 
@@ -215,7 +177,6 @@ a {
   min-height: 34px;
   padding: 0 18px;
   background: transparent;
-  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
 }
 
@@ -345,6 +306,11 @@ a {
   border-radius: 8px;
   background: var(--surface);
   text-align: left;
+}
+
+.terminal-preview,
+.stats-section {
+  display: none;
 }
 
 .terminal-header {
@@ -516,8 +482,8 @@ a {
 }
 
 .surface-card {
-  border: 1px solid rgba(var(--primary-rgb), 0.1);
-  border-radius: 8px;
+  border: 1px solid #303135;
+  border-radius: 6px;
   background: var(--surface);
 }
 
@@ -526,9 +492,7 @@ a {
   overflow: hidden;
   padding: 24px;
   transition:
-    border-color 0.3s ease,
-    box-shadow 0.3s ease,
-    transform 0.3s ease;
+    border-color 0.2s ease;
 
   &::before {
     position: absolute;
@@ -536,20 +500,12 @@ a {
     right: 0;
     left: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--primary), transparent);
     content: '';
     opacity: 0;
-    transition: opacity 0.3s ease;
   }
 
   &:hover {
-    border-color: rgba(var(--primary-rgb), 0.35);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
-    transform: translateY(-4px);
-
-    &::before {
-      opacity: 1;
-    }
+    border-color: #55565b;
   }
 
   h3 {
@@ -638,8 +594,7 @@ a {
 }
 
 .pricing-card-featured {
-  border-color: rgba(var(--primary-rgb), 0.45);
-  box-shadow: 0 0 28px rgba(var(--primary-rgb), 0.08);
+  border-color: var(--primary);
 }
 
 .plan-name {

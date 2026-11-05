@@ -1,0 +1,22 @@
+<header class="topbar">
+  <div>
+    <h1>Visão geral</h1>
+    <p>Segurança simples para decisões mais claras.</p>
+  </div>
+
+  <div class="topbar-actions">
+    <div class="topbar-user">
+      <strong>{{ state.user()?.name }}</strong>
+      <div class="badges">
+        <span class="role-badge">{{ roleLabel[state.role()] }}</span>
+        <span class="plan-badge" [class.plan-badge-premium]="state.plan() === 'premium'">
+          {{ state.planDefinition().name }}
+        </span>
+      </div>
+    </div>
+
+    <button class="button button-primary" type="button" (click)="state.requestScanFocus()">
+      + Novo scan
+    </button>
+  </div>
+</header>

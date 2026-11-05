@@ -1,0 +1,82 @@
+<section class="section">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        <h2>Aprenda com a análise</h2>
+        <p>Entenda o básico antes de interpretar uma varredura.</p>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="subcard">
+        <h3>Safe Mode vs Verbose Mode</h3>
+        <p>
+          Verbose mostra mais detalhes para estudo em ambientes controlados. Safe Mode protege
+          informações em produção.
+        </p>
+      </div>
+
+      <div class="subcard">
+        <h3>OWASP Top 10</h3>
+        <p>Uma lista educativa dos riscos mais comuns em aplicações web.</p>
+      </div>
+
+      <div class="subcard">
+        <h3>Ambiente suspeito</h3>
+        <p>
+          Quando uma URL "de teste" resolve para um IP público conhecido, marcamos como suspeita —
+          pode ser produção de verdade.
+        </p>
+      </div>
+
+      <div class="subcard">
+        <h3>Laboratório seguro</h3>
+        <p>Referências visuais para estudo. Payloads crus não são exibidos neste perfil.</p>
+
+        <div class="lab-items">
+          <div class="lab">
+            <span>DVWA</span>
+            <small>Referência visual · integração desabilitada</small>
+          </div>
+          <div class="lab">
+            <span>Juice Shop</span>
+            <small>Referência visual · integração desabilitada</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subcard explained">
+      <h3>O que a sua varredura encontrou</h3>
+
+      @if (explainedFindings().length === 0) {
+        <div class="empty-box">As explicações aparecerão após a primeira varredura.</div>
+      } @else {
+        <ul class="explained-list">
+          @for (finding of explainedFindings(); track finding.id) {
+            <li>
+              <div class="explained-head">
+                <span class="severity-tag" [attr.data-severity]="finding.severity">
+                  {{ severityLabel[finding.severity] }}
+                </span>
+                <strong>{{ finding.title }}</strong>
+              </div>
+
+              @if (finding.description) {
+                <p><b>O que é:</b> {{ finding.description }}</p>
+              }
+              @if (finding.remediation) {
+                <p><b>Como corrigir:</b> {{ finding.remediation }}</p>
+              }
+              @if (finding.owaspUrl) {
+                <a [href]="finding.owaspUrl" target="_blank" rel="noopener noreferrer">
+                  Saiba mais (OWASP)
+                </a>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </article>
+</section>

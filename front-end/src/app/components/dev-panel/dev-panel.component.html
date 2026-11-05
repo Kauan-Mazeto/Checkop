@@ -1,0 +1,70 @@
+<section class="section">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        <h2>Alertas e depuração</h2>
+        <p>Acompanhe somente o que precisa de atenção no desenvolvimento.</p>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="subcard">
+        <h3>Alertas</h3>
+
+        <div class="categories">
+          <span class="chip">Scan falho</span>
+          <span class="chip">Ambiente suspeito</span>
+          <span class="chip">Nova vulnerabilidade</span>
+        </div>
+
+        @if (state.flaggedScans().length === 0) {
+          <div class="empty-box">Nenhum alerta novo</div>
+        } @else {
+          <ul class="alert-list">
+            @for (scan of state.flaggedScans(); track scan.id) {
+              <li>
+                <span class="alert-dot" [class.alert-dot-danger]="scan.status === 'FAILED'"></span>
+                <div>
+                  @if (scan.status === 'FAILED') {
+                    <p>Falha ao escanear <code>{{ scan.targetUrl }}</code></p>
+                  } @else {
+                    <p>
+                      <code>{{ scan.targetUrl }}</code> foi sinalizada como possível ambiente de
+                      produção
+                    </p>
+                  }
+                  <small>{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="subcard">
+        <h3>Modo debug</h3>
+        <p>
+          Respostas cruas e stack traces só aparecem em DEV/STAGING. Em produção, o Modo Seguro
+          filtra essas informações.
+        </p>
+      </div>
+
+      <div class="subcard">
+        <h3>Sugestões de correção</h3>
+
+        @if (fixSuggestions().length === 0) {
+          <div class="empty-box">As sugestões aparecerão após a primeira varredura.</div>
+        } @else {
+          <ul class="fix-list">
+            @for (finding of fixSuggestions(); track finding.id) {
+              <li>
+                <strong>{{ finding.title }}</strong>
+                <p>{{ finding.remediation }}</p>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+  </article>
+</section>

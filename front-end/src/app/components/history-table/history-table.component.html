@@ -1,0 +1,123 @@
+<section id="history" class="section" aria-labelledby="history-title">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        @if (state.planDefinition().canViewHistory) {
+          <h2 id="history-title">Histórico de análises</h2>
+          <p>Todos os scans registrados na sua conta.</p>
+        } @else {
+          <h2 id="history-title">Último scan</h2>
+          <p>Acompanhe aqui o andamento do seu scan mais recente.</p>
+        }
+      </div>
+
+      @if (state.planDefinition().canViewHistory) {
+        <input
+          class="control search"
+          type="search"
+          placeholder="Buscar no histórico"
+          aria-label="Buscar no histórico"
+          [ngModel]="term()"
+          (ngModelChange)="term.set($event)"
+        />
+      }
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Aplicação</th>
+            <th>Ambiente</th>
+            <th>Status</th>
+            <th>Data</th>
+            <th>Modo</th>
+            <th><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (scan of visibleScans(); track scan.id) {
+            <tr>
+              <td>
+                <span class="scan-url">{{ scan.targetUrl }}</span>
+                @if (scan.objective; as objective) {
+                  <small class="scan-objective">{{ objectiveLabel[objective] }}</small>
+                }
+              </td>
+              <td>
+                <span class="environment-tag" [attr.data-env]="scan.environment" [title]="environmentLongLabel[scan.environment]">
+                  {{ environmentLabel[scan.environment] }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" [attr.data-status]="scan.status">
+                  {{ statusLabel[scan.status] }}
+                </span>
+              </td>
+              <td>{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <span class="mode-tag" [class.mode-tag-safe]="scan.safeMode">
+                  {{ scan.safeMode ? 'Modo Seguro' : 'Modo Verboso' }}
+                </span>
+              </td>
+              <td class="actions">
+                <div class="actions-row">
+                @if (canRun(scan)) {
+                  <button
+                    class="button button-outline run-button"
+                    type="button"
+                    [disabled]="startingIds().includes(scan.id)"
+                    (click)="run(scan)"
+                  >
+                    {{ startingIds().includes(scan.id) ? 'Iniciando…' : scan.status === 'FAILED' ? 'Tentar de novo' : 'Executar' }}
+                  </button>
+                }
+
+                @if (scan.status === 'COMPLETED' && state.planDefinition().canExportReports) {
+                  <button
+                    class="button button-outline run-button"
+                    type="button"
+                    title="Exportar relatório em PDF"
+                    [disabled]="isExporting(scan, 'pdf')"
+                    (click)="exportReport(scan, 'pdf')"
+                  >
+                    {{ isExporting(scan, 'pdf') ? '…' : 'PDF' }}
+                  </button>
+                  <button
+                    class="button button-outline run-button"
+                    type="button"
+                    title="Exportar relatório em JSON"
+                    [disabled]="isExporting(scan, 'json')"
+                    (click)="exportReport(scan, 'json')"
+                  >
+                    {{ isExporting(scan, 'json') ? '…' : 'JSON' }}
+                  </button>
+                }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (exportError(); as message) {
+      <div class="auth-error" role="alert">{{ message }}</div>
+    }
+
+    @if (visibleScans().length === 0 && !state.isLoadingScans()) {
+      <div class="empty-box">
+        {{ state.totalScans() === 0 ? 'Você ainda não rodou nenhum scan.' : 'Nenhuma análise corresponde à busca.' }}
+      </div>
+    }
+
+    @if (!state.planDefinition().canViewHistory) {
+      <div class="locked-card">
+        <div>
+          <strong>Histórico completo e exportação de relatório no Premium</strong>
+          <p>No plano Free você vê apenas o seu último scan.</p>
+        </div>
+      </div>
+    }
+  </article>
+</section>

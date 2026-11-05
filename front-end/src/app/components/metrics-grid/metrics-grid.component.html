@@ -1,0 +1,33 @@
+<section class="section metrics" aria-label="Métricas">
+  <article class="surface-card metric">
+    <span>Total de scans</span>
+    <strong>{{ state.totalScans() }}</strong>
+    @if (state.runningScans() > 0) {
+      <small>{{ state.runningScans() }} em execução</small>
+    }
+  </article>
+
+  <article class="surface-card metric">
+    <span>Scans concluídos</span>
+    <strong>{{ state.completedScans() }}</strong>
+  </article>
+
+  <article class="surface-card metric">
+    <span>Ambientes suspeitos</span>
+    <strong [class.metric-alert]="state.suspiciousScans() > 0">{{ state.suspiciousScans() }}</strong>
+  </article>
+
+  <article class="surface-card metric">
+    <span>Scans restantes hoje</span>
+    @if (state.scansRemaining(); as remaining) {
+      <strong>{{ remaining }}</strong>
+      <small>de {{ state.planDefinition().dailyScanLimit }} por dia no plano {{ state.planDefinition().name }}</small>
+    } @else if (state.scansRemaining() === 0) {
+      <strong class="metric-alert">0</strong>
+      <small>limite diário do plano {{ state.planDefinition().name }} atingido</small>
+    } @else {
+      <strong>Ilimitado</strong>
+      <small>plano {{ state.planDefinition().name }}</small>
+    }
+  </article>
+</section>

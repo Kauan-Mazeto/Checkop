@@ -1,0 +1,118 @@
+<section class="section">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        <h2>Resultados das análises</h2>
+        <p>Vulnerabilidades encontradas, relatórios e URLs analisadas mais de uma vez.</p>
+      </div>
+    </div>
+
+    <div class="qa-grid">
+      <div class="subcard qa-card">
+        <div class="qa-card-head">
+          <h3>Por severidade</h3>
+          <span>{{ state.findings().length }} encontradas</span>
+        </div>
+
+        @if (state.findings().length === 0) {
+          <div class="qa-empty">Os resultados aparecem aqui quando uma análise terminar.</div>
+        } @else {
+          <ul class="bars severity-bars">
+            @for (item of severityCounts(); track item.severity) {
+              <li>
+                <span class="bar-label">{{ severityLabel[item.severity] }}</span>
+                <div class="bar-track">
+                  <div
+                    [class]="'bar-fill severity-' + item.severity.toLowerCase()"
+                    [style.width.%]="(item.count / maxSeverityCount()) * 100"
+                  ></div>
+                </div>
+                <span class="bar-value">{{ item.count }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="subcard qa-card">
+        <div class="qa-card-head">
+          <h3>Por tipo</h3>
+          <span>mais frequentes</span>
+        </div>
+
+        @if (typeCounts().length === 0) {
+          <div class="qa-empty">Os tipos identificados serão listados após a análise.</div>
+        } @else {
+          <ul class="bars">
+            @for (item of typeCounts(); track item.title) {
+              <li>
+                <span class="bar-label">{{ item.title }}</span>
+                <div class="bar-track">
+                  <div class="bar-fill" [style.width.%]="(item.count / maxTypeCount()) * 100"></div>
+                </div>
+                <span class="bar-value">{{ item.count }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="subcard qa-card">
+        <h3>Relatórios</h3>
+
+        @if (state.planDefinition().canExportReports) {
+          <p>Baixe os resultados da análise concluída mais recente.</p>
+
+          <div class="button-row">
+            <button
+              class="button button-outline"
+              type="button"
+              [disabled]="!state.latestCompletedScan() || exporting() !== null"
+              (click)="exportLatest('pdf')"
+            >
+              {{ exporting() === 'pdf' ? 'Gerando…' : 'Exportar PDF' }}
+            </button>
+            <button
+              class="button button-outline"
+              type="button"
+              [disabled]="!state.latestCompletedScan() || exporting() !== null"
+              (click)="exportLatest('json')"
+            >
+              {{ exporting() === 'json' ? 'Gerando…' : 'Exportar JSON' }}
+            </button>
+          </div>
+
+          @if (!state.latestCompletedScan()) {
+            <p class="field-hint hint-gap">Nenhuma análise concluída disponível.</p>
+          }
+
+          @if (exportError(); as message) {
+            <div class="auth-error" role="alert">{{ message }}</div>
+          }
+        } @else {
+          <p>Relatórios em PDF e JSON estão disponíveis no plano Premium.</p>
+        }
+      </div>
+
+      <div class="subcard qa-card">
+        <div class="qa-card-head">
+          <h3>URLs analisadas mais de uma vez</h3>
+          <span>{{ repeatedTargets().length }} URLs</span>
+        </div>
+
+        @if (repeatedTargets().length === 0) {
+          <div class="qa-empty">Quando uma URL tiver mais de uma análise, ela aparecerá aqui.</div>
+        } @else {
+          <ul class="repeated">
+            @for (item of repeatedTargets(); track item.targetUrl) {
+              <li>
+                <span class="scan-url">{{ item.targetUrl }}</span>
+                <span class="chip">{{ item.runs }} execuções</span>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </div>
+  </article>
+</section>

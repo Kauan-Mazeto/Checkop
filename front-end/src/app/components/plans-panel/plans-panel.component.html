@@ -1,0 +1,35 @@
+<section class="section" aria-labelledby="plans-title">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        <h2 id="plans-title">Recursos do seu plano</h2>
+        <p>Compare os planos Free e Premium.</p>
+      </div>
+    </div>
+
+    <div class="plans-grid">
+      @for (plan of plans; track plan.id) {
+        <article class="plan" [class.selected]="state.plan() === plan.id">
+          <div class="plan-head">
+            <h3>{{ plan.name }}</h3>
+            @if (state.plan() === plan.id) {
+              <span class="chip chip-accent">Seu plano</span>
+            }
+          </div>
+          <p class="price">{{ plan.priceLabel }}</p>
+
+          <ul>
+            @for (feature of plan.features; track feature.label) {
+              <li [class.off]="!feature.included">
+                <span class="mark" aria-hidden="true">{{ feature.included ? '✓' : '✗' }}</span>
+                {{ feature.label }}
+              </li>
+            }
+          </ul>
+        </article>
+      }
+    </div>
+
+    <p class="field-hint note">Valores demonstrativos, sem cobrança no MVP.</p>
+  </article>
+</section>

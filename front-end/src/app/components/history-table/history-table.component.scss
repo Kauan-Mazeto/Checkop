@@ -1,0 +1,128 @@
+.search {
+  width: min(320px, 100%);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  padding: 9px;
+  border-bottom: 1px solid var(--line);
+  color: #85858d;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+td {
+  padding: 12px 9px;
+  border-bottom: 1px solid #29292d;
+  color: var(--gray-text);
+  font-size: 12px;
+}
+
+.scan-url {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.scan-objective {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted-dark);
+  font-size: 10px;
+}
+
+.actions {
+  text-align: right;
+}
+
+.actions-row {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.run-button {
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 11px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+// Etiquetas (paleta da inspiração): verde = ok, âmbar = em andamento / verboso,
+// vermelho = falha / produção / modo seguro, cinza = neutro.
+.environment-tag {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--gray-bg);
+  color: var(--gray-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+
+  &[data-env='PRODUCTION'] {
+    background: var(--primary);
+    color: #090909;
+  }
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--gray-bg);
+  color: var(--gray-text);
+  font-size: 10px;
+  font-weight: 700;
+
+  &[data-status='COMPLETED'] {
+    background: var(--green-bg);
+    color: var(--green-text);
+  }
+
+  &[data-status='RUNNING'] {
+    background: var(--amber-bg);
+    color: var(--amber-text);
+  }
+
+  &[data-status='FAILED'] {
+    background: var(--red-bg);
+    color: var(--red-text);
+  }
+}
+
+.mode-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--amber-bg);
+  color: var(--amber-text);
+  font-size: 10px;
+  font-weight: 700;
+
+  &.mode-tag-safe {
+    background: var(--red-bg);
+    color: var(--red-text);
+  }
+}

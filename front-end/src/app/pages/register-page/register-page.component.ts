@@ -114,6 +114,11 @@ export class RegisterPageComponent {
       return;
     }
 
+    if (step > 1 && !this.termsAccepted) {
+      this.errorMessage = 'Você precisa aceitar os termos de uso para continuar.';
+      return;
+    }
+
     if (step > 2 && !this.selectedRole) {
       return;
     }
@@ -128,6 +133,11 @@ export class RegisterPageComponent {
     if (this.currentStep === 1) {
       if (!this.isAccountStepValid) {
         this.errorMessage = 'Preencha nome, e-mail e uma senha de pelo menos 8 caracteres.';
+        return;
+      }
+
+      if (!this.termsAccepted) {
+        this.errorMessage = 'Você precisa aceitar os termos de uso para continuar.';
         return;
       }
 

@@ -1,0 +1,65 @@
+<section id="scan" class="section scan-layout" aria-labelledby="scan-title">
+  <article class="surface-card card-pad">
+    <div class="section-head">
+      <div>
+        <h2 id="scan-title">Novo scan</h2>
+        <p>Informe apenas um alvo que você tem autorização para analisar.</p>
+      </div>
+    </div>
+
+    <form class="scan-form" (ngSubmit)="submit()">
+      <label class="field">
+        <span>URL do alvo</span>
+        <input
+          #urlInput
+          class="control"
+          type="url"
+          name="targetUrl"
+          inputmode="url"
+          placeholder="https://aplicacao-autorizada.com"
+          [(ngModel)]="targetUrl"
+        />
+      </label>
+
+      @if (state.planDefinition().canChooseObjective) {
+        <label class="field">
+          <span>O que testar</span>
+          <select class="control" name="objective" [(ngModel)]="objective">
+            @for (option of objectiveOptions; track option) {
+              <option [value]="option">{{ objectiveLabel[option] }}</option>
+            }
+          </select>
+        </label>
+      } @else {
+        <p class="plan-note">
+          <strong>Scan básico da URL.</strong> No plano Free o tipo de teste é fixo e você tem 1
+          scan por dia. No Premium você escolhe o que testar e roda scans mais completos.
+        </p>
+      }
+
+      <label class="checkbox-row" for="scan-authorized">
+        <input id="scan-authorized" name="authorized" type="checkbox" [(ngModel)]="authorized" />
+        Confirmo que tenho autorização para analisar este alvo.
+      </label>
+
+      <button class="button button-primary" type="submit" [disabled]="isSubmitting() || !authorized">
+        {{ isSubmitting() ? 'Iniciando...' : 'Iniciar scan' }}
+      </button>
+    </form>
+
+    @if (feedback(); as fb) {
+      <div class="feedback" [class.feedback-ok]="fb.ok" [attr.role]="fb.ok ? 'status' : 'alert'">
+        {{ fb.message }}
+      </div>
+    }
+  </article>
+
+  <aside class="surface-card card-pad mode-card">
+    <span class="mode-kicker">Proteção de informações</span>
+    <h2>Modo Seguro e Modo Verboso</h2>
+    <p>
+      O Checkop detecta o ambiente da URL sozinho. O Modo Verboso mostra detalhes técnicos em
+      desenvolvimento e homologação; o Modo Seguro reduz informações sensíveis em produção.
+    </p>
+  </aside>
+</section>

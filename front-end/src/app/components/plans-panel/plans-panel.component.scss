@@ -1,0 +1,77 @@
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.plan {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #18181a;
+
+  // plano atual: o destaque avermelhado da tela
+  &.selected {
+    border-color: var(--primary);
+    background: #261218;
+  }
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  h3 {
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+  }
+}
+
+.price {
+  margin: 6px 0 0;
+  color: var(--primary-light);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #c9c9cf;
+  font-size: 12.5px;
+}
+
+li {
+  display: flex;
+  gap: 8px;
+
+  .mark {
+    color: var(--green-text);
+    font-weight: 700;
+  }
+
+  &.off {
+    color: var(--muted-dark);
+
+    .mark {
+      color: var(--muted-dark);
+    }
+  }
+}
+
+.note {
+  margin: 14px 0 0;
+}
+
+@media (max-width: 900px) {
+  .plans-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
