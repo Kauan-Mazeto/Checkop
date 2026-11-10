@@ -14,7 +14,9 @@ import sanitizeMiddleware from './middlewares/sanitize_middleware.js';
 import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
 import sastRoutes from './routes/sast_routes.js';
+import targetRoutes from './routes/target_routes.js';
 import prisma from './lib/prisma.js';
+import { scheduleRetentionPurge } from './lib/retention.js';
 
 const app = express();
 const PORT = process.env.PORT;
@@ -66,6 +68,7 @@ app.use((req, res, next) => (req.path.startsWith('/api/sast') ? next() : sanitiz
 app.use(globalLimiter);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/targets', targetRoutes);
 app.use('/api/scans', scanRoutes);
 app.use('/api/sast', sastRoutes);
 app.use('/api/privacy', privacyRoutes);
@@ -89,6 +92,8 @@ const server = app.listen(PORT, async () => {
   } catch (err) {
     console.error('Falha ao limpar varreduras interrompidas:', err);
   }
+
+  scheduleRetentionPurge();
 });
 
 // p/ deploy, desligar automaticamente

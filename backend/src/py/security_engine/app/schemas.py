@@ -42,7 +42,10 @@ class NucleiScanResponse(BaseModel):
 # ---------- ZAP (RF-09) ----------
 class ZapScanRequest(BaseModel):
     targetUrl: str
+    # safeMode = alvo de produção (mascaramento e cautela); activeScan = pode atacar.
+    # Separados porque produção verificada + opt-in explícito pode rodar o ativo.
     safeMode: bool = True
+    activeScan: bool | None = None  # None mantém o comportamento antigo: ativo só fora de produção
     scannerIds: list[str] | None = None
     auth: ZapAuthConfig | None = None
     useAjaxSpider: bool = False

@@ -57,8 +57,8 @@ def _build_command(target_url: str, safe_mode: bool, rate_limit: int, tags: list
     if tags:
         command += ["-tags", ",".join(tags)]
 
-    if safe_mode:
-        command += ["-etags", ",".join(INTRUSIVE_TAGS)]
+    # RF-51: templates de negação de serviço nunca rodam, nem com opt-in de ataque
+    command += ["-etags", ",".join(INTRUSIVE_TAGS if safe_mode else ["dos"])]
 
     return command
 

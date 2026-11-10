@@ -18,6 +18,12 @@ RISK_TO_CVSS_FALLBACK = {"0": 0.0, "1": 3.0, "2": 5.5, "3": 8.5}
 
 POLL_INTERVAL_SECONDS = 2
 
+# RF-51: ataque ativo contra alvo de produção não pode derrubar o site do usuário.
+# Poucas threads por host e pausa entre requisições; em ambiente local, padrão do ZAP.
+PRODUCTION_THREADS_PER_HOST = int(os.getenv("ZAP_PROD_THREADS_PER_HOST", "2"))
+PRODUCTION_DELAY_MS = int(os.getenv("ZAP_PROD_DELAY_MS", "250"))
+DEFAULT_THREADS_PER_HOST = int(os.getenv("ZAP_THREADS_PER_HOST", "4"))
+
 # Limite de tempo por fase. Se estourar, o ZAP é parado e seguimos com o que já
 # foi encontrado (resultado parcial) em vez de perder a varredura inteira.
 # Dá para ajustar por variável de ambiente. Soma dos padrões = 27 min, abaixo do
@@ -203,9 +209,23 @@ async def _run_ajax_spider(
     await _get(client, "/JSON/ajaxSpider/action/stop/", {})
 
 
+def should_run_active_scan(safe_mode: bool, active_scan: bool | None) -> bool:
+    # sem instrução explícita, mantém a regra antiga (RF-52): nada de ativo em produção
+    return (not safe_mode) if active_scan is None else active_scan
+
+
+async def _set_active_scan_throttling(client: httpx.AsyncClient, safe_mode: bool) -> None:
+    # opções globais do ZAP: sempre redefinidas, senão uma varredura herda a da anterior
+    threads = PRODUCTION_THREADS_PER_HOST if safe_mode else DEFAULT_THREADS_PER_HOST
+    delay = PRODUCTION_DELAY_MS if safe_mode else 0
+    await _get(client, "/JSON/ascan/action/setOptionThreadPerHost/", {"Integer": str(threads)})
+    await _get(client, "/JSON/ascan/action/setOptionDelayInMs/", {"Integer": str(delay)})
+
+
 async def run_zap_scan(
     target_url: str,
     safe_mode: bool,
+    active_scan: bool | None = None,
     scanner_ids: list[str] | None = None,
     auth: ZapAuthConfig | None = None,
     use_ajax_spider: bool = False,
@@ -242,8 +262,10 @@ async def run_zap_scan(
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 elapsed += POLL_INTERVAL_SECONDS
 
-            # 3) varredura ativa: só fora de produção (RF-52)
-            if not safe_mode:
+            # 3) varredura ativa: fora de produção, ou em produção verificada com
+            # opt-in explícito (o Node só manda activeScan=True nesses casos)
+            if should_run_active_scan(safe_mode, active_scan):
+                await _set_active_scan_throttling(client, safe_mode)
                 await _set_active_scanners(client, scanner_ids)
                 ascan_data = await _get(client, "/JSON/ascan/action/scan/", {"url": target_url, "recurse": "true"})
                 ascan_id = ascan_data.get("scan")

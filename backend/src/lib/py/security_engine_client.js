@@ -52,14 +52,14 @@ export const runNucleiScan = async ({ targetUrl, safeMode, rateLimit, tags }) =>
 };
 
 
-export const runZapScan = async ({ targetUrl, safeMode, scannerIds, auth, useAjaxSpider }) => {
+export const runZapScan = async ({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
         const response = await fetch(`${SECURITY_ENGINE_URL}/scans/zap`, {
             method: 'POST',
             headers: engineHeaders(),
-            body: JSON.stringify({ targetUrl, safeMode, scannerIds, auth, useAjaxSpider }),
+            body: JSON.stringify({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider }),
             signal: controller.signal,
         });
         const data = await response.json().catch(() => null);

@@ -3,8 +3,8 @@ import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
 
 const MAX_URL_LENGTH = 2048;
 
-export const createScanSchema = z.object({
-  targetUrl: z
+// reaproveitado no cadastro de alvos (target_validator.js)
+export const httpUrlSchema = z
     .string()
     .trim()
     .max(MAX_URL_LENGTH, `URL não pode exceder ${MAX_URL_LENGTH} caracteres.`)
@@ -20,7 +20,10 @@ export const createScanSchema = z.object({
     .refine((url) => {
       const parsed = new URL(url);
       return !parsed.username && !parsed.password;
-    }, 'A URL não pode conter credenciais embutidas.'),
+    }, 'A URL não pode conter credenciais embutidas.');
+
+export const createScanSchema = z.object({
+  targetUrl: httpUrlSchema,
   objective: z.enum(Object.keys(SCAN_OBJECTIVES), {
     errorMap: () => ({ message: `objective deve ser um dos valores: ${Object.keys(SCAN_OBJECTIVES).join(', ')}` }),
   }).default('FULL_SCAN'),
@@ -44,4 +47,13 @@ export const runScanAuthSchema = z.preprocess((value) => value ?? {}, z.object({
     })
     .optional(),
   useAjaxSpider: z.boolean().default(false),
+  // opt-in de varredura ativa (ataque real) em alvo público verificado.
+  // As duas declarações são exigidas juntas: autorização do titular (art. 154-A
+  // do CP) e permissão do provedor de hospedagem, já que o servidor pode ser
+  // "de uso alheio" (hospedagem compartilhada).
+  activeScanConfirmed: z.boolean().default(false),
+  hostingTermsConfirmed: z.boolean().default(false),
+}).refine((data) => !data.activeScanConfirmed || data.hostingTermsConfirmed, {
+  message: 'Para a varredura ativa, confirme também que os termos do seu provedor de hospedagem permitem testes de segurança.',
+  path: ['hostingTermsConfirmed'],
 }));

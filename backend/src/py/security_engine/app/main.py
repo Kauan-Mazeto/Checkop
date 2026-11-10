@@ -59,6 +59,7 @@ async def scan_with_zap(payload: ZapScanRequest):
         findings, duration = await run_zap_scan(
             target_url=payload.targetUrl,
             safe_mode=payload.safeMode,
+            active_scan=payload.activeScan,
             scanner_ids=payload.scannerIds,
             auth=payload.auth,
             use_ajax_spider=payload.useAjaxSpider,

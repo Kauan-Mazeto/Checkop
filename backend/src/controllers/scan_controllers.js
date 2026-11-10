@@ -3,6 +3,8 @@ import { detectEnvironment, ScanValidationError } from '../lib/environment_detec
 import { runNucleiScan, runZapScan, runSubdomainEnum, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
 import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
+import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
+import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
 
 const serializeIps = (ips) => ips.join(',');
 const deserializeIps = (value) => (value ? value.split(',') : []);
@@ -156,6 +158,25 @@ const revalidateTargetBeforeRun = async (scan) => {
   return SUSPICIOUS_TARGET_MESSAGE;
 };
 
+// TCC, seção 9: alvo local/rede privada é ambiente de desenvolvimento e fica isento
+const requiresVerifiedTarget = (environment) => environment !== 'DEVELOPMENT';
+
+const TARGET_NOT_VERIFIED_RESPONSE = Object.freeze({
+  error: 'Para varrer um site público, cadastre e verifique a propriedade do domínio em /api/targets.',
+  code: 'TARGET_NOT_VERIFIED',
+});
+
+// Confere de novo, antes de cada execução, que o usuário ainda controla o alvo.
+const ensureTargetStillVerified = async (scan) => {
+  if (!requiresVerifiedTarget(scan.environment)) return true;
+
+  const target = scan.targetId
+    ? await prisma.target.findUnique({ where: { id: scan.targetId } })
+    : await findVerifiedTargetForUrl(scan.userId, scan.targetUrl);
+
+  return Boolean(target) && (await refreshTargetVerification(target));
+};
+
 const createScan = async (req, res) => {
   try {
     const { targetUrl, objective } = req.body;
@@ -173,6 +194,21 @@ const createScan = async (req, res) => {
     const { environment, resolvedIps, suspicious } = detection;
     const safeMode = environment === 'PRODUCTION';
 
+    // alvo público (homologação ou produção) só com propriedade comprovada.
+    // O suspeito segue para ser registrado (auditoria) e é barrado no run.
+    let target = null;
+    if (requiresVerifiedTarget(environment) && !suspicious) {
+      target = await findVerifiedTargetForUrl(req.userId, targetUrl);
+      if (!target) {
+        await logAudit(req, {
+          action: AUDIT_ACTIONS.SCAN_BLOCKED,
+          resourceType: 'scan',
+          details: { targetUrl, reason: 'TARGET_NOT_VERIFIED' },
+        });
+        return res.status(403).json(TARGET_NOT_VERIFIED_RESPONSE);
+      }
+    }
+
     const scan = await prisma.scan.create({
       data: {
         targetUrl,
@@ -184,7 +220,15 @@ const createScan = async (req, res) => {
         userId: req.userId,
         authorizationConfirmedAt: new Date(),
         authorizationIp: req.ip,
+        targetId: target?.id ?? null,
       },
+    });
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.SCAN_CREATED,
+      resourceType: 'scan',
+      resourceId: scan.id,
+      details: { targetUrl, objective: scan.objective, environment, suspicious },
     });
 
     return res.status(201).json({
@@ -349,7 +393,8 @@ const executeScan = async (scan, runOptions = {}) => {
       jobs.push(
         runNucleiScan({
           targetUrl: scan.targetUrl,
-          safeMode: scan.safeMode,
+          // sem opt-in de ataque, os templates intrusivos ficam de fora (RF-52)
+          safeMode: !runOptions.activeScan,
           rateLimit: 10,
           tags: config.nuclei.tags,
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
@@ -361,6 +406,7 @@ const executeScan = async (scan, runOptions = {}) => {
         runZapScan({
           targetUrl: scan.targetUrl,
           safeMode: scan.safeMode,
+          activeScan: runOptions.activeScan === true,
           scannerIds: config.zap.scannerIds,
           auth: runOptions.auth,
           useAjaxSpider: runOptions.useAjaxSpider,
@@ -423,19 +469,45 @@ const executeScan = async (scan, runOptions = {}) => {
 const runScan = async (req, res) => {
   try {
     const scan = req.resource;
-    const { auth, useAjaxSpider } = req.body;
+    const { auth, useAjaxSpider, activeScanConfirmed } = req.body;
 
-    const blockedReason = await revalidateTargetBeforeRun(scan);
-
-    if (blockedReason) {
-      return res.status(403).json({ error: blockedReason });
+    const blockReason = await revalidateTargetBeforeRun(scan);
+    if (blockReason) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.SCAN_BLOCKED,
+        resourceType: 'scan',
+        resourceId: scan.id,
+        details: { reason: 'UNSAFE_DESTINATION' },
+      });
+      return res.status(403).json({ error: blockReason });
     }
+
+    if (!(await ensureTargetStillVerified(scan))) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.SCAN_BLOCKED,
+        resourceType: 'scan',
+        resourceId: scan.id,
+        details: { reason: 'TARGET_NOT_VERIFIED' },
+      });
+      return res.status(403).json(TARGET_NOT_VERIFIED_RESPONSE);
+    }
+
+    // Ataque ativo: livre em ambiente local; em alvo público só com o opt-in
+    // explícito desta execução (o validator já exigiu a declaração de hospedagem).
+    const isPublicTarget = requiresVerifiedTarget(scan.environment);
+    const activeScan = !isPublicTarget || activeScanConfirmed === true;
 
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).
     const claimed = await prisma.scan.updateMany({
       where: { id: scan.id, status: { in: ['PENDING', 'FAILED'] } },
-      data: { status: 'RUNNING', startedAt: new Date(), finishedAt: null },
+      data: {
+        status: 'RUNNING',
+        startedAt: new Date(),
+        finishedAt: null,
+        activeScanConfirmedAt: isPublicTarget && activeScan ? new Date() : null,
+        activeScanConfirmationIp: isPublicTarget && activeScan ? req.ip : null,
+      },
     });
 
     if (claimed.count === 0) {
@@ -447,11 +519,18 @@ const runScan = async (req, res) => {
       return res.status(409).json({ error: message });
     }
 
-    executeScan(scan, { auth, useAjaxSpider });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.SCAN_STARTED,
+      resourceType: 'scan',
+      resourceId: scan.id,
+      details: { environment: scan.environment, objective: scan.objective, activeScan, authenticated: Boolean(auth) },
+    });
+
+    executeScan(scan, { auth, useAjaxSpider, activeScan });
 
     return res.status(202).json({
       message: 'Varredura iniciada. Acompanhe o status em GET /api/scans/:id.',
-      scan: { id: scan.id, status: 'RUNNING', objective: scan.objective },
+      scan: { id: scan.id, status: 'RUNNING', objective: scan.objective, activeScan },
     });
   } catch (error) {
     console.error('Erro ao iniciar varredura:', error);
