@@ -127,6 +127,35 @@ const dedupeFindings = (findings) => {
   });
 };
 
+// B3: domínio público que resolve para IP interno é o padrão de DNS rebinding/SSRF
+// contra a infraestrutura do próprio Checkop. O registro fica (auditoria em
+// GET /api/scans/suspicious), mas a execução é sempre recusada.
+const SUSPICIOUS_TARGET_MESSAGE =
+  'Este domínio público resolve para um endereço de rede interna. A varredura foi registrada para auditoria, mas não pode ser executada.';
+
+// B5: o DNS pode mudar entre o cadastro e a execução (ex.: TTL curto apontando
+// para 127.0.0.1 depois). Revalida no momento do run. Não elimina 100% a janela,
+// porque ZAP e Nuclei resolvem o host por conta própria durante a varredura.
+const revalidateTargetBeforeRun = async (scan) => {
+  if (scan.suspiciousEnvironment) return SUSPICIOUS_TARGET_MESSAGE;
+
+  let detection;
+  try {
+    detection = await detectEnvironment(scan.targetUrl);
+  } catch (err) {
+    if (err instanceof ScanValidationError) return err.message;
+    throw err;
+  }
+
+  if (!detection.suspicious) return null;
+
+  await prisma.scan.update({
+    where: { id: scan.id },
+    data: { suspiciousEnvironment: true, resolvedIps: serializeIps(detection.resolvedIps) },
+  });
+  return SUSPICIOUS_TARGET_MESSAGE;
+};
+
 const createScan = async (req, res) => {
   try {
     const { targetUrl, objective } = req.body;
@@ -159,7 +188,7 @@ const createScan = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: 'Varredura registrada com sucesso.',
+      message: suspicious ? SUSPICIOUS_TARGET_MESSAGE : 'Varredura registrada com sucesso.',
       scan: {
         id: scan.id,
         targetUrl: scan.targetUrl,
@@ -395,6 +424,12 @@ const runScan = async (req, res) => {
   try {
     const scan = req.resource;
     const { auth, useAjaxSpider } = req.body;
+
+    const blockedReason = await revalidateTargetBeforeRun(scan);
+
+    if (blockedReason) {
+      return res.status(403).json({ error: blockedReason });
+    }
 
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).

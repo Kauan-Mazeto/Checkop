@@ -15,7 +15,8 @@ const analyzeCode = async (req, res) => {
         return res.status(200).json(result);
     } catch (error) {
         console.error('Erro na análise SAST:', error);
-        return res.status(502).json({ error: error.message || 'Erro ao executar a análise SAST.' });
+        // B10: a mensagem do motor pode conter caminhos e stderr do Semgrep; fica só no log
+        return res.status(502).json({ error: 'Erro ao executar a análise de código. Tente novamente mais tarde.' });
     }
 };
 

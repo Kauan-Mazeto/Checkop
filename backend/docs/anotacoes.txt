@@ -6,6 +6,7 @@ go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 
 go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 
+Checkop deve, obrigatoriamente ter os métodos necessários para realizar os testes nos seguintes casos:
 
 Falha	Cobertura	Quem detecta
 SQL Injection	Sim	ZAP ativo

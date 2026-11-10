@@ -1,3 +1,6 @@
+// precisa ser o 1º import: em ESM os imports rodam antes do corpo do módulo, e
+// vários módulos leem process.env no carregamento (ex.: SECURITY_ENGINE_URL)
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -5,7 +8,6 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import timeout from 'connect-timeout';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth_routes.js';
 import { globalLimiter } from './middlewares/rate_limit_middleware.js';
 import sanitizeMiddleware from './middlewares/sanitize_middleware.js';
@@ -13,16 +15,15 @@ import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
 import sastRoutes from './routes/sast_routes.js';
 import prisma from './lib/prisma.js';
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT;
 
-const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL', 'CLIENT_URL', 'PORT'];
+const requiredEnvVars = ['JWT_SECRET', 'EXPIRES_IN', 'RESET_CODE_SECRET', 'ENGINE_TOKEN', 'DATABASE_URL', 'CLIENT_URL', 'PORT'];
 const missing = requiredEnvVars.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {
-  console.error("Variáveis de ambiente ausentes.");
+  console.error(`Variáveis de ambiente ausentes: ${missing.join(', ')}`);
   process.exit(1);
 }
 

@@ -1,3 +1,5 @@
+import { engineHeaders } from './security_engine_client.js';
+
 const SECURITY_ENGINE_URL = process.env.SECURITY_ENGINE_URL || 'http://localhost:8010';
 const REQUEST_TIMEOUT_MS = 150000;
 
@@ -7,7 +9,7 @@ export const runSastScan = async ({ files }) => {
     try {
         const response = await fetch(`${SECURITY_ENGINE_URL}/scans/sast`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: engineHeaders(),
             body: JSON.stringify({ files }),
             signal: controller.signal,
         });

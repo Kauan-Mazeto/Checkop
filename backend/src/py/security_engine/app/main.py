@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException
+import hmac
+import os
+
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan, update_templates)
 from .schemas import (NucleiScanRequest, NucleiScanResponse, ZapScanRequest, ZapScanResponse, SubdomainEnumRequest, SubdomainEnumResponse, SastScanRequest)
@@ -6,7 +9,21 @@ from .subfinder_runner import (SubfinderExecutionError, SubfinderNotInstalledErr
 from .zap_runner import ZapExecutionError, ZapNotAvailableError, run_zap_scan
 from .sast_runner import run_sast_scan, SastExecutionError
 
+# B4: o motor dispara varreduras contra qualquer URL recebida, então só a API Node
+# (que já validou usuário, alvo e autorização) pode chamá-lo. Sem token configurado
+# o motor nem sobe: falhar fechado é melhor que ficar aberto por esquecimento.
+ENGINE_TOKEN = os.getenv("ENGINE_TOKEN", "")
+if not ENGINE_TOKEN:
+    raise RuntimeError("Variável de ambiente ENGINE_TOKEN não definida; o motor não pode subir sem ela.")
+
+
+def require_engine_token(x_engine_token: str = Header(default="")) -> None:
+    if not hmac.compare_digest(x_engine_token.encode(), ENGINE_TOKEN.encode()):
+        raise HTTPException(status_code=401, detail="Não autorizado.")
+
+
 app = FastAPI(title="Checkop", version="1.0.0")
+protected = [Depends(require_engine_token)]
 
 # RNF-11
 @app.get("/health")
@@ -14,7 +31,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/scans/nuclei", response_model=NucleiScanResponse)
+@app.post("/scans/nuclei", response_model=NucleiScanResponse, dependencies=protected)
 async def scan_with_nuclei(payload: NucleiScanRequest):
     try:
         findings, duration = await run_nuclei_scan(
@@ -36,7 +53,7 @@ async def scan_with_nuclei(payload: NucleiScanRequest):
     )
 
 
-@app.post("/scans/zap", response_model=ZapScanResponse)
+@app.post("/scans/zap", response_model=ZapScanResponse, dependencies=protected)
 async def scan_with_zap(payload: ZapScanRequest):
     try:
         findings, duration = await run_zap_scan(
@@ -58,7 +75,7 @@ async def scan_with_zap(payload: ZapScanRequest):
     )
 
 
-@app.post("/scans/subdomains", response_model=SubdomainEnumResponse)
+@app.post("/scans/subdomains", response_model=SubdomainEnumResponse, dependencies=protected)
 async def scan_subdomains(payload: SubdomainEnumRequest):
     try:
         findings, duration = await run_subdomain_enum(payload.domain)
@@ -73,7 +90,7 @@ async def scan_subdomains(payload: SubdomainEnumRequest):
         durationSeconds=round(duration, 2),
     )
 
-@app.post("/scans/sast")
+@app.post("/scans/sast", dependencies=protected)
 async def scan_with_sast(payload: SastScanRequest):
     try:
         findings, duration = await run_sast_scan(payload.files)
@@ -88,7 +105,7 @@ async def scan_with_sast(payload: SastScanRequest):
 
 
 # RF-45
-@app.post("/templates/update")
+@app.post("/templates/update", dependencies=protected)
 def update_nuclei_templates():
     try:
         update_templates()

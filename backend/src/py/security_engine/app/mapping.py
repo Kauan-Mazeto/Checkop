@@ -98,6 +98,8 @@ def map_to_owasp_category(tags: list[str], cwe_ids: list[str] | None = None) -> 
             category = CWE_TO_OWASP.get(_clean_cwe(normalized))
         else:
             category = TAG_TO_OWASP.get(normalized)
+        if category:
+            return category
 
     return DEFAULT_OWASP_CATEGORY
 

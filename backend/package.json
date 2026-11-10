@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node --test --experimental-test-module-mocks \"src/tests/**/*.test.js\"",
+    "test:engine": "cd src/py/security_engine && python -m unittest discover -s tests -t .",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio"

@@ -17,6 +17,8 @@ export const loginSchema = z.object({
 
 export const googleLoginSchema = z.object({
   credential: z.string().min(1, 'Credencial do Google é obrigatória.'),
+  // obrigatório só quando a conta ainda não tem aceite registrado (ver googleLogin)
+  termsAccepted: z.boolean().optional(),
 });
 
 export const forgotPasswordSchema = z.object({
