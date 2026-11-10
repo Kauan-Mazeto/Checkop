@@ -90,6 +90,7 @@ def _parse_alert(alert: dict) -> Finding:
         description=alert.get("description"),
         severity=severity,
         tool="ZAP",
+        ruleId=str(alert["pluginId"]) if alert.get("pluginId") is not None else None,
         affectedUrl=alert.get("url"),
         cveId=None,
         cvssScore=cvss_score,
@@ -100,11 +101,52 @@ def _parse_alert(alert: dict) -> Finding:
     )
 
 
-async def _set_active_scanners(client: httpx.AsyncClient, scanner_ids: list[str] | None) -> None:
-    if not scanner_ids:
-        return
+# Regras beta (CSRF ativo, SSRF, CORS ativo, backup/.git, Advanced SQLi) não vêm no
+# ZAP por padrão; são instaladas uma vez pelo Marketplace via API.
+BETA_ADDONS = ("ascanrulesBeta", "pscanrulesBeta")
+_beta_addons_ready = False
+
+
+async def ensure_beta_addons(client: httpx.AsyncClient) -> list[str]:
+    """Instala as regras beta se faltarem. Devolve avisos; nunca derruba a varredura."""
+    global _beta_addons_ready
+    if _beta_addons_ready:
+        return []
+    try:
+        data = await _get(client, "/JSON/autoupdate/view/installedAddons/", {})
+        installed = {addon.get("id") for addon in data.get("installedAddons", [])}
+        for addon_id in BETA_ADDONS:
+            if addon_id not in installed:
+                await _get(client, "/JSON/autoupdate/action/installAddon/", {"id": addon_id})
+        _beta_addons_ready = True
+        return []
+    except ZapExecutionError as err:
+        return [f"Não foi possível instalar as regras beta do ZAP ({err}); algumas verificações ficam de fora."]
+
+
+async def _set_active_scanners(client: httpx.AsyncClient, scanner_ids: list[str] | None) -> list[str]:
+    """Seleciona os scanners ativos e devolve os ids que o ZAP não reconheceu.
+
+    A seleção é global no ZAP: por isso a varredura completa (None) reativa tudo,
+    senão herdaria a seleção restrita da varredura anterior.
+    """
+    if scanner_ids is None:
+        await _get(client, "/JSON/ascan/action/enableAllScanners/", {})
+        return []
+
     await _get(client, "/JSON/ascan/action/disableAllScanners/", {})
-    await _get(client, "/JSON/ascan/action/setEnabledScanners/", {"ids": ",".join(scanner_ids)})
+    try:
+        await _get(client, "/JSON/ascan/action/enableScanners/", {"ids": ",".join(scanner_ids)})
+        return []
+    except ZapExecutionError:
+        # algum id não existe nesta instalação: habilita um a um e segue com os demais
+        missing = []
+        for scanner_id in scanner_ids:
+            try:
+                await _get(client, "/JSON/ascan/action/enableScanners/", {"ids": scanner_id})
+            except ZapExecutionError:
+                missing.append(scanner_id)
+        return missing
 
 def _enc(value: str) -> str:
     return quote(value, safe="")
@@ -229,13 +271,15 @@ async def run_zap_scan(
     scanner_ids: list[str] | None = None,
     auth: ZapAuthConfig | None = None,
     use_ajax_spider: bool = False,
-) -> tuple[list[Finding], float]:
+) -> tuple[list[Finding], float, list[str]]:
     started_at = time.monotonic()
+    warnings: list[str] = []
     # nome único por varredura: o ZAP recusa criar dois contextos com o mesmo nome
     context_name = f"checkop-{uuid.uuid4().hex[:8]}" if auth is not None else None
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            warnings += await ensure_beta_addons(client)
             await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
 
             if auth is not None:
@@ -264,9 +308,12 @@ async def run_zap_scan(
 
             # 3) varredura ativa: fora de produção, ou em produção verificada com
             # opt-in explícito (o Node só manda activeScan=True nesses casos)
-            if should_run_active_scan(safe_mode, active_scan):
+            # scanner_ids == [] -> objetivo só passivo: nenhum ataque é enviado
+            if should_run_active_scan(safe_mode, active_scan) and scanner_ids != []:
                 await _set_active_scan_throttling(client, safe_mode)
-                await _set_active_scanners(client, scanner_ids)
+                missing = await _set_active_scanners(client, scanner_ids)
+                if missing:
+                    warnings.append(f"Regras do ZAP indisponíveis nesta instalação: {', '.join(missing)}.")
                 ascan_data = await _get(client, "/JSON/ascan/action/scan/", {"url": target_url, "recurse": "true"})
                 ascan_id = ascan_data.get("scan")
                 if ascan_id is None:
@@ -281,4 +328,4 @@ async def run_zap_scan(
 
     duration = time.monotonic() - started_at
     findings = [_parse_alert(a) for a in alerts_data.get("alerts", [])]
-    return findings, duration
+    return findings, duration, warnings

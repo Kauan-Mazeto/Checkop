@@ -56,7 +56,7 @@ async def scan_with_nuclei(payload: NucleiScanRequest):
 @app.post("/scans/zap", response_model=ZapScanResponse, dependencies=protected)
 async def scan_with_zap(payload: ZapScanRequest):
     try:
-        findings, duration = await run_zap_scan(
+        findings, duration, warnings = await run_zap_scan(
             target_url=payload.targetUrl,
             safe_mode=payload.safeMode,
             active_scan=payload.activeScan,
@@ -73,6 +73,7 @@ async def scan_with_zap(payload: ZapScanRequest):
         findings=findings,
         alertsFound=len(findings),
         durationSeconds=round(duration, 2),
+        warnings=warnings,
     )
 
 

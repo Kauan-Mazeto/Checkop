@@ -27,16 +27,31 @@ enum ToolType {
   SUBFINDER
 }
 
+// espelha as chaves de src/constants/scan_objectives.js
 enum ScanObjective {
   SQL_INJECTION
   XSS
+  COMMAND_INJECTION
+  PATH_TRAVERSAL
+  XXE
+  SSTI
+  CRLF_INJECTION
+  OPEN_REDIRECT
   CSRF
   SSRF
-  OPEN_REDIRECT
+  SECURITY_HEADERS
+  COOKIES
+  CLICKJACKING
+  CORS
+  DIRECTORY_LISTING
+  EXPOSED_FILES
+  ADMIN_PANELS
+  INFO_DISCLOSURE
+  API_EXPOSURE
   KNOWN_CVE
-  SUBDOMAIN_ENUM
   SSL_TLS
   DNS_CHECK
+  SUBDOMAIN_ENUM
   FULL_SCAN
 }
 
@@ -133,6 +148,8 @@ model Scan {
   // opt-in de varredura ativa em alvo público (art. 154-A CP: autorização expressa)
   activeScanConfirmedAt    DateTime?
   activeScanConfirmationIp String?
+  // avisos dos motores em JSON (regra indisponível, ferramenta que falhou...)
+  engineWarnings           String?
   targetId                 String?
   target                   Target?           @relation(fields: [targetId], references: [id], onDelete: SetNull)
   startedAt                DateTime?
@@ -155,7 +172,10 @@ model Finding {
   description String?
   severity    FindingSeverity @default(MEDIUM)
   status      FindingStatus   @default(OPEN)
-  tool        ToolType        
+  tool        ToolType
+  // id da regra que gerou o achado (pluginId do ZAP, template-id do Nuclei);
+  // usado para filtrar o resultado pelo objetivo escolhido
+  ruleId      String?
   affectedUrl String?        
   parameter   String?        
   cveId       String?         

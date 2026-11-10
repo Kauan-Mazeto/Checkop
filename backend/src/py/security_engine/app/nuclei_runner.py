@@ -106,6 +106,7 @@ def _parse_line(raw_line: str) -> Finding | None:
         description=info.get("description"),
         severity=severity,
         tool="NUCLEI",
+        ruleId=entry.get("template-id"),
         affectedUrl=entry.get("matched-at") or entry.get("host"),
         cveId=cve_id,
         cvssScore=cvss_score,

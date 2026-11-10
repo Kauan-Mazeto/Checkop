@@ -137,11 +137,23 @@ test('alvo público sem nenhum alvo cadastrado é bloqueado', async () => {
 
 // ---------- opt-in de varredura ativa ----------
 
-test('alvo público verificado SEM opt-in roda só passivo (ZAP sem ativo, Nuclei seguro)', async () => {
+test('objetivo de ataque (SQLi) em alvo público SEM opt-in é recusado: ACTIVE_SCAN_REQUIRED', async () => {
   mockPublicDns();
   mockTxt(`checkop-verification=${TOKEN}`);
 
   const res = await run(publicScan);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.code, 'ACTIVE_SCAN_REQUIRED');
+  assert.equal(prismaMock.scan.updateMany.mock.callCount(), 0);
+  assert.equal(engineCalls.length, 0);
+});
+
+test('objetivo sem ataque em alvo público SEM opt-in roda só passivo (ZAP sem ativo, Nuclei seguro)', async () => {
+  mockPublicDns();
+  mockTxt(`checkop-verification=${TOKEN}`);
+
+  const res = await run({ ...publicScan, objective: 'EXPOSED_FILES' });
 
   assert.equal(res.statusCode, 202);
   assert.equal(res.body.scan.activeScan, false);

@@ -2,7 +2,8 @@ import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
 import { runNucleiScan, runZapScan, runSubdomainEnum, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
-import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
+import { getDomain } from 'tldts';
+import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
 
@@ -176,6 +177,14 @@ const ensureTargetStillVerified = async (scan) => {
 
   return Boolean(target) && (await refreshTargetVerification(target));
 };
+
+const ACTIVE_SCAN_REQUIRED_RESPONSE = Object.freeze({
+  error:
+    'Este objetivo só detecta falhas enviando ataques ao site. Autorize a varredura ativa (activeScanConfirmed e hostingTermsConfirmed) para executá-lo.',
+  code: 'ACTIVE_SCAN_REQUIRED',
+});
+
+const getObjectives = (req, res) => res.status(200).json({ objectives: listObjectives() });
 
 const createScan = async (req, res) => {
   try {
@@ -374,6 +383,8 @@ const getScanById = async (req, res) => {
       scan: {
         ...req.resource,
         resolvedIps: deserializeIps(req.resource.resolvedIps),
+        objectiveLabel: SCAN_OBJECTIVES[req.resource.objective]?.label ?? req.resource.objective,
+        engineWarnings: req.resource.engineWarnings ? JSON.parse(req.resource.engineWarnings) : [],
         summary: buildScanSummary(findings),
         findings: serializeFindings(findings, { safeMode: req.resource.safeMode }),
       },
@@ -388,15 +399,18 @@ const executeScan = async (scan, runOptions = {}) => {
   try {
     const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
     const jobs = [];
+    const warnings = [];
 
     if (config.engines.includes('NUCLEI') && config.nuclei) {
+      // activeTags (ex.: tentativa de login padrão) só com ataque autorizado
+      const extraTags = runOptions.activeScan ? (config.nuclei.activeTags ?? []) : [];
       jobs.push(
         runNucleiScan({
           targetUrl: scan.targetUrl,
           // sem opt-in de ataque, os templates intrusivos ficam de fora (RF-52)
           safeMode: !runOptions.activeScan,
           rateLimit: 10,
-          tags: config.nuclei.tags,
+          tags: [...config.nuclei.tags, ...extraTags],
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
       );
     }
@@ -407,7 +421,7 @@ const executeScan = async (scan, runOptions = {}) => {
           targetUrl: scan.targetUrl,
           safeMode: scan.safeMode,
           activeScan: runOptions.activeScan === true,
-          scannerIds: config.zap.scannerIds,
+          scannerIds: config.zap.activeScannerIds,
           auth: runOptions.auth,
           useAjaxSpider: runOptions.useAjaxSpider,
         }).then((r) => ({ tool: 'ZAP', ...r }))
@@ -415,10 +429,13 @@ const executeScan = async (scan, runOptions = {}) => {
     }
 
     if (config.engines.includes('SUBFINDER')) {
-      const { hostname } = new URL(scan.targetUrl);
-      jobs.push(
-        runSubdomainEnum({ domain: hostname }).then((r) => ({ tool: 'SUBFINDER', ...r }))
-      );
+      // subdomínios são do domínio registrável (www.loja.com.br -> loja.com.br)
+      const domain = getDomain(new URL(scan.targetUrl).hostname);
+      if (domain) {
+        jobs.push(runSubdomainEnum({ domain }).then((r) => ({ tool: 'SUBFINDER', ...r })));
+      } else {
+        warnings.push('Enumeração de subdomínios não se aplica a localhost ou endereço IP.');
+      }
     }
 
     const outcomes = await Promise.allSettled(jobs);
@@ -427,7 +444,10 @@ const executeScan = async (scan, runOptions = {}) => {
     outcomes.forEach((outcome) => {
       if (outcome.status === 'fulfilled') {
         rawFindings.push(...outcome.value.findings);
+        warnings.push(...(outcome.value.warnings ?? []));
       } else {
+        // mensagem genérica ao usuário; o detalhe técnico fica só no log (RNF-25)
+        warnings.push('Uma das ferramentas de varredura não pôde ser executada; o resultado pode estar incompleto.');
         // falha parcial: uma ferramenta caiu, mas as outras continuam valendo
         console.error(`[scan ${scan.id}] falha em uma ferramenta:`, outcome.reason?.message ?? outcome.reason);
       }
@@ -438,7 +458,7 @@ const executeScan = async (scan, runOptions = {}) => {
       throw outcomes[0].reason;
     }
 
-    const allFindings = dedupeFindings(rawFindings);
+    const allFindings = dedupeFindings(filterFindingsByObjective(rawFindings, scan.objective));
 
     await prisma.$transaction([
       prisma.finding.createMany({
@@ -446,7 +466,11 @@ const executeScan = async (scan, runOptions = {}) => {
       }),
       prisma.scan.update({
         where: { id: scan.id },
-        data: { status: 'COMPLETED', finishedAt: new Date() },
+        data: {
+          status: 'COMPLETED',
+          finishedAt: new Date(),
+          engineWarnings: warnings.length ? JSON.stringify([...new Set(warnings)]) : null,
+        },
       }),
     ]);
 
@@ -497,6 +521,12 @@ const runScan = async (req, res) => {
     const isPublicTarget = requiresVerifiedTarget(scan.environment);
     const activeScan = !isPublicTarget || activeScanConfirmed === true;
 
+    // objetivo que só detecta atacando (ex.: SQLi) sem ataque autorizado daria um
+    // falso "nenhuma falha encontrada": melhor recusar e explicar
+    if (!activeScan && SCAN_OBJECTIVES[scan.objective]?.requiresActiveScan) {
+      return res.status(400).json(ACTIVE_SCAN_REQUIRED_RESPONSE);
+    }
+
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).
     const claimed = await prisma.scan.updateMany({
@@ -538,4 +568,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { createScan, listScans, listSuspiciousScans, getScanStats, getScanById, runScan };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, runScan };
