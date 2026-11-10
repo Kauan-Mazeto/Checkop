@@ -21,6 +21,13 @@ enum Role {
   STUDENT
 }
 
+// espec.txt: Free vê o diagnóstico macro; Premium vê PoC, correção, compliance e SAST.
+// Sem cobrança real (fora do escopo do TCC, seção 6.3): a troca é demonstrativa.
+enum Plan {
+  FREE
+  PREMIUM
+}
+
 enum ToolType {
   ZAP
   NUCLEI
@@ -102,6 +109,7 @@ model User {
   email                    String    @unique
   password                 String?
   role                     Role      @default(DEV)
+  plan                     Plan      @default(FREE)
   googleId                 String?   @unique
   resetPasswordToken       String?
   resetPasswordExpires     DateTime?

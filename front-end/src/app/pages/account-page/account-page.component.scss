@@ -1,0 +1,53 @@
+// Base visual em src/styles/_app-ui.scss (escopo .ck-app).
+:host {
+  display: block;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+
+  dt {
+    color: #7d8596;
+    font-size: 12px;
+  }
+
+  dd {
+    margin: 2px 0 0;
+  }
+}
+
+.plan-table {
+  td:not(:first-child),
+  th:not(:first-child) {
+    width: 90px;
+    text-align: center;
+  }
+}
+
+.policy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  color: #b4bac8;
+  font-size: 13px;
+
+  h3 {
+    margin-top: 10px;
+    color: #e6e8ee;
+    font-size: 13.5px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+}
+
+.danger-zone {
+  border-color: rgba(229, 72, 77, 0.3);
+}

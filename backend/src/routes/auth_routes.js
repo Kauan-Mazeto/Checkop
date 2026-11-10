@@ -14,6 +14,7 @@ import {
   googleLoginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePlanSchema,
 } from '../validators/auth_validator.js';
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchem
 router.post('/logout', authMiddleware, authController.logout);
 router.delete('/account', authMiddleware, authController.deleteAccount);
 router.get('/login-history', authMiddleware, authController.getLoginHistory);
+router.patch('/plan', authMiddleware, validate(changePlanSchema), authController.changePlan);
 
 router.get('/me', authMiddleware, (req, res) => {
   return res.json({
@@ -33,6 +35,8 @@ router.get('/me', authMiddleware, (req, res) => {
     userId: req.userId,
     role: req.userRole,
     email: req.userEmail,
+    name: req.userName,
+    plan: req.userPlan,
   });
 });
 

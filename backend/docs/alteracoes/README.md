@@ -17,7 +17,7 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 | 02 | [Correções de segurança B1–B10](02-correcoes-de-seguranca/README.md) | Implementado e testado | 2026-11-09 |
 | 03 | [Verificação de propriedade do alvo e opt-in de varredura ativa](03-verificacao-de-dominio/README.md) | Implementado e testado | 2026-11-09 |
 | 04 | [Objetivos de varredura da matriz e filtro por objetivo](04-objetivos-de-varredura/README.md) | Implementado e testado | 2026-11-09 |
-| 05 | Front-end: fluxo real de varredura e tela de resultados | Proposto (ver 01) | — |
+| 05 | [Front-end: fluxo real de varredura, resultados e gráficos](05-front-end-fluxo-de-varredura/README.md) | Implementado e testado | 2026-11-09 |
 
 ## Como rodar os testes
 
@@ -25,4 +25,7 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 cd backend
 npm test             # API Node (node:test)
 npm run test:engine  # motor Python (unittest)
+
+cd ../front-end
+npm run test:ci      # Angular (Karma); sem Chrome, defina CHROME_BIN para o msedge.exe
 ```

@@ -1,6 +1,9 @@
 import hmac
 import os
 
+# precisa vir antes dos runners: eles leem variáveis de ambiente ao serem importados
+from . import local_env  # noqa: F401
+
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan, update_templates)

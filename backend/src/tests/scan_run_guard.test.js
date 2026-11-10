@@ -221,6 +221,7 @@ test('criar varredura de site público sem alvo verificado: 403 TARGET_NOT_VERIF
 
 test('verificação de exemplo.com (DNS) cobre www.exemplo.com, mas não exemplo.com.evil.net', async () => {
   mockPublicDns();
+  mockTxt(`checkop-verification=${TOKEN}`);
 
   const ok = await create('https://www.exemplo.com/loja');
   assert.equal(ok.statusCode, 201);
@@ -228,6 +229,18 @@ test('verificação de exemplo.com (DNS) cobre www.exemplo.com, mas não exemplo
 
   const evil = await create('https://exemplo.com.evil.net');
   assert.equal(evil.statusCode, 403);
+});
+
+test('criar varredura com alvo cuja prova foi removida depois da verificação: 403', async () => {
+  mockPublicDns();
+  mockTxt('outro-valor');
+
+  const res = await create('https://www.exemplo.com');
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'TARGET_NOT_VERIFIED');
+  assert.equal(prismaMock.scan.create.mock.callCount(), 0);
+  assert.equal(prismaMock.target.update.mock.calls[0].arguments[0].data.verifiedAt, null);
 });
 
 test('criar varredura em localhost não exige alvo', async () => {

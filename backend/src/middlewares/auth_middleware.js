@@ -13,7 +13,7 @@ const authMiddleware = async (req, res, next) => {
 
     const userExists = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, role: true, email: true, tokenVersion: true },
+      select: { id: true, name: true, role: true, plan: true, email: true, tokenVersion: true },
     });
 
     if (!userExists) {
@@ -30,6 +30,8 @@ const authMiddleware = async (req, res, next) => {
     req.userId = userExists.id;
     req.userRole = userExists.role;
     req.userEmail = userExists.email;
+    req.userName = userExists.name;
+    req.userPlan = userExists.plan;
 
     return next();
   } catch (err) {

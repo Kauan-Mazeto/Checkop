@@ -1,0 +1,142 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <h1>Domínios</h1>
+      <p>Prove que o site é seu para poder varrê-lo. Ambientes locais não precisam.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="stack">
+      <!-- Cadastro -->
+      <section class="card">
+        <header class="card-header"><div><h2>Adicionar domínio</h2><p>Gere as instruções e publique a prova no seu site ou DNS.</p></div></header>
+        <form class="card-body form" (ngSubmit)="create()">
+          <div *ngIf="createError" class="alert alert-error" role="alert">{{ createError }}</div>
+
+          <label class="field">
+            <span>URL do site</span>
+            <input class="input" type="url" name="url" [(ngModel)]="newUrl" (ngModelChange)="saveDraft()" placeholder="https://meusite.com.br" />
+          </label>
+
+          <div class="field">
+            <span class="field-label">Como provar que é seu</span>
+            <div class="grid grid-3" role="radiogroup">
+              <button *ngFor="let option of methodOptions" type="button" class="option" role="radio"
+                [attr.aria-checked]="newMethod === option.value" [class.selected]="newMethod === option.value"
+                (click)="newMethod = option.value; saveDraft()">
+                <strong>{{ option.label }}</strong>
+                <span>{{ option.description }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="button button-primary" type="submit" [disabled]="isCreating || !newUrl.trim()">
+              <span *ngIf="isCreating" class="spinner" aria-hidden="true"></span>
+              Gerar instruções
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Lista -->
+      <section class="card">
+        <header class="card-header">
+          <h2>Meus domínios</h2>
+          <a class="link" routerLink="/scans/new">Nova varredura →</a>
+        </header>
+
+        <div *ngIf="isLoading" class="empty"><span class="spinner spinner-muted"></span></div>
+        <div *ngIf="loadError" class="card-body"><div class="alert alert-error">{{ loadError }}</div></div>
+        <div *ngIf="!isLoading && !loadError && targets.length === 0" class="empty">
+          <strong>Nenhum domínio cadastrado</strong>
+          <p>Cadastre o seu site acima para liberar varreduras nele.</p>
+        </div>
+
+        <ul class="list">
+          <li *ngFor="let target of targets">
+            <div class="list-row">
+              <button type="button" class="target-title" (click)="toggle(target)" [attr.aria-expanded]="expandedId === target.id">
+                <span class="mono">{{ target.hostname }}</span>
+                <small>{{ target.scope === 'DOMAIN' ? 'domínio + subdomínios' : 'somente este endereço' }} · {{ methodLabel[target.verificationMethod] }}</small>
+              </button>
+              <div class="actions">
+                <span class="badge badge-dot status" [attr.data-status]="target.verified ? 'COMPLETED' : 'PENDING'">
+                  {{ target.verified ? 'Verificado' : 'Pendente' }}
+                </span>
+                <button class="button button-secondary button-sm" type="button" (click)="verify(target)" [disabled]="verifyingId === target.id">
+                  <span *ngIf="verifyingId === target.id" class="spinner spinner-muted" aria-hidden="true"></span>
+                  {{ target.verified ? 'Verificar de novo' : 'Verificar agora' }}
+                </button>
+                <button class="button button-ghost button-sm" type="button" (click)="toggle(target)">
+                  {{ expandedId === target.id ? 'Ocultar' : 'Instruções' }}
+                </button>
+                <button class="button button-ghost button-sm" type="button" (click)="remove(target)">Remover</button>
+              </div>
+            </div>
+
+            <div class="target-detail" *ngIf="feedback[target.id] || expandedId === target.id">
+              <div *ngIf="feedback[target.id] as fb" class="alert" [class.alert-success]="fb.type === 'success'" [class.alert-error]="fb.type === 'error'" role="status">
+                {{ fb.text }}
+              </div>
+
+              <ng-container *ngIf="expandedId === target.id">
+                <ng-container [ngSwitch]="target.instructions.method">
+                  <ol *ngSwitchCase="'DNS_TXT'" class="steps">
+                    <li>Abra o painel de DNS do domínio (Registro.br, Cloudflare, Hostinger...).</li>
+                    <li>Crie um registro <strong>{{ target.instructions.recordType }}</strong> com o nome:
+                      <div class="copy-field"><code>{{ target.instructions.recordName }}</code>
+                        <button class="button button-secondary button-sm" type="button" (click)="copy(target.instructions.recordName, target.id + '-n')">{{ copiedKey === target.id + '-n' ? 'Copiado' : 'Copiar' }}</button></div>
+                    </li>
+                    <li>E o valor:
+                      <div class="copy-field"><code>{{ target.instructions.recordValue }}</code>
+                        <button class="button button-secondary button-sm" type="button" (click)="copy(target.instructions.recordValue, target.id + '-v')">{{ copiedKey === target.id + '-v' ? 'Copiado' : 'Copiar' }}</button></div>
+                    </li>
+                    <li>Aguarde a propagação (alguns minutos) e clique em <strong>Verificar agora</strong>.</li>
+                  </ol>
+
+                  <ol *ngSwitchCase="'HTTP_FILE'" class="steps">
+                    <li>Publique um arquivo de texto neste endereço:
+                      <div class="copy-field"><code>{{ target.instructions.fileUrl }}</code>
+                        <button class="button button-secondary button-sm" type="button" (click)="copy(target.instructions.fileUrl, target.id + '-u')">{{ copiedKey === target.id + '-u' ? 'Copiado' : 'Copiar' }}</button></div>
+                    </li>
+                    <li>Com exatamente este conteúdo:
+                      <div class="copy-field"><code>{{ target.instructions.fileContent }}</code>
+                        <button class="button button-secondary button-sm" type="button" (click)="copy(target.instructions.fileContent, target.id + '-f')">{{ copiedKey === target.id + '-f' ? 'Copiado' : 'Copiar' }}</button></div>
+                    </li>
+                    <li>Ele precisa responder 200, sem redirecionamento. Depois clique em <strong>Verificar agora</strong>.</li>
+                  </ol>
+
+                  <ol *ngSwitchCase="'META_TAG'" class="steps">
+                    <li>Adicione no <code>&lt;head&gt;</code> de <code>{{ target.instructions.pageUrl }}</code>:
+                      <div class="copy-field"><code>{{ target.instructions.metaTag }}</code>
+                        <button class="button button-secondary button-sm" type="button" (click)="copy(target.instructions.metaTag, target.id + '-m')">{{ copiedKey === target.id + '-m' ? 'Copiado' : 'Copiar' }}</button></div>
+                    </li>
+                    <li>Publique a página e clique em <strong>Verificar agora</strong>.</li>
+                  </ol>
+                </ng-container>
+
+                <p class="hint">Cobre: {{ target.instructions.covers }}. {{ target.instructions.note }}
+                  <ng-container *ngIf="target.lastCheckedAt"> Última checagem: {{ target.lastCheckedAt | date: 'dd/MM/yyyy HH:mm' }}.</ng-container></p>
+              </ng-container>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- Garantias para sites em produção -->
+    <aside class="card rules">
+      <header class="card-header"><h2>Como protegemos sites de produção</h2></header>
+      <ul class="card-body">
+        <li><strong>Só o dono varre.</strong> Cada conta recebe um token próprio; a prova publicada vale só para quem a gerou.</li>
+        <li><strong>Conferido sempre.</strong> A prova é checada ao criar e de novo a cada execução. Removeu o TXT, perdeu o acesso.</li>
+        <li><strong>Ataque só com autorização.</strong> Em produção, a varredura ativa exige duas declarações a cada execução, registradas com data, hora e IP.</li>
+        <li><strong>Sem derrubar o site.</strong> Ataques em produção rodam devagar e testes de negação de serviço nunca rodam.</li>
+        <li><strong>Rede interna bloqueada.</strong> Domínio que aponta para IP interno é recusado.</li>
+      </ul>
+      <p class="card-body hint legal">Testar sistemas de terceiros sem autorização é crime (art. 154-A do Código Penal).</p>
+    </aside>
+  </div>
+</app-shell>

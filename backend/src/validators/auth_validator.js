@@ -30,3 +30,8 @@ export const resetPasswordSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, 'Código deve conter 6 dígitos.'),
   newPassword: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres.'),
 });
+
+// troca de plano demonstrativa (sem cobrança: fora do escopo do TCC, seção 6.3)
+export const changePlanSchema = z.object({
+  plan: z.enum(['FREE', 'PREMIUM']),
+});

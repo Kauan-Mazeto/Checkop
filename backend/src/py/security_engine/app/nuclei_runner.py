@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import shutil
 import time
 
 from .mapping import (
@@ -11,9 +10,10 @@ from .mapping import (
     resolve_cvss_score,
 )
 
+from .local_env import find_tool
 from .schemas import Finding
 
-NUCLEI_BINARY = shutil.which("nuclei")
+NUCLEI_BINARY = find_tool("nuclei")
 
 # Protege contra um scan que trava e nunca libera o processo (ex.: alvo que
 # aceita conexão mas nunca responde). Ajustável por variável de ambiente.

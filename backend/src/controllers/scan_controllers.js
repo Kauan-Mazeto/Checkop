@@ -208,6 +208,9 @@ const createScan = async (req, res) => {
     let target = null;
     if (requiresVerifiedTarget(environment) && !suspicious) {
       target = await findVerifiedTargetForUrl(req.userId, targetUrl);
+      // a prova é conferida ao vivo também na criação, não só na execução:
+      // removeu o TXT/arquivo/tag depois de verificar, perde o acesso na hora
+      if (target && !(await refreshTargetVerification(target))) target = null;
       if (!target) {
         await logAudit(req, {
           action: AUDIT_ACTIONS.SCAN_BLOCKED,
@@ -268,6 +271,7 @@ const listScans = async (req, res) => {
       select: {
         id: true,
         targetUrl: true,
+        objective: true,
         environment: true,
         safeMode: true,
         status: true,
@@ -276,11 +280,14 @@ const listScans = async (req, res) => {
         createdAt: true,
         startedAt: true,
         finishedAt: true,
+        _count: { select: { findings: true } },
       },
     });
 
-    const serialized = scans.map((scan) => ({
+    const serialized = scans.map(({ _count, ...scan }) => ({
       ...scan,
+      objectiveLabel: SCAN_OBJECTIVES[scan.objective]?.label ?? scan.objective,
+      findingsCount: _count.findings,
       resolvedIps: deserializeIps(scan.resolvedIps),
     }));
 
@@ -386,7 +393,8 @@ const getScanById = async (req, res) => {
         objectiveLabel: SCAN_OBJECTIVES[req.resource.objective]?.label ?? req.resource.objective,
         engineWarnings: req.resource.engineWarnings ? JSON.parse(req.resource.engineWarnings) : [],
         summary: buildScanSummary(findings),
-        findings: serializeFindings(findings, { safeMode: req.resource.safeMode }),
+        plan: req.userPlan,
+        findings: serializeFindings(findings, { safeMode: req.resource.safeMode, plan: req.userPlan }),
       },
     });
   } catch (error) {

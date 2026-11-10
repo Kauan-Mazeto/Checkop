@@ -8,9 +8,20 @@ import time
 from .schemas import Finding
 from .mapping import map_to_owasp_category
 from .translator import translate_many
+from .cwe_catalog import cwe_numbers, describe
+from .secrets_runner import dedupe_findings, run_gitleaks
 
 SEMGREP_BINARY = shutil.which("semgrep")
 SAST_TIMEOUT_SECONDS = int(os.getenv("SAST_TIMEOUT_SECONDS", "120"))
+
+# Pacotes oficiais do registro do Semgrep, mantidos pela comunidade e válidos para
+# todas as linguagens que ele suporta. Juntos cobrem bem mais que o "auto"
+# (que também exige métricas ligadas). Ajustável por variável de ambiente.
+SAST_RULESETS = [
+    r.strip()
+    for r in os.getenv("SAST_RULESETS", "p/default,p/security-audit,p/secrets,p/owasp-top-ten").split(",")
+    if r.strip()
+]
 
 SEVERITY_MAP = {"ERROR": "HIGH", "WARNING": "MEDIUM", "INFO": "LOW"}
 
@@ -64,6 +75,26 @@ def _rule_name(check_id: str) -> str:
     return check_id.split(".")[-1].replace("-", " ").capitalize() or "Problema de segurança"
 
 
+_SEVERITY_RANK = {"ERROR": 3, "WARNING": 2, "INFO": 1}
+
+
+def _dedupe_results(results: list[dict]) -> list[dict]:
+    """Uma falha por (arquivo, linha, CWE). Pacotes diferentes costumam ter regras
+    distintas para a mesma falha (ex.: duas regras de SQL Injection na mesma linha);
+    mantemos a mais grave e anotamos quantas regras concordaram."""
+    groups: dict[tuple, list[dict]] = {}
+    for result in results:
+        cwes = cwe_numbers(result.get("extra", {}).get("metadata", {}).get("cwe"))
+        key = (result.get("path"), result.get("start", {}).get("line"), cwes[0] if cwes else result.get("check_id"))
+        groups.setdefault(key, []).append(result)
+
+    unique = []
+    for group in groups.values():
+        best = max(group, key=lambda r: _SEVERITY_RANK.get(r.get("extra", {}).get("severity"), 0))
+        unique.append({**best, "_rule_count": len(group)})
+    return unique
+
+
 def _parse_result(result: dict, base_dir: str, contents: dict[str, str], translations: dict[str, str]) -> Finding:
     extra = result.get("extra", {})
     severity = SEVERITY_MAP.get(extra.get("severity", "INFO"), "LOW")
@@ -84,9 +115,17 @@ def _parse_result(result: dict, base_dir: str, contents: dict[str, str], transla
     rule_name = _rule_name(check_id)
     message = extra.get("message", "")
 
+    # título e correção pela classe da falha (CWE), não pelo nome técnico da regra
+    known = describe(cwe_numbers(cwe_ids))
+    title = known[0] if known else translations.get(rule_name, rule_name)
+    remediation = known[1] if known else _suggest_fix(check_id)
+    description = translations.get(message, message)
+    if result.get("_rule_count", 1) > 1:
+        description = f"{description}\n\nConfirmado por {result['_rule_count']} regras diferentes."
+
     return Finding(
-        title=f"{translations.get(rule_name, rule_name)} ({file_path}:{line})",
-        description=translations.get(message, message),
+        title=f"{title} ({file_path}:{line})",
+        description=description,
         severity=severity,
         tool="SAST",
         affectedUrl=f"{file_path}:{line}" + (f"-{end_line}" if end_line and end_line != line else ""),
@@ -94,7 +133,7 @@ def _parse_result(result: dict, base_dir: str, contents: dict[str, str], transla
         cvssScore=None,
         rawRequest=None,
         rawResponse=snippet,
-        remediation=_suggest_fix(check_id),
+        remediation=remediation,
         owaspUrl=owasp_category,
     )
 
@@ -119,7 +158,14 @@ async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
             except OSError as err:
                 raise SastExecutionError(f"Não foi possível gravar {filename!r}: {err}") from err
 
-        command = [SEMGREP_BINARY, "--config=auto", "--json", "--quiet", tmp_dir]
+        command = [
+            SEMGREP_BINARY,
+            *(f"--config={ruleset}" for ruleset in SAST_RULESETS),
+            "--json",
+            "--quiet",
+            "--metrics=off",  # o código do usuário nunca sai da máquina; só as regras são baixadas
+            tmp_dir,
+        ]
 
         process = await asyncio.create_subprocess_exec(
             *command,
@@ -150,10 +196,14 @@ async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
             detail = stderr.decode(errors="replace").strip() or error_messages
             raise SastExecutionError(detail or f"O Semgrep terminou com código {process.returncode}.")
 
+        results = _dedupe_results(results)
         contents = {_safe_relative_path(name): code for name, code in files.items()}
         texts = {_rule_name(r.get("check_id", "")) for r in results}
         texts |= {r.get("extra", {}).get("message", "") for r in results}
         translations = await translate_many(texts)
 
         findings = [_parse_result(r, tmp_dir, contents, translations) for r in results]
-        return findings, duration
+        # segredos fixos (chaves, tokens) em qualquer linguagem; ainda dentro da pasta temporária
+        findings += await run_gitleaks(tmp_dir, contents)
+        duration = time.monotonic() - started_at
+        return dedupe_findings(findings), duration

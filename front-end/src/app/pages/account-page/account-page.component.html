@@ -1,0 +1,116 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <h1>Conta e privacidade</h1>
+      <p>Seus dados, seu plano e seus direitos pela LGPD.</p>
+    </div>
+  </header>
+
+  <div class="grid grid-2">
+    <!-- Perfil -->
+    <section class="card" *ngIf="user">
+      <header class="card-header"><h2>Perfil</h2></header>
+      <dl class="card-body facts">
+        <div><dt>Nome</dt><dd>{{ user.name }}</dd></div>
+        <div><dt>E-mail</dt><dd>{{ user.email }}</dd></div>
+        <div><dt>Perfil de uso</dt><dd>{{ roleLabel[user.role] }}</dd></div>
+        <div><dt>Plano</dt><dd><span class="badge" [class.badge-pro]="isPremium">{{ isPremium ? 'Premium' : 'Free' }}</span></dd></div>
+      </dl>
+    </section>
+
+    <!-- Planos -->
+    <section class="card">
+      <header class="card-header">
+        <div><h2>Planos</h2><p>Troca demonstrativa: o TCC não inclui cobrança (seção 6.3).</p></div>
+      </header>
+      <div class="card-body form">
+        <p class="hint">
+          Você está no plano <strong>{{ isPremium ? 'Premium' : 'Free' }}</strong>.
+          {{ isPremium ? 'Correção, PoC, compliance e análise de código estão liberados.' : 'Ative o Premium para ver correção, PoC, compliance e análise de código.' }}
+        </p>
+        <div class="actions">
+          <a class="button button-primary" routerLink="/plans">{{ isPremium ? 'Gerenciar plano' : 'Conhecer o Premium' }}</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Histórico de logins (auditoria, RNF-23) -->
+  <section class="card">
+    <header class="card-header">
+      <div><h2>Acessos recentes</h2><p>Últimas 50 tentativas de login na sua conta. Não reconhece alguma? Troque a senha.</p></div>
+    </header>
+    <div *ngIf="attemptsError" class="card-body"><div class="alert alert-error">{{ attemptsError }}</div></div>
+    <div *ngIf="!attemptsError && attempts.length === 0" class="empty"><p>Nenhum acesso registrado.</p></div>
+    <div class="table-wrap" *ngIf="attempts.length > 0">
+      <table class="table">
+        <thead><tr><th>Data</th><th>Resultado</th><th>Navegador</th><th>IP</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let a of attempts">
+            <td>{{ a.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td><span class="badge badge-dot status" [attr.data-status]="a.success ? 'COMPLETED' : 'FAILED'">{{ a.success ? 'Sucesso' : 'Falhou' }}</span></td>
+            <td class="muted">{{ browser(a.userAgent) }}</td>
+            <td class="mono muted">{{ a.ipAddress || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Política de privacidade -->
+  <section class="card">
+    <header class="card-header">
+      <div><h2>Política de privacidade</h2><p *ngIf="policyUpdated">Atualizada em {{ policyUpdated | date: 'dd/MM/yyyy' }}</p></div>
+    </header>
+    <div class="card-body policy">
+      <ng-container *ngFor="let block of policy">
+        <ng-container [ngSwitch]="block.kind">
+          <h3 *ngSwitchCase="'h2'">{{ $any(block).text }}</h3>
+          <ul *ngSwitchCase="'ul'"><li *ngFor="let item of $any(block).items">{{ item }}</li></ul>
+          <p *ngSwitchCase="'p'">{{ $any(block).text }}</p>
+        </ng-container>
+      </ng-container>
+    </div>
+  </section>
+
+  <!-- Exclusão de conta (LGPD art. 18) -->
+  <section class="card danger-zone">
+    <header class="card-header">
+      <div>
+        <h2>Excluir conta</h2>
+        <p>Apaga seus dados pessoais, varreduras e domínios. Os registros de acesso ficam por 6 meses sem identificação, por obrigação legal.</p>
+      </div>
+    </header>
+    <div class="card-body form">
+      <label class="switch">
+        <input type="checkbox" [(ngModel)]="googleAccount" name="google" />
+        <span class="switch-track"></span>
+        Entrei com o Google (não tenho senha)
+      </label>
+
+      <label class="field" *ngIf="!googleAccount">
+        <span>Confirme com sua senha</span>
+        <input class="input" type="password" name="deletePassword" [(ngModel)]="deletePassword" autocomplete="current-password" />
+      </label>
+
+      <label class="field" *ngIf="googleAccount">
+        <span>Digite <strong class="mono">{{ deletePhrase }}</strong> para confirmar</span>
+        <input class="input" type="text" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" />
+      </label>
+
+      <app-check [(checked)]="deleteAcknowledged">
+        <strong>Entendo que a exclusão é definitiva</strong>
+        Não é possível desfazer nem recuperar as varreduras depois.
+      </app-check>
+
+      <div *ngIf="deleteError" class="alert alert-error" role="alert">{{ deleteError }}</div>
+
+      <div class="actions">
+        <button class="button button-danger" type="button" (click)="deleteAccount()" [disabled]="!canDelete">
+          <span *ngIf="isDeleting" class="spinner" aria-hidden="true"></span>
+          Excluir minha conta
+        </button>
+      </div>
+    </div>
+  </section>
+</app-shell>

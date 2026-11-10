@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { DraftService } from '../../core/services/draft.service';
 
 @Component({
   selector: 'app-login-page',
@@ -14,8 +15,19 @@ import { AuthService } from '../../core/services/auth.service';
 export class LoginPageComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly drafts = inject(DraftService);
 
-  protected email = '';
+  // o e-mail sobrevive a recarregar/voltar; a senha nunca é guardada
+  private _email = this.drafts.load<{ email: string }>('login').email ?? '';
+
+  protected get email(): string {
+    return this._email;
+  }
+
+  protected set email(value: string) {
+    this._email = value;
+    this.drafts.save('login', { email: value });
+  }
   protected password = '';
   protected isSubmitting = false;
   protected errorMessage: string | null = null;
@@ -46,6 +58,7 @@ export class LoginPageComponent {
     this.auth.login(normalizedEmail, this.password).subscribe({
       next: () => {
         this.isSubmitting = false;
+        this.drafts.clear('login');
         this.router.navigateByUrl('/dashboard');
       },
       error: (message: string) => {

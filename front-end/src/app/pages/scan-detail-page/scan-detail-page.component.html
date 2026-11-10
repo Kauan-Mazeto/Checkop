@@ -1,0 +1,303 @@
+<app-shell>
+  <div *ngIf="isLoading" class="empty"><span class="spinner spinner-muted"></span></div>
+  <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
+
+  <ng-container *ngIf="scan as s">
+    <!-- Cabeçalho -->
+    <header class="page-header">
+      <div class="heading">
+        <nav class="breadcrumb no-print"><a routerLink="/scans">Varreduras</a><span>/</span><span>{{ s.objectiveLabel }}</span></nav>
+        <h1 class="mono target">{{ s.targetUrl }}</h1>
+        <div class="meta">
+          <span class="badge">{{ s.objectiveLabel }}</span>
+          <span class="badge env" [attr.data-env]="s.environment">{{ environmentLabel[s.environment] }}</span>
+          <span class="badge badge-dot status" [attr.data-status]="s.status">{{ statusLabel[s.status] }}</span>
+          <span *ngIf="s.safeMode" class="badge">Modo Seguro</span>
+          <span *ngIf="s.activeScanConfirmedAt" class="badge badge-brand">Ataque autorizado</span>
+          <span class="hint">Criada em {{ s.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+        </div>
+      </div>
+      <div class="actions no-print" *ngIf="s.status === 'COMPLETED'">
+        <button class="button button-secondary" type="button" (click)="exportJson()">Exportar JSON</button>
+        <button class="button button-secondary" type="button" (click)="exportPdf()">Exportar PDF</button>
+        <a class="button button-primary" routerLink="/scans/new" [queryParams]="{ url: s.targetUrl }">Nova varredura</a>
+      </div>
+    </header>
+
+    <div *ngIf="s.suspiciousEnvironment" class="alert alert-error" role="alert">
+      Este domínio público aponta para uma rede interna. A varredura foi registrada para auditoria, mas não pode ser executada.
+    </div>
+
+    <!-- ===== Execução ===== -->
+    <section *ngIf="canRun && !s.suspiciousEnvironment" class="card no-print">
+      <header class="card-header">
+        <div>
+          <h2>{{ s.status === 'FAILED' ? 'A varredura falhou — tentar de novo' : 'Pronto para executar' }}</h2>
+          <p *ngIf="objective">{{ objective.description }}</p>
+        </div>
+      </header>
+
+      <div class="card-body form">
+        <div class="run-options">
+          <label class="switch">
+            <input type="checkbox" [(ngModel)]="useAjaxSpider" name="ajax" />
+            <span class="switch-track"></span>
+            É uma SPA (Angular, React, Vue): explorar com o AJAX Spider
+          </label>
+          <label class="switch">
+            <input type="checkbox" [(ngModel)]="useAuth" name="useAuth" />
+            <span class="switch-track"></span>
+            Testar também as páginas com login (conta de teste)
+          </label>
+        </div>
+
+        <div *ngIf="useAuth" class="form-row">
+          <label class="field"><span>URL do formulário de login</span><input class="input" type="url" name="loginUrl" [(ngModel)]="authOptions.loginUrl" placeholder="https://meusite.com/login" /></label>
+          <label class="field"><span>Usuário de teste</span><input class="input" type="text" name="authUser" [(ngModel)]="authOptions.username" autocomplete="off" /></label>
+          <label class="field"><span>Nome do campo de usuário</span><input class="input" type="text" name="userField" [(ngModel)]="authOptions.usernameField" /></label>
+          <label class="field"><span>Senha de teste</span><input class="input" type="password" name="authPass" [(ngModel)]="authOptions.password" autocomplete="new-password" /></label>
+          <label class="field"><span>Nome do campo de senha</span><input class="input" type="text" name="passField" [(ngModel)]="authOptions.passwordField" /></label>
+        </div>
+
+        <!-- Opt-in de ataque: só site público, sempre por execução (art. 154-A do CP) -->
+        <div *ngIf="isPublic" class="consent">
+          <div>
+            <strong>Varredura ativa (ataque real)</strong>
+            <p class="hint">
+              Sem esta autorização o Checkop só observa as respostas. Com ela, envia ataques reais em velocidade reduzida
+              para não derrubar o site. Formulários podem receber registros de teste. Data, hora e IP ficam registrados.
+            </p>
+          </div>
+          <app-check [(checked)]="activeScanConfirmed">
+            <strong>Autorizo a varredura ativa contra este site</strong>
+            Sou o responsável por ele, e o domínio está verificado na minha conta.
+          </app-check>
+          <app-check *ngIf="activeScanConfirmed" [(checked)]="hostingTermsConfirmed">
+            <strong>Meu provedor de hospedagem permite testes de segurança</strong>
+            Em hospedagem compartilhada o servidor também é usado por terceiros; confirme os termos do provedor.
+          </app-check>
+        </div>
+
+        <div *ngIf="runBlockedReason" class="alert alert-warning">{{ runBlockedReason }}</div>
+
+        <div *ngIf="runError" class="alert alert-error" role="alert">
+          <span>
+            {{ runError.message }}
+            <span *ngIf="runError.code === 'TARGET_NOT_VERIFIED'" class="block-cta">
+              <a class="button button-primary button-sm" routerLink="/targets" [queryParams]="{ url: s.targetUrl }">Verificar domínio</a>
+            </span>
+          </span>
+        </div>
+
+        <div class="actions">
+          <button class="button button-primary" type="button" (click)="run()" [disabled]="isStarting || !!runBlockedReason">
+            <span *ngIf="isStarting" class="spinner" aria-hidden="true"></span>
+            {{ isStarting ? 'Iniciando...' : 'Iniciar varredura' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Em execução ===== -->
+    <section *ngIf="s.status === 'RUNNING'" class="card running" aria-live="polite">
+      <div class="card-body">
+        <div class="running-head">
+          <span class="spinner spinner-muted" aria-hidden="true"></span>
+          <strong>Varredura em andamento</strong>
+          <span class="mono hint">{{ elapsedTime }}</span>
+        </div>
+        <p class="hint">Mapeando o site e testando as falhas escolhidas. Pode levar de alguns minutos a mais de 20 — você pode sair desta página.</p>
+        <div class="progress"><div></div></div>
+      </div>
+    </section>
+
+    <!-- ===== Resultado ===== -->
+    <ng-container *ngIf="s.status === 'COMPLETED'">
+      <section class="grid verdict-grid">
+        <!-- espec.txt 2.2: card de status rápido + veredito -->
+        <article class="card verdict" [attr.data-severity]="worstSeverity">
+          <div class="card-body">
+            <span class="badge sev" [attr.data-severity]="worstSeverity">{{ s.summary.badge.label }}</span>
+            <p class="verdict-text">{{ s.summary.verdict }}</p>
+            <div class="sev-row">
+              <div *ngFor="let sev of severityOrder" class="sev-cell" [attr.data-severity]="sev">
+                <strong>{{ countOf(sev) }}</strong>
+                <span>{{ severityLabel[sev] }}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-body">
+            <app-chart type="doughnut" [data]="severityChart!" [options]="doughnutOptions" [height]="180"
+              [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por severidade" />
+          </div>
+        </article>
+      </section>
+
+      <div *ngIf="s.engineWarnings.length" class="alert alert-warning">
+        <span><strong>Avisos da varredura</strong><br /><span *ngFor="let w of s.engineWarnings">• {{ w }}<br /></span></span>
+      </div>
+      <div *ngIf="s.safeMode" class="alert alert-info">
+        Modo Seguro (produção): requisições e respostas ficam ocultas no relatório para proteger dados reais.
+      </div>
+      <div *ngIf="!isPremium" class="paywall no-print">
+        <div>
+          <strong>⭐ Recurso Premium bloqueado</strong>
+          <p>Quer ver a correção exata, o payload que provou a falha e o impacto em LGPD/PCI?</p>
+        </div>
+        <a class="button button-secondary button-sm" routerLink="/plans">Desbloquear análise avançada</a>
+      </div>
+
+      <nav class="tabs no-print" role="tablist">
+        <button type="button" role="tab" [class.active]="tab === 'overview'" (click)="tab = 'overview'">Resumo</button>
+        <button type="button" role="tab" [class.active]="tab === 'findings'" (click)="tab = 'findings'">Achados ({{ sortedFindings.length }})</button>
+        <button type="button" role="tab" [class.active]="tab === 'evidence'" (click)="tab = 'evidence'">Evidências / PoC <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
+        <button type="button" role="tab" [class.active]="tab === 'compliance'" (click)="tab = 'compliance'">Compliance <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
+      </nav>
+
+      <!-- Resumo -->
+      <section *ngIf="tab === 'overview'" class="grid grid-2 no-print">
+        <article class="card">
+          <header class="card-header"><h2>Por ferramenta</h2></header>
+          <div class="card-body"><app-chart type="bar" [data]="toolChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por ferramenta" /></div>
+        </article>
+        <article class="card">
+          <header class="card-header"><h2>Categorias OWASP Top 10</h2></header>
+          <div class="card-body"><app-chart type="bar" [data]="owaspChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por categoria OWASP" /></div>
+        </article>
+        <article *ngIf="sortedFindings.length === 0" class="card span-2">
+          <div class="empty">
+            <strong>Nenhuma falha encontrada para este tipo</strong>
+            <p>Isso não garante que o site está seguro: experimente outros tipos de falha ou a varredura completa.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- Achados -->
+      <section *ngIf="tab === 'findings'" class="stack no-print">
+        <div class="chips" role="group" aria-label="Filtrar por severidade">
+          <button type="button" class="chip" [class.active]="severityFilter === 'ALL'" (click)="severityFilter = 'ALL'">Todos ({{ sortedFindings.length }})</button>
+          <ng-container *ngFor="let sev of severityOrder">
+            <button *ngIf="countOf(sev) > 0" type="button" class="chip" [class.active]="severityFilter === sev" (click)="severityFilter = sev">
+              {{ severityLabel[sev] }} ({{ countOf(sev) }})
+            </button>
+          </ng-container>
+        </div>
+
+        <div *ngIf="visibleFindings.length === 0" class="card"><div class="empty"><p>Nenhum achado neste filtro.</p></div></div>
+
+        <article *ngFor="let f of visibleFindings" class="card finding" [attr.data-severity]="f.severity">
+          <button type="button" class="finding-head" (click)="toggle(f)" [attr.aria-expanded]="expanded.has(f.id)">
+            <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+            <span class="finding-title">{{ f.title }}</span>
+            <span class="hint">{{ toolLabel[f.tool] || f.tool }}</span>
+            <span *ngIf="f.cvssScore !== null" class="hint">CVSS {{ f.cvssScore | number: '1.1-1' }}</span>
+            <span class="chevron" aria-hidden="true">{{ expanded.has(f.id) ? '−' : '+' }}</span>
+          </button>
+
+          <div *ngIf="expanded.has(f.id)" class="finding-body">
+            <dl class="facts">
+              <div *ngIf="f.affectedUrl"><dt>Onde ocorre</dt><dd class="mono">{{ f.affectedUrl }}</dd></div>
+              <div *ngIf="f.parameter"><dt>Parâmetro</dt><dd class="mono">{{ f.parameter }}</dd></div>
+              <div *ngIf="f.owaspUrl"><dt>OWASP Top 10</dt><dd>{{ f.owaspUrl }}</dd></div>
+              <div *ngIf="f.cveId"><dt>CVE</dt><dd class="mono">{{ f.cveId }}</dd></div>
+            </dl>
+
+            <div *ngIf="f.description"><h3>Descrição</h3><p class="prose">{{ f.description }}</p></div>
+
+            <div *ngIf="isStudent && owaspExplanation(f.owaspUrl) as explanation" class="alert alert-info">
+              <span><strong>Entenda a falha</strong><br />{{ explanation }}</span>
+            </div>
+
+            <div *ngIf="f.remediation" class="fix"><h3>Como corrigir</h3><p class="prose">{{ f.remediation }}</p></div>
+            <div *ngIf="f.premiumLocked" class="paywall">
+              <div><strong>Correção e evidência no Premium</strong><p>O plano Free mostra o diagnóstico; a correção exata e a prova ficam no Premium.</p></div>
+              <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+            </div>
+
+            <div *ngIf="f.compliance.length">
+              <h3>Impacto em conformidade</h3>
+              <ul class="plain"><li *ngFor="let c of f.compliance"><span class="badge">{{ c.law }} · {{ c.reference }}</span> {{ c.message }}</li></ul>
+            </div>
+
+            <button *ngIf="hasEvidence(f)" type="button" class="link" (click)="tab = 'evidence'">Ver evidência (PoC) →</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- Evidências / PoC (espec.txt 3.1) -->
+      <section *ngIf="tab === 'evidence'" class="stack no-print">
+        <div *ngIf="!isPremium" class="card"><div class="empty">
+          <strong>Prova de conceito é um recurso Premium</strong>
+          <p>Mostra exatamente a requisição enviada e o comportamento do servidor que confirma a falha.</p>
+          <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+        </div></div>
+
+        <div *ngIf="isPremium && evidenceFindings.length === 0" class="card"><div class="empty">
+          <strong>Sem evidências para exibir</strong>
+          <p *ngIf="s.safeMode">Em produção o Modo Seguro oculta requisições e respostas para não expor dados reais.</p>
+          <p *ngIf="!s.safeMode">As ferramentas não retornaram requisição/resposta para estes achados.</p>
+        </div></div>
+
+        <article *ngFor="let f of evidenceFindings" class="card">
+          <header class="card-header">
+            <div><h2>{{ f.title }}</h2><p class="mono">{{ f.affectedUrl }}<ng-container *ngIf="f.parameter"> · parâmetro: {{ f.parameter }}</ng-container></p></div>
+            <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+          </header>
+          <div class="card-body grid grid-2">
+            <div *ngIf="f.rawRequest"><h3>Requisição enviada</h3><pre class="code">{{ f.rawRequest }}</pre></div>
+            <div *ngIf="f.rawResponse"><h3>Evidência na resposta</h3><pre class="code">{{ f.rawResponse }}</pre></div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Compliance (espec.txt 3.3) -->
+      <section *ngIf="tab === 'compliance'" class="stack no-print">
+        <div *ngIf="!isPremium" class="card"><div class="empty">
+          <strong>Painel de compliance é um recurso Premium</strong>
+          <p>Relaciona cada falha aos artigos da LGPD e aos requisitos do PCI-DSS.</p>
+          <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+        </div></div>
+
+        <div *ngIf="isPremium && complianceGroups.length === 0" class="card"><div class="empty">
+          <strong>Nenhum impacto de conformidade mapeado</strong>
+          <p>Nenhum achado desta varredura se enquadra nas regras de LGPD ou PCI-DSS configuradas.</p>
+        </div></div>
+
+        <article *ngFor="let g of complianceGroups" class="card">
+          <header class="card-header">
+            <div><h2>{{ g.law }} · {{ g.reference }}</h2><p>{{ g.message }}</p></div>
+            <span class="badge badge-brand">Não conforme</span>
+          </header>
+          <ul class="list">
+            <li *ngFor="let f of g.findings" class="list-row">
+              <span>{{ f.title }}</span>
+              <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+            </li>
+          </ul>
+        </article>
+        <p *ngIf="isPremium" class="hint">Mapeamento orientativo; não substitui uma auditoria de conformidade.</p>
+      </section>
+
+      <!-- ===== Relatório para impressão / PDF (RF-12) ===== -->
+      <section class="print-report">
+        <h2>Relatório de segurança — Checkop</h2>
+        <p>Alvo: {{ s.targetUrl }} · Tipo: {{ s.objectiveLabel }} · Ambiente: {{ environmentLabel[s.environment] }} · Gerado em {{ today | date: 'dd/MM/yyyy HH:mm' }}</p>
+        <p><strong>Veredito:</strong> {{ s.summary.verdict }}</p>
+        <table>
+          <thead><tr><th>Severidade</th><th>Falha</th><th>Onde</th><th>Correção</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let f of sortedFindings">
+              <td>{{ severityLabel[f.severity] }}</td>
+              <td>{{ f.title }}<br /><small>{{ f.owaspUrl }}</small></td>
+              <td class="mono">{{ f.affectedUrl }}</td>
+              <td>{{ f.remediation || (f.premiumLocked ? 'Disponível no plano Premium' : '—') }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p *ngIf="sortedFindings.length === 0">Nenhuma falha encontrada para este tipo de varredura.</p>
+      </section>
+    </ng-container>
+  </ng-container>
+</app-shell>

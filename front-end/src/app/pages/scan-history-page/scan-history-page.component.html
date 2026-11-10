@@ -1,0 +1,74 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <h1>Histórico de varreduras</h1>
+      <p>Todas as varreduras da sua conta, da mais recente para a mais antiga.</p>
+    </div>
+    <div class="actions">
+      <a class="button button-primary" routerLink="/scans/new">Nova varredura</a>
+    </div>
+  </header>
+
+  <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
+
+  <section class="card">
+    <div class="card-body filters">
+      <input class="input" type="search" placeholder="Buscar por URL ou tipo de falha" name="search"
+        [(ngModel)]="filters.search" (ngModelChange)="onFilterChange()" aria-label="Buscar" />
+      <select class="select" name="status" [(ngModel)]="filters.status" (ngModelChange)="onFilterChange()" aria-label="Status">
+        <option value="">Todos os status</option>
+        <option *ngFor="let s of statuses" [value]="s">{{ statusLabel[s] }}</option>
+      </select>
+      <select class="select" name="environment" [(ngModel)]="filters.environment" (ngModelChange)="onFilterChange()" aria-label="Ambiente">
+        <option value="">Todos os ambientes</option>
+        <option *ngFor="let e of environments" [value]="e">{{ environmentLabel[e] }}</option>
+      </select>
+      <select class="select" name="objective" [(ngModel)]="filters.objective" (ngModelChange)="onFilterChange()" aria-label="Tipo de falha">
+        <option value="">Todos os tipos</option>
+        <option *ngFor="let o of objectiveOptions" [value]="o.key">{{ o.label }}</option>
+      </select>
+      <button *ngIf="hasFilters" class="button button-ghost button-sm" type="button" (click)="clearFilters()">Limpar</button>
+    </div>
+
+    <div *ngIf="isLoading" class="empty"><span class="spinner spinner-muted"></span></div>
+
+    <div *ngIf="!isLoading && scans.length === 0" class="empty">
+      <strong>Nenhuma varredura ainda</strong>
+      <p>Crie a primeira para ela aparecer aqui.</p>
+    </div>
+
+    <div *ngIf="!isLoading && scans.length > 0 && visible.length === 0" class="empty">
+      <strong>Nada encontrado</strong>
+      <p>Nenhuma varredura corresponde aos filtros.</p>
+    </div>
+
+    <div class="table-wrap" *ngIf="visible.length > 0">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Alvo</th>
+            <th>Tipo de falha</th>
+            <th>Ambiente</th>
+            <th>Status</th>
+            <th>Achados</th>
+            <th>Duração</th>
+            <th>Criada em</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let scan of visible" class="clickable" [routerLink]="['/scans', scan.id]">
+            <td><span class="cell-url">{{ scan.targetUrl }}</span></td>
+            <td class="muted">{{ scan.objectiveLabel }}</td>
+            <td><span class="badge env" [attr.data-env]="scan.environment">{{ environmentLabel[scan.environment] }}</span></td>
+            <td><span class="badge badge-dot status" [attr.data-status]="scan.status">{{ statusLabel[scan.status] }}</span></td>
+            <td>{{ scan.status === 'COMPLETED' ? scan.findingsCount : '–' }}</td>
+            <td class="muted">{{ duration(scan) }}</td>
+            <td class="muted">{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="hint" *ngIf="visible.length > 0">{{ visible.length }} de {{ scans.length }} varredura(s)</p>
+</app-shell>

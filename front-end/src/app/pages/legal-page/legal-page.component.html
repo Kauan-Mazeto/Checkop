@@ -1,0 +1,26 @@
+<div class="legal">
+  <header class="legal-top">
+    <a class="brand" routerLink="/landing"><img src="/checkop-logo.png" alt="" /> Checkop</a>
+    <nav>
+      <a routerLink="/terms" [class.active]="doc === 'terms'">Termos de uso</a>
+      <a routerLink="/privacy" [class.active]="doc === 'privacy'">Privacidade</a>
+    </nav>
+  </header>
+
+  <main class="legal-body">
+    <p *ngIf="isLoading" class="meta">Carregando...</p>
+    <p *ngIf="error" class="error">{{ error }}</p>
+
+    <article *ngIf="!isLoading && !error">
+      <p class="meta">
+        <ng-container *ngIf="version">Versão {{ version }} · </ng-container>Atualizado em {{ lastUpdated | date: 'dd/MM/yyyy' }}
+      </p>
+      <ng-container *ngFor="let block of blocks">
+        <h1 *ngIf="block.kind === 'h1'">{{ asText(block) }}</h1>
+        <h2 *ngIf="block.kind === 'h2'">{{ asText(block) }}</h2>
+        <p *ngIf="block.kind === 'p'">{{ asText(block) }}</p>
+        <ul *ngIf="block.kind === 'ul'"><li *ngFor="let item of asItems(block)">{{ item }}</li></ul>
+      </ng-container>
+    </article>
+  </main>
+</div>

@@ -1,0 +1,148 @@
+// Base visual em src/styles/_app-ui.scss (escopo .ck-app).
+:host {
+  display: block;
+}
+
+h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.input-tabs {
+  padding: 0 12px;
+}
+
+.example-field {
+  justify-content: flex-end;
+}
+
+.upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 30px;
+  border: 1px dashed #313848;
+  border-radius: 10px;
+  background: #0f1117;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #6aa6f8;
+  }
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+.result-grid {
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.finding {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.description {
+  color: #b4bac8;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+h3 {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+// ---------- visualizador estilo IDE ----------
+.ide {
+  overflow: hidden;
+  border: 1px solid #242a36;
+  border-radius: 8px;
+  background: #0c0e13;
+}
+
+.ide-title {
+  padding: 8px 14px;
+  border-bottom: 1px solid #242a36;
+  color: #7d8596;
+  font-size: 12px;
+}
+
+.ide-code {
+  margin: 0;
+  overflow-x: auto;
+  padding: 8px 0;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.ide-line {
+  display: block;
+  padding-right: 14px;
+  color: #b4bac8;
+  white-space: pre;
+
+  .ln {
+    display: inline-block;
+    width: 48px;
+    margin-right: 14px;
+    color: #596072;
+    text-align: right;
+    user-select: none;
+  }
+
+  &.vulnerable {
+    background: rgba(229, 72, 77, 0.12);
+    box-shadow: inset 3px 0 0 #e5484d;
+    color: #e6e8ee;
+
+    .ln {
+      color: #e5484d;
+    }
+  }
+}
+
+.side {
+  &.insecure h3 {
+    color: #ec5e62;
+  }
+
+  &.insecure .code {
+    border-color: rgba(229, 72, 77, 0.3);
+  }
+
+  &.fix {
+    padding: 14px;
+    border: 1px solid rgba(76, 195, 138, 0.25);
+    border-radius: 8px;
+    background: rgba(76, 195, 138, 0.05);
+
+    h3 {
+      color: #4cc38a;
+    }
+
+    p {
+      color: #b4bac8;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+  }
+}
+
+@media (max-width: 860px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+}

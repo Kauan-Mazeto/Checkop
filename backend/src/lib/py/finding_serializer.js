@@ -1,28 +1,28 @@
 import { getComplianceNotes } from '../../constants/compliance_mapping.js';
 
-// RF-07 / RF-08
-export const serializeFinding = (finding, { safeMode }) => {
-    const compliance = getComplianceNotes(finding.owaspUrl);
+// Campos que só o plano Premium recebe (espec.txt, seções 2 e 3): a correção
+// exata, a prova de conceito (PoC) e o mapeamento de compliance.
+const PREMIUM_FIELDS = ['remediation', 'rawRequest', 'rawResponse', 'parameter'];
 
-    if (!safeMode) {
-        return { ...finding, compliance };
-    }
+const SAFE_MODE_FIELDS = [
+  'id', 'title', 'severity', 'status', 'tool', 'ruleId', 'affectedUrl', 'cveId',
+  'cvssScore', 'owaspUrl', 'remediation', 'createdAt',
+];
 
-    return {
-        id: finding.id,
-        title: finding.title,
-        severity: finding.severity,
-        status: finding.status,
-        tool: finding.tool,
-        affectedUrl: finding.affectedUrl,
-        cveId: finding.cveId,
-        cvssScore: finding.cvssScore,
-        owaspUrl: finding.owaspUrl,
-        remediation: finding.remediation,
-        createdAt: finding.createdAt,
-        compliance,
-    };
+// RF-07 / RF-08 (Modo Seguro) + plano Free/Premium.
+// O corte é feito aqui, no servidor: esconder só na tela não protege nada.
+export const serializeFinding = (finding, { safeMode, plan = 'PREMIUM' }) => {
+  const base = safeMode
+    ? Object.fromEntries(SAFE_MODE_FIELDS.map((key) => [key, finding[key] ?? null]))
+    : { ...finding };
+
+  if (plan !== 'PREMIUM') {
+    for (const field of PREMIUM_FIELDS) delete base[field];
+    return { ...base, compliance: [], premiumLocked: true };
+  }
+
+  return { ...base, compliance: getComplianceNotes(finding.owaspUrl), premiumLocked: false };
 };
 
 export const serializeFindings = (findings, options) =>
-    findings.map((finding) => serializeFinding(finding, options));
+  findings.map((finding) => serializeFinding(finding, options));
