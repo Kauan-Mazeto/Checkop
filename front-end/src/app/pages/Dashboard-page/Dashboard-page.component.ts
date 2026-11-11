@@ -1,15 +1,27 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { ChartData, ChartOptions } from 'chart.js';
+import { forkJoin } from 'rxjs';
+import { ApiError } from '../../core/http/api-error';
 import { AuthService, AuthUser, UserRole } from '../../core/services/auth.service';
-import { Scan, ScanService } from '../../core/services/scan.service';
+import { Scan, ScanService, ScanStats } from '../../core/services/scan.service';
+import { TargetService } from '../../core/services/target.service';
+import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
+import { ChartComponent } from '../../shared/components/chart/chart.component';
+import {
+  BAR_OPTIONS,
+  DOUGHNUT_OPTIONS,
+  LINE_OPTIONS,
+  chartTotal,
+  countBar,
+  owaspBar,
+  severityDoughnut,
+  timelineLine,
+} from '../../shared/ui/chart-data';
+import { ENVIRONMENT_LABEL, STATUS_LABEL } from '../../shared/ui/labels';
 
-// Cada perfil vê UM bloco extra além do núcleo comum (estatísticas +
-// "novo scan"). Isso evita ter 4 dashboards/rotas separados — é um
-// switch sobre esse mapa, não 4 componentes duplicados. Ver explicação
-// completa na conversa; resumo: núcleo igual pra todo mundo, só esse
-// slot muda.
+// Cada perfil vê UM bloco extra além do núcleo comum (RF-11).
 type RoleWidget = 'reports' | 'alerts' | 'logs' | 'learning';
 
 const ROLE_WIDGET: Record<UserRole, RoleWidget> = {
@@ -20,161 +32,103 @@ const ROLE_WIDGET: Record<UserRole, RoleWidget> = {
   ADM: 'alerts',
 };
 
-const ROLE_LABEL: Record<UserRole, string> = {
-  QA: 'QA',
-  DEV: 'Dev',
-  PENTESTER: 'Pentester',
-  STUDENT: 'Estudante',
-  ADM: 'Admin',
-};
-
-const STATUS_LABEL: Record<Scan['status'], string> = {
-  PENDING: 'Pendente',
-  RUNNING: 'Em execução',
-  COMPLETED: 'Concluído',
-  FAILED: 'Falhou',
-};
-
-const ENVIRONMENT_LABEL: Record<Scan['environment'], string> = {
-  DEVELOPMENT: 'DEV',
-  STAGING: 'STAGING',
-  PRODUCTION: 'PROD',
-};
+const STATUS_COLOR = '#6aa6f8';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
-  templateUrl: './dashboard-page.component.html',
-  styleUrl: './dashboard-page.component.scss',
+  imports: [CommonModule, RouterLink, AppShellComponent, ChartComponent],
+  templateUrl: './Dashboard-page.component.html',
+  styleUrl: './Dashboard-page.component.scss',
 })
 export class DashboardPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly scanService = inject(ScanService);
-  private readonly router = inject(Router);
+  private readonly targetService = inject(TargetService);
 
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly environmentLabel = ENVIRONMENT_LABEL;
+  protected readonly doughnutOptions = DOUGHNUT_OPTIONS as ChartOptions;
+  protected readonly barOptions = BAR_OPTIONS as ChartOptions;
+  protected readonly lineOptions = LINE_OPTIONS as ChartOptions;
+  protected readonly chartTotal = chartTotal;
 
-  protected user: AuthUser | null = null;
-  protected roleLabel = '';
-  protected widget: RoleWidget = 'learning';
+  protected user: AuthUser | null = this.auth.getCachedUser();
+  protected widget: RoleWidget = ROLE_WIDGET[this.user?.role ?? 'STUDENT'];
 
   protected scans: Scan[] = [];
-  protected isLoadingScans = true;
-  protected scansError: string | null = null;
+  protected stats: ScanStats | null = null;
+  protected verifiedTargets = 0;
+  protected isLoading = true;
+  protected loadError: string | null = null;
 
-  protected isNewScanOpen = false;
-  protected newScanUrl = '';
-  protected newScanAuthorized = false;
-  protected isCreatingScan = false;
-  protected newScanError: string | null = null;
+  // começam vazios para os cartões dos gráficos aparecerem já no carregamento
+  protected severityChart: ChartData = severityDoughnut({}) as ChartData;
+  protected timelineChart: ChartData = timelineLine({}) as ChartData;
+  protected owaspChart: ChartData = owaspBar({}) as ChartData;
+  protected statusChart: ChartData = countBar({}) as ChartData;
 
   ngOnInit(): void {
-    // Pinta a UI na hora com o que já temos em cache (evita tela em
-    // branco), mas quem decide de fato se a sessão ainda vale é o
-    // backend — por isso a checagem via me() logo em seguida.
-    this.user = this.auth.getCachedUser();
-
-    if (!this.user) {
-      this.router.navigateByUrl('/login');
-      return;
-    }
-
-    this.applyRole(this.user.role);
-
-    this.auth.me().subscribe({
-      next: (session) => {
-        this.user = { ...this.user!, role: session.role, email: session.email };
-        this.applyRole(session.role);
-        this.loadScans();
+    forkJoin({
+      scans: this.scanService.listScans(),
+      stats: this.scanService.getStats(),
+      targets: this.targetService.listTargets(),
+    }).subscribe({
+      next: ({ scans, stats, targets }) => {
+        this.scans = scans;
+        this.stats = stats;
+        this.verifiedTargets = targets.filter((t) => t.verified).length;
+        this.severityChart = severityDoughnut(stats.findings.bySeverity) as ChartData;
+        this.timelineChart = timelineLine(stats.findings.timelineLast30Days) as ChartData;
+        this.owaspChart = owaspBar(stats.findings.byOwaspCategory) as ChartData;
+        this.statusChart = countBar(
+          stats.scans.byStatus,
+          (key) => STATUS_LABEL[key as Scan['status']] ?? key,
+          STATUS_COLOR
+        ) as ChartData;
+        this.isLoading = false;
       },
-      error: () => this.router.navigateByUrl('/login'),
+      error: (error: ApiError) => {
+        this.loadError = error.message;
+        this.isLoading = false;
+      },
     });
   }
 
-  protected get totalScans(): number {
-    return this.scans.length;
+  protected get firstName(): string {
+    return this.user?.name.split(' ')[0] ?? '';
+  }
+
+  protected get isPremium(): boolean {
+    return this.user?.plan === 'PREMIUM';
   }
 
   protected get completedScans(): number {
     return this.scans.filter((scan) => scan.status === 'COMPLETED').length;
   }
 
-  protected get suspiciousScans(): number {
-    return this.scans.filter((scan) => scan.suspiciousEnvironment).length;
+  protected get runningScans(): number {
+    return this.scans.filter((scan) => scan.status === 'RUNNING').length;
+  }
+
+  protected get highRiskFindings(): number {
+    const bySeverity = this.stats?.findings.bySeverity ?? {};
+    return (bySeverity['CRITICAL'] ?? 0) + (bySeverity['HIGH'] ?? 0);
+  }
+
+  protected get totalFindings(): number {
+    return this.stats?.findings.total ?? 0;
   }
 
   protected get recentScans(): Scan[] {
-    return this.scans.slice(0, 5);
+    return this.scans.slice(0, 6);
   }
 
   protected get flaggedScans(): Scan[] {
     return this.scans.filter((scan) => scan.status === 'FAILED' || scan.suspiciousEnvironment).slice(0, 5);
   }
 
-  protected openNewScan(): void {
-    this.isNewScanOpen = true;
-    this.newScanError = null;
-  }
-
-  protected closeNewScan(): void {
-    this.isNewScanOpen = false;
-  }
-
-  protected submitNewScan(): void {
-    if (this.isCreatingScan) {
-      return;
-    }
-
-    if (!this.newScanUrl.trim() || !this.newScanAuthorized) {
-      this.newScanError = 'Informe a URL e confirme que possui autorização para testá-la.';
-      return;
-    }
-
-    this.isCreatingScan = true;
-    this.newScanError = null;
-
-    this.scanService.createScan(this.newScanUrl.trim()).subscribe({
-      next: (scan) => {
-        this.isCreatingScan = false;
-        this.scans = [scan, ...this.scans];
-        this.newScanUrl = '';
-        this.newScanAuthorized = false;
-        this.isNewScanOpen = false;
-      },
-      error: (message: string) => {
-        this.isCreatingScan = false;
-        this.newScanError = message;
-      },
-    });
-  }
-
-  protected logout(): void {
-    this.auth.logout().subscribe({
-      next: () => this.router.navigateByUrl('/landing'),
-      error: () => this.router.navigateByUrl('/landing'),
-    });
-  }
-
-  private applyRole(role: UserRole): void {
-    this.roleLabel = ROLE_LABEL[role];
-    this.widget = ROLE_WIDGET[role];
-  }
-
-  private loadScans(): void {
-    this.isLoadingScans = true;
-    this.scansError = null;
-
-    this.scanService.listScans().subscribe({
-      next: (scans) => {
-        this.scans = scans;
-        this.isLoadingScans = false;
-      },
-      error: (message: string) => {
-        this.scansError = message;
-        this.isLoadingScans = false;
-      },
-    });
+  protected get completedList(): Scan[] {
+    return this.scans.filter((scan) => scan.status === 'COMPLETED').slice(0, 5);
   }
 }

@@ -3,3 +3,12 @@
 node_modules
 .env
 /tools
+.claude/
+
+# B2: banco local tem dados pessoais (e-mails, hashes, IPs) - nunca versionar
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc

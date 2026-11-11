@@ -14,6 +14,8 @@ router.use(authMiddleware);
 router.post('/', scanCreationLimiter, validate(createScanSchema), scanController.createScan);
 router.get('/', scanController.listScans);
 router.get('/suspicious', scanController.listSuspiciousScans);
+router.get('/stats', scanController.getScanStats);
+router.get('/objectives', scanController.getObjectives);
 router.get('/:id', requireOwnership('scan'), scanController.getScanById);
 router.post('/:id/run', scanCreationLimiter, requireOwnership('scan'), validate(runScanAuthSchema), scanController.runScan);
 

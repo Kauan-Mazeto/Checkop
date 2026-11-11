@@ -6,6 +6,8 @@ class Finding(BaseModel):
     description: str | None = None
     severity: str
     tool: str = "NUCLEI"
+    # pluginId do ZAP / template-id do Nuclei: o Node filtra o resultado pelo objetivo
+    ruleId: str | None = None
     affectedUrl: str | None = None
     cveId: str | None = None
     cvssScore: float | None = None
@@ -42,7 +44,11 @@ class NucleiScanResponse(BaseModel):
 # ---------- ZAP (RF-09) ----------
 class ZapScanRequest(BaseModel):
     targetUrl: str
+    # safeMode = alvo de produção (mascaramento e cautela); activeScan = pode atacar.
+    # Separados porque produção verificada + opt-in explícito pode rodar o ativo.
     safeMode: bool = True
+    activeScan: bool | None = None  # None mantém o comportamento antigo: ativo só fora de produção
+    # None = todos os scanners ativos; [] = nenhum (objetivo só passivo)
     scannerIds: list[str] | None = None
     auth: ZapAuthConfig | None = None
     useAjaxSpider: bool = False
@@ -50,9 +56,14 @@ class ZapScanRequest(BaseModel):
 
 class ZapScanResponse(BaseModel):
     findings: list[Finding]
+    # ex.: regra beta indisponível no ZAP; o Node repassa ao usuário
+    warnings: list[str] = []
     alertsFound: int
     durationSeconds: float
 
+class SastScanRequest(BaseModel):
+    # { "nome_arquivo.ext": "conteúdo" }
+    files: dict[str, str]
 
 # ---------- Subfinder ----------
 class SubdomainEnumRequest(BaseModel):

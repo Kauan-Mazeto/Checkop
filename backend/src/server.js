@@ -1,3 +1,6 @@
+// precisa ser o 1º import: em ESM os imports rodam antes do corpo do módulo, e
+// vários módulos leem process.env no carregamento (ex.: SECURITY_ENGINE_URL)
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -5,23 +8,24 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import timeout from 'connect-timeout';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth_routes.js';
 import { globalLimiter } from './middlewares/rate_limit_middleware.js';
 import sanitizeMiddleware from './middlewares/sanitize_middleware.js';
 import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
+import sastRoutes from './routes/sast_routes.js';
+import targetRoutes from './routes/target_routes.js';
 import prisma from './lib/prisma.js';
-dotenv.config();
+import { scheduleRetentionPurge } from './lib/retention.js';
 
 const app = express();
 const PORT = process.env.PORT;
 
-const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL', 'CLIENT_URL', 'PORT'];
+const requiredEnvVars = ['JWT_SECRET', 'EXPIRES_IN', 'RESET_CODE_SECRET', 'ENGINE_TOKEN', 'DATABASE_URL', 'CLIENT_URL', 'PORT'];
 const missing = requiredEnvVars.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {
-  console.error("Variáveis de ambiente ausentes.");
+  console.error(`Variáveis de ambiente ausentes: ${missing.join(', ')}`);
   process.exit(1);
 }
 
@@ -50,16 +54,23 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(timeout('25s'));
+const timeoutPadrao = timeout('25s');
+const timeoutSast = timeout('3m'); // o Semgrep pode levar até 120s
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? timeoutSast : timeoutPadrao)(req, res, next));
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10kb' }));
+// 10kb para a API toda; só o /api/sast recebe arquivos de código (até 10mb)
+const jsonPequeno = express.json({ limit: '10kb' });
+const jsonGrande = express.json({ limit: '10mb' });
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? jsonGrande : jsonPequeno)(req, res, next));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
-app.use(sanitizeMiddleware);
+app.use((req, res, next) => (req.path.startsWith('/api/sast') ? next() : sanitizeMiddleware(req, res, next)));
 app.use(globalLimiter);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/targets', targetRoutes);
 app.use('/api/scans', scanRoutes);
+app.use('/api/sast', sastRoutes);
 app.use('/api/privacy', privacyRoutes);
 
 // fallback, para se nao achar, retornar aqui, sem estourar banco
@@ -81,6 +92,8 @@ const server = app.listen(PORT, async () => {
   } catch (err) {
     console.error('Falha ao limpar varreduras interrompidas:', err);
   }
+
+  scheduleRetentionPurge();
 });
 
 // p/ deploy, desligar automaticamente

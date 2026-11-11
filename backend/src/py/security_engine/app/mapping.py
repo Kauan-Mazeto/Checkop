@@ -1,3 +1,5 @@
+import re
+
 
 SEVERITY_TO_CVSS_FALLBACK = {
     "critical": 9.5,
@@ -18,6 +20,13 @@ A07 = "A07:2021 – Identification and Authentication Failures"
 A08 = "A08:2021 – Software and Data Integrity Failures"
 A09 = "A09:2021 – Security Logging and Monitoring Failures"
 A10 = "A10:2021 – Server-Side Request Forgery"
+
+OWASP_BY_CODE = {
+    "A01": A01, "A02": A02, "A03": A03, "A04": A04, "A05": A05,
+    "A06": A06, "A07": A07, "A08": A08, "A09": A09, "A10": A10,
+}
+
+# tags do Nuclei -> categoria OWASP Top 10
 
 # tags do Nuclei -> categoria OWASP Top 10
 TAG_TO_OWASP = {
@@ -68,7 +77,8 @@ INTRUSIVE_TAGS = ["dos", "fuzz", "intrusive"]
 
 
 def _clean_cwe(value) -> str:
-    return str(value).lower().replace("cwe-", "").strip()
+    match = re.search(r"\d+", str(value))
+    return match.group(0) if match else ""
 
 
 def map_to_owasp_category(tags: list[str], cwe_ids: list[str] | None = None) -> str:
@@ -81,7 +91,10 @@ def map_to_owasp_category(tags: list[str], cwe_ids: list[str] | None = None) -> 
     # 2) tags: tanto "cwe-89" (ZAP) quanto "sqli" (Nuclei)
     for tag in tags or []:
         normalized = str(tag).lower().strip()
-        if normalized.startswith("cwe-"):
+        owasp_code = re.match(r"a(\d{2}):20\d{2}", normalized)
+        if owasp_code:
+            category = OWASP_BY_CODE.get(f"A{owasp_code.group(1)}")
+        elif normalized.startswith("cwe-"):
             category = CWE_TO_OWASP.get(_clean_cwe(normalized))
         else:
             category = TAG_TO_OWASP.get(normalized)

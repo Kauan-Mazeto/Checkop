@@ -17,6 +17,8 @@ export const loginSchema = z.object({
 
 export const googleLoginSchema = z.object({
   credential: z.string().min(1, 'Credencial do Google é obrigatória.'),
+  // obrigatório só quando a conta ainda não tem aceite registrado (ver googleLogin)
+  termsAccepted: z.boolean().optional(),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -27,4 +29,9 @@ export const resetPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email('E-mail inválido.'),
   code: z.string().trim().regex(/^\d{6}$/, 'Código deve conter 6 dígitos.'),
   newPassword: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres.'),
+});
+
+// troca de plano demonstrativa (sem cobrança: fora do escopo do TCC, seção 6.3)
+export const changePlanSchema = z.object({
+  plan: z.enum(['FREE', 'PREMIUM']),
 });

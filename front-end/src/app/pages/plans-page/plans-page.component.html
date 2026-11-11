@@ -1,0 +1,55 @@
+<app-shell>
+  <div *ngIf="message" class="alert toast" [class.alert-success]="message.type === 'success'" [class.alert-error]="message.type === 'error'" role="status">
+    {{ message.text }}
+  </div>
+
+  <!-- Tabela de preços: preço, botão e vantagens na mesma tela, alinhados -->
+  <section class="pricing" aria-label="Comparação de planos">
+    <!-- Cabeçalho -->
+    <div class="cell intro">
+      <span class="eyebrow">Planos Checkop</span>
+      <h1>Encontre a falha.<br /><span>Entenda e corrija.</span></h1>
+      <p>O Free mostra onde está o risco. O Premium entrega a prova, a correção, o impacto legal e a revisão do código.</p>
+    </div>
+
+    <div class="cell head">
+      <h2>Free</h2>
+      <p class="price"><strong>R$ 0</strong><span>/mês</span></p>
+      <p class="tagline">Para conhecer e diagnosticar.</p>
+      <button class="button button-secondary button-block" type="button" [disabled]="!isPremium || isChanging" (click)="choose('FREE')">
+        {{ isPremium ? 'Voltar para o Free' : 'Seu plano atual' }}
+      </button>
+    </div>
+
+    <div class="cell head premium top">
+      <span class="ribbon">{{ isPremium ? 'Seu plano' : 'Recomendado' }}</span>
+      <h2>Premium</h2>
+      <p class="price"><strong>Grátis</strong><span>na demonstração</span></p>
+      <p class="tagline">Para corrigir de verdade e provar conformidade.</p>
+      <button class="button button-primary button-block" type="button" [disabled]="isPremium || isChanging" (click)="choose('PREMIUM')">
+        <span *ngIf="isChanging" class="spinner" aria-hidden="true"></span>
+        {{ isPremium ? 'Premium ativo' : 'Ativar Premium' }}
+      </button>
+    </div>
+
+    <!-- Vantagens, linha a linha -->
+    <ng-container *ngFor="let f of features; let last = last">
+      <div class="cell feature">
+        <strong>{{ f.label }}</strong>
+        <span>{{ f.detail }}</span>
+      </div>
+      <div class="cell mark">
+        <span *ngIf="f.free" class="yes" aria-label="Incluso">✓</span>
+        <span *ngIf="!f.free" class="no" aria-label="Não incluso">—</span>
+      </div>
+      <div class="cell mark premium" [class.bottom]="last">
+        <span class="yes" aria-label="Incluso">✓</span>
+      </div>
+    </ng-container>
+  </section>
+
+  <p class="footnote">
+    Sem cobrança: a troca de plano é demonstrativa nesta versão do TCC (seção 6.3). Em sites de produção, o Modo Seguro
+    continua ocultando requisições e respostas em qualquer plano.
+  </p>
+</app-shell>

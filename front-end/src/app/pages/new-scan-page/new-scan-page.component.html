@@ -1,0 +1,121 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <nav class="breadcrumb"><a routerLink="/scans">Varreduras</a><span>/</span><span>Nova</span></nav>
+      <h1>Nova varredura</h1>
+      <p>Três passos: o endereço, o tipo de falha e a sua autorização.</p>
+    </div>
+  </header>
+
+  <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
+
+  <div class="layout" *ngIf="!isLoading && !loadError">
+    <form class="form steps" (ngSubmit)="submit()">
+      <!-- 1. Endereço -->
+      <section class="card">
+        <header class="card-header">
+          <div><h2>1. Endereço da aplicação</h2><p>Site público ou ambiente local.</p></div>
+        </header>
+        <div class="card-body form">
+          <label class="field">
+            <span>URL</span>
+            <input class="input" type="url" name="targetUrl" [(ngModel)]="targetUrl" (ngModelChange)="saveDraft()"
+              placeholder="https://meusite.com.br  ou  http://localhost:3000" autocomplete="url" />
+          </label>
+          <div *ngIf="targetKind === 'local'" class="alert alert-success">
+            Ambiente local: não precisa verificar domínio e a varredura ativa é liberada.
+          </div>
+          <div *ngIf="targetKind === 'public'" class="alert alert-info">
+            Site público: só é aceito se o domínio estiver verificado por você em
+            <a class="link" routerLink="/targets">Domínios</a>.
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Tipo de falha: categoria primeiro, depois os tipos -->
+      <section class="card">
+        <header class="card-header">
+          <div><h2>2. O que procurar</h2><p>Escolha uma categoria para ver as opções.</p></div>
+          <span *ngIf="selected" class="badge">{{ selected.label }}</span>
+        </header>
+        <div class="card-body form">
+          <div class="grid grid-3" role="radiogroup" aria-label="Categoria">
+            <button *ngFor="let group of groups" type="button" class="option" role="radio"
+              [attr.aria-checked]="groupKey === group.key" [class.selected]="groupKey === group.key" (click)="chooseGroup(group)">
+              <strong>{{ group.title }}</strong>
+              <span>{{ group.description }}</span>
+            </button>
+          </div>
+
+          <ul *ngIf="activeGroup && activeGroup.objectives.length > 1" class="objective-list" role="radiogroup" aria-label="Tipo de falha">
+            <li *ngFor="let item of activeGroup.objectives">
+              <button type="button" class="objective" role="radio" [attr.aria-checked]="objective === item.key"
+                [class.selected]="objective === item.key" (click)="chooseObjective(item.key)">
+                <span class="radio" aria-hidden="true"></span>
+                <span class="objective-text">
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.description }}</small>
+                </span>
+                <span class="objective-tags">
+                  <span *ngIf="item.requiresActiveScan" class="badge badge-brand">exige ataque</span>
+                  <span *ngIf="item.coverage === 'PARTIAL'" class="badge">parcial</span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 3. Autorização -->
+      <section class="card">
+        <header class="card-header">
+          <div><h2>3. Autorização</h2><p>Obrigatória para qualquer varredura.</p></div>
+        </header>
+        <div class="card-body form">
+          <app-check [(checked)]="authorized">
+            <strong>Tenho autorização para testar esta aplicação</strong>
+            Sou o responsável por ela ou tenho autorização expressa de quem é. Sei que testar sistemas de terceiros sem
+            permissão é crime (art. 154-A do Código Penal) e que esta confirmação fica registrada.
+          </app-check>
+
+          <div *ngIf="selected?.requiresActiveScan && targetKind === 'public'" class="alert alert-warning">
+            "{{ selected?.label }}" só é detectado enviando ataques reais. Na próxima tela, a varredura ativa vai pedir uma
+            autorização específica.
+          </div>
+
+          <div *ngIf="submitError" class="alert alert-error" role="alert">
+            <span>
+              {{ submitError }}
+              <span *ngIf="needsVerification" class="block-cta">
+                <a class="button button-primary button-sm" routerLink="/targets" [queryParams]="{ url: targetUrl.trim() }">
+                  Verificar este domínio
+                </a>
+              </span>
+            </span>
+          </div>
+
+          <div class="actions">
+            <button class="button button-primary" type="submit" [disabled]="isSubmitting || !!submitBlocker">
+              <span *ngIf="isSubmitting" class="spinner" aria-hidden="true"></span>
+              {{ isSubmitting ? 'Registrando...' : 'Continuar' }}
+            </button>
+            <a class="button button-ghost" routerLink="/dashboard">Cancelar</a>
+            <span *ngIf="submitBlocker" class="hint">{{ submitBlocker }}</span>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <!-- Resumo lateral -->
+    <aside class="card summary">
+      <header class="card-header"><h2>Resumo</h2></header>
+      <dl class="card-body">
+        <div><dt>Endereço</dt><dd class="mono">{{ targetUrl || '—' }}</dd></div>
+        <div><dt>Ambiente</dt><dd>{{ targetKind === 'local' ? 'Desenvolvimento (local)' : targetKind === 'public' ? 'Público (exige domínio verificado)' : '—' }}</dd></div>
+        <div><dt>Tipo de falha</dt><dd>{{ selected?.label || '—' }}</dd></div>
+        <div *ngIf="selected?.owasp"><dt>OWASP Top 10</dt><dd>{{ selected?.owasp }}</dd></div>
+        <div *ngIf="selected"><dt>Ferramentas</dt><dd>{{ selected.engines.join(', ') }}</dd></div>
+      </dl>
+    </aside>
+  </div>
+</app-shell>

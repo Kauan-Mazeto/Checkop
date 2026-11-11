@@ -1,9 +1,10 @@
 import { hashPassword, comparePassword, generateToken, buildCookieOptions, generateResetCode, hashResetCode, compareResetCode } from '../constants/utils.js';
 import { verifyGoogleToken } from '../lib/google_client.js';
 import { sendPasswordResetEmail } from '../lib/mailer.js';
-import { logLoginAttempt } from '../lib/audit_log.js';
+import { logLoginAttempt, logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import prisma from '../lib/prisma.js';
 import bcrypt from 'bcryptjs';
+import { TERMS_OF_USE } from '../lib/terms_of_use.js';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
   `checkop-dummy-${Date.now()}-${Math.random()}`,
@@ -16,6 +17,7 @@ const MAX_RESET_ATTEMPTS = 3;
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const ACCOUNT_LOCK_MINUTES = 15;
 const DELETE_ACCOUNT_CONFIRMATION_PHRASE = 'EXCLUIR MINHA CONTA';
+const DELETED_ACCOUNT_EMAIL_PLACEHOLDER = '[conta-excluida]';
 
 const clearAuthCookie = (res) => {
   res.clearCookie('token', {
@@ -49,6 +51,7 @@ const register = async (req, res) => {
     await prisma.termsAcceptance.create({
       data: {
         userId: newUser.id,
+        version: TERMS_OF_USE.version,
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'] || null,
       },
@@ -65,11 +68,17 @@ const register = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        plan: newUser.plan,
       },
     });
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Não foi possível concluir o cadastro. Verifique os dados informados.' });
+      // Mensagem propositalmente sem confirmar se o e-mail existe (evita
+      // enumeração de contas), mas dizendo o que fazer.
+      return res.status(409).json({
+        error: 'Não foi possível concluir o cadastro com este e-mail. Se você já tem conta, entre pelo login ou use "Esqueci minha senha".',
+        code: 'REGISTER_CONFLICT',
+      });
     }
     console.error('Erro no registro:', error);
     return res.status(500).json({ error: 'Erro interno ao cadastrar usuário.' });
@@ -134,6 +143,7 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        plan: user.plan,
       },
     });
   } catch (error) {
@@ -144,7 +154,7 @@ const login = async (req, res) => {
 
 const googleLogin = async (req, res) => {
   try {
-    const { credential } = req.body;
+    const { credential, termsAccepted } = req.body;
 
     let payload;
     try {
@@ -159,23 +169,44 @@ const googleLogin = async (req, res) => {
 
     const { sub: googleId, email, name } = payload;
 
-    let user = await prisma.user.findUnique({ where: { googleId } });
+    let user =
+      (await prisma.user.findUnique({ where: { googleId } })) ??
+      (await prisma.user.findUnique({ where: { email } }));
+
+    // B7: conta nova via Google (ou criada antes desta regra) também precisa do
+    // aceite dos termos, igual ao cadastro por e-mail. A checagem vem antes de
+    // criar o usuário para não deixar conta sem aceite registrado.
+    const hasAcceptedTerms = user
+      ? Boolean(await prisma.termsAcceptance.findUnique({ where: { userId: user.id } }))
+      : false;
+
+    if (!hasAcceptedTerms && termsAccepted !== true) {
+      return res.status(400).json({
+        error: 'É necessário aceitar os termos de uso para continuar.',
+        code: 'TERMS_REQUIRED',
+      });
+    }
 
     if (!user) {
-      user = await prisma.user.findUnique({ where: { email } });
+      user = await prisma.user.create({
+        data: { name, email, googleId },
+      });
+    } else if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId },
+      });
+    }
 
-      if (user) {
-        if (!user.googleId) {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { googleId },
-          });
-        }
-      } else {
-        user = await prisma.user.create({
-          data: { name, email, googleId },
-        });
-      }
+    if (!hasAcceptedTerms) {
+      await prisma.termsAcceptance.create({
+        data: {
+          userId: user.id,
+          version: TERMS_OF_USE.version,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] || null,
+        },
+      });
     }
 
     await logLoginAttempt({
@@ -197,6 +228,7 @@ const googleLogin = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        plan: user.plan,
       },
     });
   } catch (error) {
@@ -355,7 +387,15 @@ const deleteAccount = async (req, res) => {
       }
     }
 
-    await prisma.user.delete({ where: { id: user.id } });
+    // B8: os registros de login ficam para auditoria (política de privacidade, item 3),
+    // mas sem o e-mail. O userId já vira null pelo onDelete: SetNull do schema.
+    await prisma.$transaction([
+      prisma.loginAttempt.updateMany({
+        where: { OR: [{ userId: user.id }, { email: user.email }] },
+        data: { email: DELETED_ACCOUNT_EMAIL_PLACEHOLDER },
+      }),
+      prisma.user.delete({ where: { id: user.id } }),
+    ]);
 
     clearAuthCookie(res);
 
@@ -391,4 +431,26 @@ const getLoginHistory = async (req, res) => {
   }
 };
 
-export default {register , login , googleLogin , forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory};
+const changePlan = async (req, res) => {
+  try {
+    const { plan } = req.body;
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { plan } });
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.PLAN_CHANGED,
+      resourceType: 'user',
+      resourceId: req.userId,
+      details: { from: req.userPlan, to: plan },
+    });
+
+    return res.status(200).json({
+      message: plan === 'PREMIUM' ? 'Plano Premium ativado (demonstração, sem cobrança).' : 'Plano alterado para Free.',
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan },
+    });
+  } catch (error) {
+    console.error('Erro ao trocar de plano:', error);
+    return res.status(500).json({ error: 'Erro interno ao trocar de plano.' });
+  }
+};
+
+export default {register , login , googleLogin , forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan};

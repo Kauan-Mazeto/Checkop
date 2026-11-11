@@ -21,22 +21,44 @@ enum Role {
   STUDENT
 }
 
+// espec.txt: Free vê o diagnóstico macro; Premium vê PoC, correção, compliance e SAST.
+// Sem cobrança real (fora do escopo do TCC, seção 6.3): a troca é demonstrativa.
+enum Plan {
+  FREE
+  PREMIUM
+}
+
 enum ToolType {
   ZAP
   NUCLEI
   SUBFINDER
 }
 
+// espelha as chaves de src/constants/scan_objectives.js
 enum ScanObjective {
   SQL_INJECTION
   XSS
+  COMMAND_INJECTION
+  PATH_TRAVERSAL
+  XXE
+  SSTI
+  CRLF_INJECTION
+  OPEN_REDIRECT
   CSRF
   SSRF
-  OPEN_REDIRECT
+  SECURITY_HEADERS
+  COOKIES
+  CLICKJACKING
+  CORS
+  DIRECTORY_LISTING
+  EXPOSED_FILES
+  ADMIN_PANELS
+  INFO_DISCLOSURE
+  API_EXPOSURE
   KNOWN_CVE
-  SUBDOMAIN_ENUM
   SSL_TLS
   DNS_CHECK
+  SUBDOMAIN_ENUM
   FULL_SCAN
 }
 
@@ -61,6 +83,19 @@ enum FindingSeverity {
   CRITICAL
 }
 
+// Como o dono comprovou o controle do alvo (TCC, seção 9)
+enum VerificationMethod {
+  DNS_TXT
+  HTTP_FILE
+  META_TAG
+}
+
+// DNS prova o domínio inteiro (e subdomínios); arquivo/meta tag provam só o host
+enum TargetScope {
+  DOMAIN
+  HOST
+}
+
 enum FindingStatus {
   OPEN
   FALSE_POSITIVE
@@ -74,6 +109,7 @@ model User {
   email                    String    @unique
   password                 String?
   role                     Role      @default(DEV)
+  plan                     Plan      @default(FREE)
   googleId                 String?   @unique
   resetPasswordToken       String?
   resetPasswordExpires     DateTime?
@@ -87,6 +123,8 @@ model User {
   scans                    Scan[]
   termsAcceptance          TermsAcceptance?
   loginAttempts            LoginAttempt[]
+  targets                  Target[]
+  auditLogs                AuditLog[]
 }
 
 model LoginAttempt {
@@ -115,6 +153,13 @@ model Scan {
   suspiciousEnvironment    Boolean           @default(false)
   authorizationConfirmedAt DateTime
   authorizationIp          String?
+  // opt-in de varredura ativa em alvo público (art. 154-A CP: autorização expressa)
+  activeScanConfirmedAt    DateTime?
+  activeScanConfirmationIp String?
+  // avisos dos motores em JSON (regra indisponível, ferramenta que falhou...)
+  engineWarnings           String?
+  targetId                 String?
+  target                   Target?           @relation(fields: [targetId], references: [id], onDelete: SetNull)
   startedAt                DateTime?
   finishedAt               DateTime?
   createdAt                DateTime          @default(now())
@@ -123,6 +168,7 @@ model Scan {
   findings                 Finding[]
 
   @@index([suspiciousEnvironment])
+  @@index([targetId])
   @@index([userId])
 }
 
@@ -134,7 +180,10 @@ model Finding {
   description String?
   severity    FindingSeverity @default(MEDIUM)
   status      FindingStatus   @default(OPEN)
-  tool        ToolType        
+  tool        ToolType
+  // id da regra que gerou o achado (pluginId do ZAP, template-id do Nuclei);
+  // usado para filtrar o resultado pelo objetivo escolhido
+  ruleId      String?
   affectedUrl String?        
   parameter   String?        
   cveId       String?         
@@ -155,4 +204,43 @@ model TermsAcceptance {
   acceptedAt DateTime @default(now())
   ipAddress  String?
   userAgent  String?
+}
+
+// Alvo cadastrado pelo usuário. Varredura em alvo público só roda com o alvo
+// verificado (TCC, objetivo específico 5 e seção 9).
+model Target {
+  id                 String             @id @default(uuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hostname           String
+  scope              TargetScope
+  verificationMethod VerificationMethod
+  verificationToken  String
+  verifiedAt         DateTime?
+  lastCheckedAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  scans              Scan[]
+
+  @@unique([userId, hostname, scope])
+  @@index([userId])
+}
+
+// Registro de ações relevantes (RF-16). Guardado por 6 meses mesmo após a
+// exclusão da conta (Marco Civil, art. 15; LGPD, art. 16, I): o userId vira null.
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action       String
+  resourceType String?
+  resourceId   String?
+  ipAddress    String?
+  userAgent    String?
+  details      String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }

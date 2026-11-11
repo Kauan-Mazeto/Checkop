@@ -6,11 +6,14 @@ import { API_BASE_URL } from '../constants/api.constants';
 // Espelha o campo "role" do enum Role no backend (backend/src/constants/enums.js).
 export type UserRole = 'DEV' | 'QA' | 'PENTESTER' | 'STUDENT' | 'ADM';
 
+export type UserPlan = 'FREE' | 'PREMIUM';
+
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  plan?: UserPlan;
 }
 
 // Espelha o corpo de resposta de POST /api/auth/login e /api/auth/register
@@ -38,11 +41,13 @@ export interface RegisterPayload {
 }
 
 // Espelha o corpo de resposta de GET /api/auth/me (backend/src/routes/auth_routes.js).
-interface MeResponse {
+export interface MeResponse {
   message: string;
   userId: string;
   role: UserRole;
   email: string;
+  name?: string;
+  plan?: UserPlan;
 }
 
 // Espelha os formatos de erro do backend:
@@ -119,6 +124,12 @@ export class AuthService {
           return throwError(() => this.toErrorMessage(error));
         })
       );
+  }
+
+  /** Atualiza o cache com o que o backend confirmou (ex.: plano trocado). */
+  updateCachedUser(changes: Partial<AuthUser>): void {
+    const current = this.getCachedUser();
+    if (current) this.cacheUser({ ...current, ...changes });
   }
 
   /** Usuário em cache (best-effort, só pra UI). Fonte de verdade é me(). */

@@ -2,7 +2,10 @@ import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
 import { runNucleiScan, runZapScan, runSubdomainEnum, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
-import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
+import { getDomain } from 'tldts';
+import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
+import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
+import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
 
 const serializeIps = (ips) => ips.join(',');
 const deserializeIps = (value) => (value ? value.split(',') : []);
@@ -13,6 +16,44 @@ const deserializeIps = (value) => (value ? value.split(',') : []);
 // viram um único registro, mesmo que cada um dê um nome diferente ao achado.
 const SEVERITY_RANK = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 const FILL_FIELDS = ['description', 'cveId', 'cvssScore', 'rawRequest', 'rawResponse', 'remediation', 'owaspUrl'];
+
+const SEVERITY_BADGE = {
+  CRITICAL: { emoji: '🔴', label: 'Crítico', color: 'red' },
+  HIGH: { emoji: '🔴', label: 'Alto', color: 'red' },
+  MEDIUM: { emoji: '🟡', label: 'Médio', color: 'yellow' },
+  LOW: { emoji: '🔵', label: 'Baixo', color: 'blue' },
+  INFO: { emoji: '🔵', label: 'Informativo', color: 'blue' },
+};
+
+// Monta o resumo de alto nível de um scan (espec.txt, seção 2.2):
+// badge colorido, veredito em uma frase e contagem por severidade.
+const buildScanSummary = (findings) => {
+  const severityCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+
+  if (findings.length === 0) {
+    return {
+      badge: { emoji: '🟢', label: 'Nenhum achado', color: 'green' },
+      verdict: 'Nenhuma vulnerabilidade foi identificada nesta varredura.',
+      severityCounts,
+    };
+  }
+
+  let worst = findings[0];
+  for (const f of findings) {
+    severityCounts[f.severity] = (severityCounts[f.severity] ?? 0) + 1;
+    if ((SEVERITY_RANK[f.severity] ?? 0) > (SEVERITY_RANK[worst.severity] ?? 0)) worst = f;
+  }
+
+  const total = findings.length;
+  const verdict =
+    worst.severity === 'CRITICAL' || worst.severity === 'HIGH'
+      ? `Foram encontradas ${total} falha(s), incluindo pelo menos uma de alto impacto. Correção prioritária recomendada.`
+      : worst.severity === 'MEDIUM'
+        ? `Foram encontradas ${total} falha(s) de risco moderado. Recomenda-se correção em breve.`
+        : `Foram encontradas ${total} falha(s) de baixo risco ou informativas.`;
+
+  return { badge: SEVERITY_BADGE[worst.severity], verdict, severityCounts };
+};
 
 const VULN_CLASSES = [
   ['sqli', /sql[\s-]*inj|sqli/i],
@@ -89,6 +130,62 @@ const dedupeFindings = (findings) => {
   });
 };
 
+// B3: domínio público que resolve para IP interno é o padrão de DNS rebinding/SSRF
+// contra a infraestrutura do próprio Checkop. O registro fica (auditoria em
+// GET /api/scans/suspicious), mas a execução é sempre recusada.
+const SUSPICIOUS_TARGET_MESSAGE =
+  'Este domínio público resolve para um endereço de rede interna. A varredura foi registrada para auditoria, mas não pode ser executada.';
+
+// B5: o DNS pode mudar entre o cadastro e a execução (ex.: TTL curto apontando
+// para 127.0.0.1 depois). Revalida no momento do run. Não elimina 100% a janela,
+// porque ZAP e Nuclei resolvem o host por conta própria durante a varredura.
+const revalidateTargetBeforeRun = async (scan) => {
+  if (scan.suspiciousEnvironment) return SUSPICIOUS_TARGET_MESSAGE;
+
+  let detection;
+  try {
+    detection = await detectEnvironment(scan.targetUrl);
+  } catch (err) {
+    if (err instanceof ScanValidationError) return err.message;
+    throw err;
+  }
+
+  if (!detection.suspicious) return null;
+
+  await prisma.scan.update({
+    where: { id: scan.id },
+    data: { suspiciousEnvironment: true, resolvedIps: serializeIps(detection.resolvedIps) },
+  });
+  return SUSPICIOUS_TARGET_MESSAGE;
+};
+
+// TCC, seção 9: alvo local/rede privada é ambiente de desenvolvimento e fica isento
+const requiresVerifiedTarget = (environment) => environment !== 'DEVELOPMENT';
+
+const TARGET_NOT_VERIFIED_RESPONSE = Object.freeze({
+  error: 'Para varrer um site público, cadastre e verifique a propriedade do domínio em /api/targets.',
+  code: 'TARGET_NOT_VERIFIED',
+});
+
+// Confere de novo, antes de cada execução, que o usuário ainda controla o alvo.
+const ensureTargetStillVerified = async (scan) => {
+  if (!requiresVerifiedTarget(scan.environment)) return true;
+
+  const target = scan.targetId
+    ? await prisma.target.findUnique({ where: { id: scan.targetId } })
+    : await findVerifiedTargetForUrl(scan.userId, scan.targetUrl);
+
+  return Boolean(target) && (await refreshTargetVerification(target));
+};
+
+const ACTIVE_SCAN_REQUIRED_RESPONSE = Object.freeze({
+  error:
+    'Este objetivo só detecta falhas enviando ataques ao site. Autorize a varredura ativa (activeScanConfirmed e hostingTermsConfirmed) para executá-lo.',
+  code: 'ACTIVE_SCAN_REQUIRED',
+});
+
+const getObjectives = (req, res) => res.status(200).json({ objectives: listObjectives() });
+
 const createScan = async (req, res) => {
   try {
     const { targetUrl, objective } = req.body;
@@ -106,6 +203,24 @@ const createScan = async (req, res) => {
     const { environment, resolvedIps, suspicious } = detection;
     const safeMode = environment === 'PRODUCTION';
 
+    // alvo público (homologação ou produção) só com propriedade comprovada.
+    // O suspeito segue para ser registrado (auditoria) e é barrado no run.
+    let target = null;
+    if (requiresVerifiedTarget(environment) && !suspicious) {
+      target = await findVerifiedTargetForUrl(req.userId, targetUrl);
+      // a prova é conferida ao vivo também na criação, não só na execução:
+      // removeu o TXT/arquivo/tag depois de verificar, perde o acesso na hora
+      if (target && !(await refreshTargetVerification(target))) target = null;
+      if (!target) {
+        await logAudit(req, {
+          action: AUDIT_ACTIONS.SCAN_BLOCKED,
+          resourceType: 'scan',
+          details: { targetUrl, reason: 'TARGET_NOT_VERIFIED' },
+        });
+        return res.status(403).json(TARGET_NOT_VERIFIED_RESPONSE);
+      }
+    }
+
     const scan = await prisma.scan.create({
       data: {
         targetUrl,
@@ -117,11 +232,19 @@ const createScan = async (req, res) => {
         userId: req.userId,
         authorizationConfirmedAt: new Date(),
         authorizationIp: req.ip,
+        targetId: target?.id ?? null,
       },
     });
 
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.SCAN_CREATED,
+      resourceType: 'scan',
+      resourceId: scan.id,
+      details: { targetUrl, objective: scan.objective, environment, suspicious },
+    });
+
     return res.status(201).json({
-      message: 'Varredura registrada com sucesso.',
+      message: suspicious ? SUSPICIOUS_TARGET_MESSAGE : 'Varredura registrada com sucesso.',
       scan: {
         id: scan.id,
         targetUrl: scan.targetUrl,
@@ -148,6 +271,7 @@ const listScans = async (req, res) => {
       select: {
         id: true,
         targetUrl: true,
+        objective: true,
         environment: true,
         safeMode: true,
         status: true,
@@ -156,11 +280,14 @@ const listScans = async (req, res) => {
         createdAt: true,
         startedAt: true,
         finishedAt: true,
+        _count: { select: { findings: true } },
       },
     });
 
-    const serialized = scans.map((scan) => ({
+    const serialized = scans.map(({ _count, ...scan }) => ({
       ...scan,
+      objectiveLabel: SCAN_OBJECTIVES[scan.objective]?.label ?? scan.objective,
+      findingsCount: _count.findings,
       resolvedIps: deserializeIps(scan.resolvedIps),
     }));
 
@@ -200,6 +327,59 @@ const listSuspiciousScans = async (req, res) => {
   }
 };
 
+// Dados agregados de todos os scans do usuário, prontos pra gráfico
+// (pizza de severidade, barra por objetivo, linha do tempo, etc.)
+const getScanStats = async (req, res) => {
+  try {
+    const scans = await prisma.scan.findMany({
+      where: { userId: req.userId },
+      select: { id: true, status: true, objective: true, environment: true, createdAt: true },
+    });
+
+    const findings = await prisma.finding.findMany({
+      where: { scan: { userId: req.userId } },
+      select: { severity: true, tool: true, owaspUrl: true, status: true, createdAt: true },
+    });
+
+    const countBy = (items, key) =>
+      items.reduce((acc, item) => {
+        const k = item[key] ?? 'UNKNOWN';
+        acc[k] = (acc[k] ?? 0) + 1;
+        return acc;
+      }, {});
+
+    // últimos 30 dias, agrupado por dia (AAAA-MM-DD) — pra gráfico de tendência
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const timelineLast30Days = {};
+    for (const f of findings) {
+      if (f.createdAt < since) continue;
+      const day = f.createdAt.toISOString().slice(0, 10);
+      timelineLast30Days[day] = (timelineLast30Days[day] ?? 0) + 1;
+    }
+
+    return res.status(200).json({
+      scans: {
+        total: scans.length,
+        byStatus: countBy(scans, 'status'),
+        byObjective: countBy(scans, 'objective'),
+        byEnvironment: countBy(scans, 'environment'),
+      },
+      findings: {
+        total: findings.length,
+        bySeverity: countBy(findings, 'severity'),
+        byTool: countBy(findings, 'tool'),
+        byOwaspCategory: countBy(findings, 'owaspUrl'),
+        byStatus: countBy(findings, 'status'),
+        timelineLast30Days,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao gerar estatísticas:', error);
+    return res.status(500).json({ error: 'Erro interno ao gerar estatísticas.' });
+  }
+};
+
 const getScanById = async (req, res) => {
   try {
     const findings = await prisma.finding.findMany({
@@ -210,7 +390,11 @@ const getScanById = async (req, res) => {
       scan: {
         ...req.resource,
         resolvedIps: deserializeIps(req.resource.resolvedIps),
-        findings: serializeFindings(findings, { safeMode: req.resource.safeMode }),
+        objectiveLabel: SCAN_OBJECTIVES[req.resource.objective]?.label ?? req.resource.objective,
+        engineWarnings: req.resource.engineWarnings ? JSON.parse(req.resource.engineWarnings) : [],
+        summary: buildScanSummary(findings),
+        plan: req.userPlan,
+        findings: serializeFindings(findings, { safeMode: req.resource.safeMode, plan: req.userPlan }),
       },
     });
   } catch (error) {
@@ -223,14 +407,18 @@ const executeScan = async (scan, runOptions = {}) => {
   try {
     const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
     const jobs = [];
+    const warnings = [];
 
     if (config.engines.includes('NUCLEI') && config.nuclei) {
+      // activeTags (ex.: tentativa de login padrão) só com ataque autorizado
+      const extraTags = runOptions.activeScan ? (config.nuclei.activeTags ?? []) : [];
       jobs.push(
         runNucleiScan({
           targetUrl: scan.targetUrl,
-          safeMode: scan.safeMode,
+          // sem opt-in de ataque, os templates intrusivos ficam de fora (RF-52)
+          safeMode: !runOptions.activeScan,
           rateLimit: 10,
-          tags: config.nuclei.tags,
+          tags: [...config.nuclei.tags, ...extraTags],
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
       );
     }
@@ -240,7 +428,8 @@ const executeScan = async (scan, runOptions = {}) => {
         runZapScan({
           targetUrl: scan.targetUrl,
           safeMode: scan.safeMode,
-          scannerIds: config.zap.scannerIds,
+          activeScan: runOptions.activeScan === true,
+          scannerIds: config.zap.activeScannerIds,
           auth: runOptions.auth,
           useAjaxSpider: runOptions.useAjaxSpider,
         }).then((r) => ({ tool: 'ZAP', ...r }))
@@ -248,10 +437,13 @@ const executeScan = async (scan, runOptions = {}) => {
     }
 
     if (config.engines.includes('SUBFINDER')) {
-      const { hostname } = new URL(scan.targetUrl);
-      jobs.push(
-        runSubdomainEnum({ domain: hostname }).then((r) => ({ tool: 'SUBFINDER', ...r }))
-      );
+      // subdomínios são do domínio registrável (www.loja.com.br -> loja.com.br)
+      const domain = getDomain(new URL(scan.targetUrl).hostname);
+      if (domain) {
+        jobs.push(runSubdomainEnum({ domain }).then((r) => ({ tool: 'SUBFINDER', ...r })));
+      } else {
+        warnings.push('Enumeração de subdomínios não se aplica a localhost ou endereço IP.');
+      }
     }
 
     const outcomes = await Promise.allSettled(jobs);
@@ -260,7 +452,10 @@ const executeScan = async (scan, runOptions = {}) => {
     outcomes.forEach((outcome) => {
       if (outcome.status === 'fulfilled') {
         rawFindings.push(...outcome.value.findings);
+        warnings.push(...(outcome.value.warnings ?? []));
       } else {
+        // mensagem genérica ao usuário; o detalhe técnico fica só no log (RNF-25)
+        warnings.push('Uma das ferramentas de varredura não pôde ser executada; o resultado pode estar incompleto.');
         // falha parcial: uma ferramenta caiu, mas as outras continuam valendo
         console.error(`[scan ${scan.id}] falha em uma ferramenta:`, outcome.reason?.message ?? outcome.reason);
       }
@@ -271,7 +466,7 @@ const executeScan = async (scan, runOptions = {}) => {
       throw outcomes[0].reason;
     }
 
-    const allFindings = dedupeFindings(rawFindings);
+    const allFindings = dedupeFindings(filterFindingsByObjective(rawFindings, scan.objective));
 
     await prisma.$transaction([
       prisma.finding.createMany({
@@ -279,7 +474,11 @@ const executeScan = async (scan, runOptions = {}) => {
       }),
       prisma.scan.update({
         where: { id: scan.id },
-        data: { status: 'COMPLETED', finishedAt: new Date() },
+        data: {
+          status: 'COMPLETED',
+          finishedAt: new Date(),
+          engineWarnings: warnings.length ? JSON.stringify([...new Set(warnings)]) : null,
+        },
       }),
     ]);
 
@@ -302,13 +501,51 @@ const executeScan = async (scan, runOptions = {}) => {
 const runScan = async (req, res) => {
   try {
     const scan = req.resource;
-    const { auth, useAjaxSpider } = req.body;
+    const { auth, useAjaxSpider, activeScanConfirmed } = req.body;
+
+    const blockReason = await revalidateTargetBeforeRun(scan);
+    if (blockReason) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.SCAN_BLOCKED,
+        resourceType: 'scan',
+        resourceId: scan.id,
+        details: { reason: 'UNSAFE_DESTINATION' },
+      });
+      return res.status(403).json({ error: blockReason });
+    }
+
+    if (!(await ensureTargetStillVerified(scan))) {
+      await logAudit(req, {
+        action: AUDIT_ACTIONS.SCAN_BLOCKED,
+        resourceType: 'scan',
+        resourceId: scan.id,
+        details: { reason: 'TARGET_NOT_VERIFIED' },
+      });
+      return res.status(403).json(TARGET_NOT_VERIFIED_RESPONSE);
+    }
+
+    // Ataque ativo: livre em ambiente local; em alvo público só com o opt-in
+    // explícito desta execução (o validator já exigiu a declaração de hospedagem).
+    const isPublicTarget = requiresVerifiedTarget(scan.environment);
+    const activeScan = !isPublicTarget || activeScanConfirmed === true;
+
+    // objetivo que só detecta atacando (ex.: SQLi) sem ataque autorizado daria um
+    // falso "nenhuma falha encontrada": melhor recusar e explicar
+    if (!activeScan && SCAN_OBJECTIVES[scan.objective]?.requiresActiveScan) {
+      return res.status(400).json(ACTIVE_SCAN_REQUIRED_RESPONSE);
+    }
 
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).
     const claimed = await prisma.scan.updateMany({
       where: { id: scan.id, status: { in: ['PENDING', 'FAILED'] } },
-      data: { status: 'RUNNING', startedAt: new Date(), finishedAt: null },
+      data: {
+        status: 'RUNNING',
+        startedAt: new Date(),
+        finishedAt: null,
+        activeScanConfirmedAt: isPublicTarget && activeScan ? new Date() : null,
+        activeScanConfirmationIp: isPublicTarget && activeScan ? req.ip : null,
+      },
     });
 
     if (claimed.count === 0) {
@@ -320,11 +557,18 @@ const runScan = async (req, res) => {
       return res.status(409).json({ error: message });
     }
 
-    executeScan(scan, { auth, useAjaxSpider });
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.SCAN_STARTED,
+      resourceType: 'scan',
+      resourceId: scan.id,
+      details: { environment: scan.environment, objective: scan.objective, activeScan, authenticated: Boolean(auth) },
+    });
+
+    executeScan(scan, { auth, useAjaxSpider, activeScan });
 
     return res.status(202).json({
       message: 'Varredura iniciada. Acompanhe o status em GET /api/scans/:id.',
-      scan: { id: scan.id, status: 'RUNNING', objective: scan.objective },
+      scan: { id: scan.id, status: 'RUNNING', objective: scan.objective, activeScan },
     });
   } catch (error) {
     console.error('Erro ao iniciar varredura:', error);
@@ -332,4 +576,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { createScan, listScans, listSuspiciousScans, getScanById, runScan };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, runScan };

@@ -1,0 +1,101 @@
+// Página pública de leitura, no mesmo tom escuro suave das telas logadas.
+:host {
+  display: block;
+  min-height: 100vh;
+  background: #0f1117;
+  color: #e6e8ee;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+.legal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 32px;
+  border-bottom: 1px solid #242a36;
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  nav {
+    display: flex;
+    gap: 4px;
+
+    a {
+      padding: 6px 12px;
+      border-radius: 7px;
+      color: #b4bac8;
+      font-size: 13.5px;
+
+      &.active,
+      &:hover {
+        background: #1b1f2a;
+        color: #e6e8ee;
+      }
+    }
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+
+  img {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+}
+
+.legal-body {
+  max-width: 760px;
+  padding: 36px 32px 72px;
+  line-height: 1.7;
+
+  h1 {
+    margin: 0 0 24px;
+    font-size: 26px;
+  }
+
+  h2 {
+    margin: 28px 0 8px;
+    font-size: 16px;
+  }
+
+  p,
+  li {
+    color: #b4bac8;
+    font-size: 14.5px;
+  }
+
+  p {
+    margin: 0 0 10px;
+  }
+
+  ul {
+    margin: 0 0 10px;
+    padding-left: 22px;
+  }
+}
+
+.meta {
+  color: #7d8596 !important;
+  font-size: 13px !important;
+}
+
+.error {
+  color: #f3b9bb !important;
+}
+
+@media (max-width: 700px) {
+  .legal-top,
+  .legal-body {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}

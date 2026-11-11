@@ -1,0 +1,118 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <h1>Análise de código <span class="badge badge-pro">PRO</span></h1>
+      <p>O Semgrep procura padrões inseguros no código-fonte (SQL concatenado, segredos, eval...). O código não fica salvo.</p>
+    </div>
+  </header>
+
+  <!-- Plano Free: paywall (o backend também bloqueia com PREMIUM_REQUIRED) -->
+  <section *ngIf="!isPremium" class="card">
+    <div class="empty">
+      <strong>Análise de código é um recurso Premium</strong>
+      <p>Mostra o arquivo com a linha vulnerável destacada e a correção ao lado, como numa revisão de código.</p>
+      <a class="button button-primary button-sm" routerLink="/plans">Ver planos</a>
+    </div>
+  </section>
+
+  <ng-container *ngIf="isPremium">
+    <section class="card">
+      <nav class="tabs input-tabs" role="tablist">
+        <button type="button" role="tab" [class.active]="mode === 'paste'" (click)="mode = 'paste'">Colar código</button>
+        <button type="button" role="tab" [class.active]="mode === 'upload'" (click)="mode = 'upload'">Enviar arquivos</button>
+      </nav>
+
+      <div class="card-body form">
+        <ng-container *ngIf="mode === 'paste'">
+          <div class="form-row">
+            <label class="field">
+              <span>Linguagem</span>
+              <select class="select" name="language" [(ngModel)]="filename" (ngModelChange)="saveDraft()">
+                <option *ngFor="let lang of languages" [value]="lang.filename">{{ lang.label }}</option>
+              </select>
+            </label>
+            <div class="field example-field">
+              <span class="field-label">&nbsp;</span>
+              <button class="button button-secondary" type="button" (click)="loadExample()" [disabled]="!language.example">
+                Carregar exemplo com SQL Injection
+              </button>
+            </div>
+          </div>
+          <label class="field">
+            <span>Código</span>
+            <textarea class="textarea" name="code" [(ngModel)]="code" (ngModelChange)="saveDraft()" spellcheck="false"
+              placeholder="Cole aqui o código do back-end que você quer revisar"></textarea>
+          </label>
+        </ng-container>
+
+        <ng-container *ngIf="mode === 'upload'">
+          <label class="upload">
+            <input type="file" multiple (change)="onFiles($event)" />
+            <strong>Selecionar arquivos</strong>
+            <span class="hint">.js, .ts, .py, .php, .java, .go, .cs, .rb e outros · até 9 MB no total</span>
+          </label>
+          <p *ngIf="uploadWarning" class="hint text-warning">{{ uploadWarning }}</p>
+          <div *ngIf="uploadedNames.length" class="chips">
+            <span *ngFor="let name of uploadedNames" class="badge mono">{{ name }}</span>
+          </div>
+        </ng-container>
+
+        <div *ngIf="error" class="alert alert-error" role="alert">
+          <span>{{ error }} <a *ngIf="needsPremium" class="link" routerLink="/plans">Ver planos</a></span>
+        </div>
+
+        <div class="actions">
+          <button class="button button-primary" type="button" (click)="analyze()" [disabled]="isAnalyzing">
+            <span *ngIf="isAnalyzing" class="spinner" aria-hidden="true"></span>
+            {{ isAnalyzing ? 'Analisando (até 2 min)...' : 'Analisar código' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resultado -->
+    <ng-container *ngIf="result">
+      <section class="grid result-grid">
+        <article class="card kpi">
+          <span class="kpi-label">Problemas encontrados</span>
+          <span class="kpi-value" [class.text-danger]="views.length > 0" [class.text-success]="views.length === 0">{{ views.length }}</span>
+          <span class="kpi-hint">análise em {{ result.durationSeconds | number: '1.0-1' }} s</span>
+        </article>
+        <article class="card">
+          <div class="card-body">
+            <app-chart type="doughnut" [data]="severityChart!" [options]="doughnutOptions" [height]="160"
+              [empty]="views.length === 0" emptyText="Nenhum padrão inseguro encontrado." ariaLabel="Problemas por severidade" />
+          </div>
+        </article>
+      </section>
+
+      <article *ngFor="let v of views" class="card">
+        <header class="card-header">
+          <div><h2>{{ v.finding.title }}</h2><p *ngIf="v.finding.owaspUrl">{{ v.finding.owaspUrl }}</p></div>
+          <span class="badge sev" [attr.data-severity]="v.finding.severity">{{ severityLabel[v.finding.severity] }}</span>
+        </header>
+        <div class="card-body finding">
+          <p *ngIf="v.finding.description" class="description">{{ v.finding.description }}</p>
+
+          <!-- Visualizador estilo IDE (espec.txt 3.2) -->
+          <div class="ide">
+            <div class="ide-title mono">{{ v.file }}</div>
+            <pre class="ide-code"><code><span *ngFor="let line of v.code" class="ide-line" [class.vulnerable]="line.vulnerable"><span class="ln">{{ line.number }}</span>{{ line.text }}</span></code></pre>
+          </div>
+
+          <!-- Lado a lado: inseguro × correção -->
+          <div class="grid grid-2">
+            <div class="side insecure">
+              <h3>Código inseguro · linha {{ v.start }}<ng-container *ngIf="v.end !== v.start">–{{ v.end }}</ng-container></h3>
+              <pre class="code">{{ v.finding.rawResponse || '(trecho indisponível)' }}</pre>
+            </div>
+            <div class="side fix">
+              <h3>Como corrigir</h3>
+              <p>{{ v.finding.remediation }}</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </ng-container>
+  </ng-container>
+</app-shell>

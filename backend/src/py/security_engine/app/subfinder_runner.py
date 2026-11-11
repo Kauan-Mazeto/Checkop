@@ -1,11 +1,11 @@
 import asyncio
 import json
-import shutil
 import time
 
 from .schemas import Finding
+from .local_env import find_tool
 
-SUBFINDER_BINARY = shutil.which("subfinder")
+SUBFINDER_BINARY = find_tool("subfinder")
 
 
 class SubfinderNotInstalledError(Exception):

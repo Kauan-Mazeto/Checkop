@@ -3,7 +3,8 @@ import authController from '../controllers/auth_controllers.js';
 import validate from '../middlewares/auth_validate.js';
 import authMiddleware from '../middlewares/auth_middleware.js';
 import { forgotPasswordLimiter, resetPasswordLimiter, loginLimiter, registerLimiter } from '../middlewares/rate_limit_middleware.js';
-import { registerSchema, loginSchema, googleLoginSchema, forgotPasswordSchema, resetPasswordSchema} from '../validators/auth_validator.js';
+import { registerSchema, loginSchema, googleLoginSchema, forgotPasswordSchema, resetPasswordSchema  changePlanSchema,
+} from '../validators/auth_validator.js';
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchem
 router.post('/logout', authMiddleware, authController.logout);
 router.delete('/account', authMiddleware, authController.deleteAccount);
 router.get('/login-history', authMiddleware, authController.getLoginHistory);
+router.patch('/plan', authMiddleware, validate(changePlanSchema), authController.changePlan);
 
 router.get('/me', authMiddleware, (req, res) => {
   return res.json({
@@ -22,6 +24,8 @@ router.get('/me', authMiddleware, (req, res) => {
     userId: req.userId,
     role: req.userRole,
     email: req.userEmail,
+    name: req.userName,
+    plan: req.userPlan,
   });
 });
 

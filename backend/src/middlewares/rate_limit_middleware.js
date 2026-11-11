@@ -48,3 +48,22 @@ export const scanCreationLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Limite de varreduras criadas por hora atingido. Tente novamente mais tarde.' },
 });
+
+// B6: cada análise aceita até 10mb e prende o Semgrep por até 2 min
+export const sastLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Limite de análises de código por hora atingido. Tente novamente mais tarde.' },
+});
+
+// verificação faz o servidor buscar DNS/HTTP externo: limita para não virar
+// ferramenta de requisições em massa
+export const targetVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de verificação. Tente novamente mais tarde.' },
+});
