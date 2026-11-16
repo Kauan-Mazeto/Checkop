@@ -69,7 +69,7 @@ export interface Finding {
 }
 
 export interface ScanSummary {
-  badge: { emoji: string; label: string; color: string };
+  badge: { label: string; color: string };
   verdict: string;
   severityCounts: Record<FindingSeverity, number>;
 }

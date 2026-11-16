@@ -38,10 +38,10 @@ export class LandingPageComponent {
   } | null = null;
 
   protected readonly roles = [
-    { id: 'qa', label: '🧪 QA' },
-    { id: 'dev', label: '💻 Dev' },
-    { id: 'pentester', label: '🔓 Pentester' },
-    { id: 'student', label: '📚 Estudante' },
+    { id: 'qa', label: 'QA' },
+    { id: 'dev', label: 'Dev' },
+    { id: 'pentester', label: 'Pentester' },
+    { id: 'student', label: 'Estudante' },
   ];
 
   protected readonly recentScans = [

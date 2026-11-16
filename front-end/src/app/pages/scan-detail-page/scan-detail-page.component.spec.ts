@@ -24,7 +24,7 @@ const scan = (over: Record<string, unknown> = {}) => ({
   finishedAt: null,
   activeScanConfirmedAt: null,
   engineWarnings: [],
-  summary: { badge: { emoji: '🟢', label: 'Nenhum achado', color: 'green' }, verdict: '', severityCounts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 } },
+  summary: { badge: { label: 'Nenhum achado', color: 'green' }, verdict: '', severityCounts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 } },
   findings: [],
   ...over,
 });
@@ -103,7 +103,7 @@ describe('ScanDetailPageComponent', () => {
     const fixture = create(
       scan({
         status: 'COMPLETED',
-        summary: { badge: { emoji: '🔴', label: 'Alto', color: 'red' }, verdict: 'Correção prioritária recomendada.', severityCounts: { CRITICAL: 0, HIGH: 1, MEDIUM: 0, LOW: 0, INFO: 0 } },
+        summary: { badge: { label: 'Alto', color: 'red' }, verdict: 'Correção prioritária recomendada.', severityCounts: { CRITICAL: 0, HIGH: 1, MEDIUM: 0, LOW: 0, INFO: 0 } },
         findings: [
           { id: 'f1', title: 'SQL Injection', severity: 'HIGH', status: 'OPEN', tool: 'ZAP', affectedUrl: 'https://meusite.com/busca', cveId: null, cvssScore: 8.5, owaspUrl: 'A03:2021 – Injection', remediation: 'Use queries parametrizadas.', compliance: [{ law: 'LGPD', reference: 'Art. 46', message: 'm' }], createdAt: '' },
         ],

@@ -18,11 +18,11 @@ const SEVERITY_RANK = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 const FILL_FIELDS = ['description', 'cveId', 'cvssScore', 'rawRequest', 'rawResponse', 'remediation', 'owaspUrl'];
 
 const SEVERITY_BADGE = {
-  CRITICAL: { emoji: '🔴', label: 'Crítico', color: 'red' },
-  HIGH: { emoji: '🔴', label: 'Alto', color: 'red' },
-  MEDIUM: { emoji: '🟡', label: 'Médio', color: 'yellow' },
-  LOW: { emoji: '🔵', label: 'Baixo', color: 'blue' },
-  INFO: { emoji: '🔵', label: 'Informativo', color: 'blue' },
+  CRITICAL: { label: 'Crítico', color: 'red' },
+  HIGH: { label: 'Alto', color: 'red' },
+  MEDIUM: { label: 'Médio', color: 'yellow' },
+  LOW: { label: 'Baixo', color: 'blue' },
+  INFO: { label: 'Informativo', color: 'blue' },
 };
 
 // Monta o resumo de alto nível de um scan (espec.txt, seção 2.2):
@@ -32,7 +32,7 @@ const buildScanSummary = (findings) => {
 
   if (findings.length === 0) {
     return {
-      badge: { emoji: '🟢', label: 'Nenhum achado', color: 'green' },
+      badge: { label: 'Nenhum achado', color: 'green' },
       verdict: 'Nenhuma vulnerabilidade foi identificada nesta varredura.',
       severityCounts,
     };
