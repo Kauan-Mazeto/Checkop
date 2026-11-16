@@ -3,10 +3,12 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiError } from '../../core/http/api-error';
+import { AuthService } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
 import { Scan, ScanEnvironment, ScanService, ScanStatus } from '../../core/services/scan.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ENVIRONMENT_LABEL, STATUS_LABEL } from '../../shared/ui/labels';
+import { planOf } from '../../shared/ui/plans';
 
 export interface HistoryFilters {
   search: string;
@@ -39,6 +41,8 @@ export class ScanHistoryPageComponent implements OnInit {
   private readonly scanService = inject(ScanService);
   private readonly drafts = inject(DraftService);
 
+  // Free: o backend devolve só a varredura mais recente (sem histórico)
+  protected readonly plan = planOf(inject(AuthService).getCachedUser());
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly environmentLabel = ENVIRONMENT_LABEL;
   protected readonly statuses = Object.keys(STATUS_LABEL) as ScanStatus[];
@@ -66,7 +70,8 @@ export class ScanHistoryPageComponent implements OnInit {
   }
 
   protected get visible(): Scan[] {
-    return filterScans(this.scans, this.filters);
+    // sem histórico os filtros ficam ocultos; um filtro salvo não pode esconder o último scan
+    return this.plan.canViewHistory ? filterScans(this.scans, this.filters) : this.scans;
   }
 
   protected get hasFilters(): boolean {

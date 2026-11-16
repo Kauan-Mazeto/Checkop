@@ -42,18 +42,18 @@ Chart.register(
   Tooltip
 );
 
-const TEXT = '#b4bac8';
-const MUTED = '#7d8596';
+const TEXT = '#d5d5d8';
+const MUTED = '#b0b0b5';
 const GRID = 'rgba(255, 255, 255, 0.06)';
 
 // Visual dos gráficos alinhado aos tokens das telas logadas (escuro suave).
 Chart.defaults.color = MUTED;
-Chart.defaults.font.family = "'Inter', 'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
 Chart.defaults.font.size = 12;
 Chart.defaults.borderColor = GRID;
 Chart.defaults.plugins.legend.labels.color = TEXT;
-Chart.defaults.plugins.tooltip.backgroundColor = '#1b1f2a';
-Chart.defaults.plugins.tooltip.borderColor = '#313848';
+Chart.defaults.plugins.tooltip.backgroundColor = '#202124';
+Chart.defaults.plugins.tooltip.borderColor = '#46474c';
 Chart.defaults.plugins.tooltip.borderWidth = 1;
 Chart.defaults.plugins.tooltip.padding = 10;
 
@@ -77,7 +77,7 @@ Chart.defaults.plugins.tooltip.padding = 10;
      .chart-box { position: relative; width: 100%; }
      canvas.dimmed { opacity: 0.25; }
      .chart-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
-       color: #7d8596; font-size: 13px; text-align: center; }`,
+       color: #b0b0b5; font-size: 13px; text-align: center; }`,
   ],
 })
 export class ChartComponent implements AfterViewInit, OnChanges, OnDestroy {

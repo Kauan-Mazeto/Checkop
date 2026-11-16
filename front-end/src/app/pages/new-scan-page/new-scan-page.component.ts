@@ -3,10 +3,12 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/http/api-error';
+import { AuthService } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
 import { ScanObjective, ScanService } from '../../core/services/scan.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
+import { planOf, scansRemainingToday } from '../../shared/ui/plans';
 
 export interface ObjectiveGroup {
   key: string;
@@ -49,9 +51,9 @@ const GROUPS: { key: string; title: string; description: string; members: string
   },
   {
     key: 'full',
-    title: 'Varredura completa',
-    description: 'Tudo de uma vez (mais demorada)',
-    members: ['FULL_SCAN'],
+    title: 'Varredura geral',
+    description: 'Diagnóstico rápido ou tudo de uma vez',
+    members: ['BASIC_SCAN', 'FULL_SCAN'],
   },
 ];
 
@@ -89,6 +91,13 @@ export class NewScanPageComponent implements OnInit {
   private readonly drafts = inject(DraftService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
+
+  protected readonly plan = planOf(this.auth.getCachedUser());
+  /** null = ilimitado; só é conhecido depois de carregar as varreduras */
+  protected remainingToday: number | null = null;
+  /** erro do servidor ligado ao plano (objetivo bloqueado ou limite diário) */
+  protected planBlocked = false;
 
   protected groups: ObjectiveGroup[] = [];
   private objectives: ScanObjective[] = [];
@@ -115,6 +124,8 @@ export class NewScanPageComponent implements OnInit {
         this.objectives = objectives;
         this.groups = groupObjectives(objectives);
         if (this.objective && !objectives.some((o) => o.key === this.objective)) this.objective = null;
+        // plano sem escolha: o tipo é fixo (o backend aplica o mesmo padrão)
+        if (!this.plan.canChooseObjective) this.objective = this.plan.defaultObjective;
         this.isLoading = false;
       },
       error: (error: ApiError) => {
@@ -122,6 +133,13 @@ export class NewScanPageComponent implements OnInit {
         this.isLoading = false;
       },
     });
+
+    if (this.plan.dailyScanLimit !== null) {
+      this.scanService.listScans().subscribe({
+        next: (scans) => (this.remainingToday = scansRemainingToday(this.plan, scans)),
+        error: () => (this.remainingToday = null), // o servidor confere de qualquer forma
+      });
+    }
   }
 
   protected get activeGroup(): ObjectiveGroup | undefined {
@@ -159,6 +177,7 @@ export class NewScanPageComponent implements OnInit {
   }
 
   protected get submitBlocker(): string | null {
+    if (this.remainingToday === 0) return 'Você já usou a varredura de hoje.';
     if (!this.targetKind) return 'Informe uma URL válida (com http:// ou https://).';
     if (!this.objective) return 'Escolha o tipo de falha.';
     if (!this.authorized) return 'Confirme a autorização para testar.';
@@ -168,10 +187,13 @@ export class NewScanPageComponent implements OnInit {
   protected submit(): void {
     if (this.isSubmitting || this.submitBlocker) return;
     this.needsVerification = false;
+    this.planBlocked = false;
     this.isSubmitting = true;
     this.submitError = null;
 
-    this.scanService.createScan(this.targetUrl.trim(), this.objective!).subscribe({
+    // sem escolha de objetivo, o servidor decide pelo plano
+    const objective = this.plan.canChooseObjective ? this.objective : null;
+    this.scanService.createScan(this.targetUrl.trim(), objective).subscribe({
       next: (scan) => {
         this.drafts.clear(DRAFT_KEY);
         this.router.navigate(['/scans', scan.id]);
@@ -180,6 +202,8 @@ export class NewScanPageComponent implements OnInit {
         this.isSubmitting = false;
         this.submitError = error.message;
         this.needsVerification = error.code === 'TARGET_NOT_VERIFIED';
+        this.planBlocked = error.code === 'PREMIUM_REQUIRED' || error.code === 'DAILY_SCAN_LIMIT';
+        if (error.code === 'DAILY_SCAN_LIMIT') this.remainingToday = 0;
       },
     });
   }

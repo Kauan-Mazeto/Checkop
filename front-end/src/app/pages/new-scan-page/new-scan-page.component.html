@@ -9,6 +9,14 @@
 
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
 
+  <div *ngIf="remainingToday === 0" class="locked-card">
+    <div>
+      <strong>Você já usou a varredura de hoje</strong>
+      <p>O plano {{ plan.name }} permite {{ plan.dailyScanLimit }} varredura por dia. Volte amanhã ou conheça o Premium.</p>
+    </div>
+    <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+  </div>
+
   <div class="layout" *ngIf="!isLoading && !loadError">
     <form class="form steps" (ngSubmit)="submit()">
       <!-- 1. Endereço -->
@@ -32,8 +40,29 @@
         </div>
       </section>
 
+      <!-- 2. Tipo de falha: no Free é fixo (scan básico) -->
+      <section *ngIf="!plan.canChooseObjective" class="card">
+        <header class="card-header">
+          <div><h2>2. Scan básico da URL</h2><p>No plano {{ plan.name }} o tipo de teste é fixo.</p></div>
+          <span *ngIf="remainingToday !== null" class="badge">{{ remainingToday }} restante(s) hoje</span>
+        </header>
+        <div class="card-body form">
+          <p class="hint">
+            Diagnóstico rápido, sem enviar ataques: cabeçalhos de segurança, cookies, clickjacking, vazamento de
+            informação e TLS. Você tem {{ plan.dailyScanLimit }} varredura por dia.
+          </p>
+          <div class="locked-card">
+            <div>
+              <strong>Quer escolher o que testar?</strong>
+              <p>No Premium você escolhe entre SQLi, XSS, CVEs, arquivos expostos e mais 20 tipos, sem limite diário.</p>
+            </div>
+            <a class="button button-secondary button-sm" routerLink="/plans">Conhecer o Premium</a>
+          </div>
+        </div>
+      </section>
+
       <!-- 2. Tipo de falha: categoria primeiro, depois os tipos -->
-      <section class="card">
+      <section *ngIf="plan.canChooseObjective" class="card">
         <header class="card-header">
           <div><h2>2. O que procurar</h2><p>Escolha uma categoria para ver as opções.</p></div>
           <span *ngIf="selected" class="badge">{{ selected.label }}</span>
@@ -90,6 +119,9 @@
                 <a class="button button-primary button-sm" routerLink="/targets" [queryParams]="{ url: targetUrl.trim() }">
                   Verificar este domínio
                 </a>
+              </span>
+              <span *ngIf="planBlocked" class="block-cta">
+                <a class="button button-primary button-sm" routerLink="/plans">Ver planos</a>
               </span>
             </span>
           </div>

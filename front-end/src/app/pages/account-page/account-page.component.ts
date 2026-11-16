@@ -16,17 +16,6 @@ export const parsePolicy = parseSimpleMarkdown;
 
 const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
 
-// espec.txt: o que cada plano mostra
-// lista completa em shared/ui/plans.ts (tela de Planos)
-export const PLAN_FEATURES: { label: string; free: boolean; premium: boolean }[] = [
-  { label: 'Varreduras com os 24 tipos de falha', free: true, premium: true },
-  { label: 'Diagnóstico, severidade e gráficos', free: true, premium: true },
-  { label: 'Correção exata de cada falha', free: false, premium: true },
-  { label: 'Prova de conceito (payload e evidência)', free: false, premium: true },
-  { label: 'Painel de compliance LGPD / PCI-DSS', free: false, premium: true },
-  { label: 'Análise de código-fonte (SAST)', free: false, premium: true },
-];
-
 @Component({
   selector: 'app-account-page',
   standalone: true,
@@ -40,7 +29,6 @@ export class AccountPageComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly roleLabel = ROLE_LABEL;
-  protected readonly planFeatures = PLAN_FEATURES;
   protected readonly deletePhrase = DELETE_PHRASE;
 
   protected user: AuthUser | null = this.auth.getCachedUser();

@@ -1,13 +1,13 @@
 // Base visual em src/styles/_app-ui.scss (escopo .ck-app).
-$muted: #7d8596;
-$border: #242a36;
+$muted: #b0b0b5;
+$border: #303135;
 $severity: (
-  CRITICAL: #e5484d,
-  HIGH: #ef8a4c,
-  MEDIUM: #e9b949,
-  LOW: #6aa6f8,
-  INFO: #8b93a5,
-  NONE: #4cc38a,
+  CRITICAL: #d84a56,
+  HIGH: #d07a5a,
+  MEDIUM: #c5a66c,
+  LOW: #8299ad,
+  INFO: #85858b,
+  NONE: #7eaa8c,
 );
 
 :host {
@@ -61,9 +61,9 @@ h3 {
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  border: 1px solid rgba(233, 185, 73, 0.25);
+  border: 1px solid rgba(197, 166, 108, 0.25);
   border-radius: 10px;
-  background: rgba(233, 185, 73, 0.04);
+  background: rgba(197, 166, 108, 0.04);
 
   strong {
     font-size: 13.5px;
@@ -88,7 +88,7 @@ h3 {
     width: 30%;
     height: 100%;
     border-radius: 999px;
-    background: #6aa6f8;
+    background: #8299ad;
     animation: slide 1.6s ease-in-out infinite;
   }
 }
@@ -177,7 +177,7 @@ h3 {
   text-align: left;
 
   &:hover {
-    background: #1f2430;
+    background: #26272a;
   }
 }
 
@@ -220,7 +220,7 @@ h3 {
 }
 
 .prose {
-  color: #b4bac8;
+  color: #d5d5d8;
   font-size: 13.5px;
   line-height: 1.6;
   white-space: pre-line;
@@ -228,12 +228,12 @@ h3 {
 
 .fix {
   padding: 12px 14px;
-  border: 1px solid rgba(76, 195, 138, 0.25);
+  border: 1px solid rgba(126, 170, 140, 0.25);
   border-radius: 8px;
-  background: rgba(76, 195, 138, 0.05);
+  background: rgba(126, 170, 140, 0.05);
 
   h3 {
-    color: #4cc38a;
+    color: #7eaa8c;
   }
 }
 
@@ -244,7 +244,7 @@ h3 {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: #b4bac8;
+  color: #d5d5d8;
   font-size: 13px;
 }
 

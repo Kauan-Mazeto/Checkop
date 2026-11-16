@@ -74,8 +74,18 @@ describe('nova varredura: agrupamento dos objetivos', () => {
       { ...base, key: 'NOVO', label: 'Novo' },
       { ...base, key: 'COOKIES', label: 'Cookies' },
     ]);
-    expect(groups.map((g) => g.title)).toEqual(['Injeções', 'Configuração', 'Varredura completa', 'Outros']);
+    expect(groups.map((g) => g.title)).toEqual(['Injeções', 'Configuração', 'Varredura geral', 'Outros']);
     expect(groups[0].objectives.map((o) => o.key)).toEqual(['SQL_INJECTION']);
+  });
+
+  it('o scan básico do Free fica junto da varredura completa, não em "Outros"', () => {
+    const base = { description: '', owasp: null, coverage: 'FULL' as const, requiresActiveScan: false, engines: [] };
+    const groups = groupObjectives([
+      { ...base, key: 'BASIC_SCAN', label: 'Básico' },
+      { ...base, key: 'FULL_SCAN', label: 'Completa' },
+    ]);
+    expect(groups.map((g) => g.title)).toEqual(['Varredura geral']);
+    expect(groups[0].objectives.map((o) => o.key)).toEqual(['BASIC_SCAN', 'FULL_SCAN']);
   });
 });
 

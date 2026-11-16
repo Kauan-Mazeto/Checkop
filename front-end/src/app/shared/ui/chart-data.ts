@@ -2,8 +2,8 @@ import { ChartData, ChartOptions } from 'chart.js';
 import { FindingSeverity } from '../../core/services/scan.service';
 import { SEVERITY_COLOR, SEVERITY_LABEL, SEVERITY_ORDER, TOOL_LABEL, shortOwasp } from './labels';
 
-const PRIMARY = '#e5484d';
-const INFO = '#6aa6f8';
+const PRIMARY = '#d84a56';
+const INFO = '#8299ad';
 
 /** Rosca de achados por severidade, sempre na ordem crítico → informativo. */
 export const severityDoughnut = (counts: Partial<Record<string, number>>): ChartData<'doughnut'> => ({
@@ -12,7 +12,7 @@ export const severityDoughnut = (counts: Partial<Record<string, number>>): Chart
     {
       data: SEVERITY_ORDER.map((s) => counts[s] ?? 0),
       backgroundColor: SEVERITY_ORDER.map((s) => SEVERITY_COLOR[s]),
-      borderColor: '#151821',
+      borderColor: '#191a1c',
       borderWidth: 2,
     },
   ],
@@ -42,7 +42,7 @@ export const timelineLine = (
         label: 'Achados',
         data: values,
         borderColor: PRIMARY,
-        backgroundColor: 'rgba(229, 72, 77, 0.10)',
+        backgroundColor: 'rgba(216, 74, 86, 0.10)',
         fill: true,
         tension: 0.3,
         pointRadius: 2,

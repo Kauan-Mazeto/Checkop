@@ -26,7 +26,7 @@ export const createScanSchema = z.object({
   targetUrl: httpUrlSchema,
   objective: z.enum(Object.keys(SCAN_OBJECTIVES), {
     errorMap: () => ({ message: `objective deve ser um dos valores: ${Object.keys(SCAN_OBJECTIVES).join(', ')}` }),
-  }).default('FULL_SCAN'),
+  }).optional(), // sem objetivo: o padrão do plano (constants/plans.js)
   authorizationConfirmed: z.literal(true, {
     errorMap: () => ({
       message: 'É necessário confirmar que você possui autorização para testar este alvo.',

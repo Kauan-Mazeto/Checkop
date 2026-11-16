@@ -59,6 +59,7 @@ enum ScanObjective {
   SSL_TLS
   DNS_CHECK
   SUBDOMAIN_ENUM
+  BASIC_SCAN
   FULL_SCAN
 }
 

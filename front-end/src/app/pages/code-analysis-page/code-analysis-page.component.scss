@@ -24,14 +24,14 @@ h1 {
   align-items: center;
   gap: 6px;
   padding: 30px;
-  border: 1px dashed #313848;
+  border: 1px dashed #46474c;
   border-radius: 10px;
-  background: #0f1117;
+  background: #111213;
   text-align: center;
   cursor: pointer;
 
   &:hover {
-    border-color: #6aa6f8;
+    border-color: #8299ad;
   }
 
   input {
@@ -53,7 +53,7 @@ h1 {
 }
 
 .description {
-  color: #b4bac8;
+  color: #d5d5d8;
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -67,15 +67,15 @@ h3 {
 // ---------- visualizador estilo IDE ----------
 .ide {
   overflow: hidden;
-  border: 1px solid #242a36;
+  border: 1px solid #303135;
   border-radius: 8px;
-  background: #0c0e13;
+  background: #141517;
 }
 
 .ide-title {
   padding: 8px 14px;
-  border-bottom: 1px solid #242a36;
-  color: #7d8596;
+  border-bottom: 1px solid #303135;
+  color: #b0b0b5;
   font-size: 12px;
 }
 
@@ -91,50 +91,50 @@ h3 {
 .ide-line {
   display: block;
   padding-right: 14px;
-  color: #b4bac8;
+  color: #d5d5d8;
   white-space: pre;
 
   .ln {
     display: inline-block;
     width: 48px;
     margin-right: 14px;
-    color: #596072;
+    color: #85858b;
     text-align: right;
     user-select: none;
   }
 
   &.vulnerable {
-    background: rgba(229, 72, 77, 0.12);
-    box-shadow: inset 3px 0 0 #e5484d;
-    color: #e6e8ee;
+    background: rgba(216, 74, 86, 0.12);
+    box-shadow: inset 3px 0 0 #d84a56;
+    color: #f1f1f2;
 
     .ln {
-      color: #e5484d;
+      color: #d84a56;
     }
   }
 }
 
 .side {
   &.insecure h3 {
-    color: #ec5e62;
+    color: #e16a73;
   }
 
   &.insecure .code {
-    border-color: rgba(229, 72, 77, 0.3);
+    border-color: rgba(216, 74, 86, 0.3);
   }
 
   &.fix {
     padding: 14px;
-    border: 1px solid rgba(76, 195, 138, 0.25);
+    border: 1px solid rgba(126, 170, 140, 0.25);
     border-radius: 8px;
-    background: rgba(76, 195, 138, 0.05);
+    background: rgba(126, 170, 140, 0.05);
 
     h3 {
-      color: #4cc38a;
+      color: #7eaa8c;
     }
 
     p {
-      color: #b4bac8;
+      color: #d5d5d8;
       font-size: 13.5px;
       line-height: 1.6;
     }

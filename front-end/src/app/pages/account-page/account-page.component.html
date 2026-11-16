@@ -26,7 +26,9 @@
       <div class="card-body form">
         <p class="hint">
           Você está no plano <strong>{{ isPremium ? 'Premium' : 'Free' }}</strong>.
-          {{ isPremium ? 'Correção, PoC, compliance e análise de código estão liberados.' : 'Ative o Premium para ver correção, PoC, compliance e análise de código.' }}
+          {{ isPremium
+            ? 'Varreduras ilimitadas, todos os tipos de teste, histórico, relatórios, correção, PoC, compliance e análise de código estão liberados.'
+            : 'O Free faz 1 scan básico por dia e mostra o diagnóstico. O Premium libera os tipos de teste, o histórico, os relatórios, a correção, a PoC, o compliance e a análise de código.' }}
         </p>
         <div class="actions">
           <a class="button button-primary" routerLink="/plans">{{ isPremium ? 'Gerenciar plano' : 'Conhecer o Premium' }}</a>

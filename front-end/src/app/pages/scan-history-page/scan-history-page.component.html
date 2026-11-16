@@ -1,8 +1,8 @@
 <app-shell>
   <header class="page-header">
     <div>
-      <h1>Histórico de varreduras</h1>
-      <p>Todas as varreduras da sua conta, da mais recente para a mais antiga.</p>
+      <h1>{{ plan.canViewHistory ? 'Histórico de varreduras' : 'Último scan' }}</h1>
+      <p>{{ plan.canViewHistory ? 'Todas as varreduras da sua conta, da mais recente para a mais antiga.' : 'Acompanhe aqui o andamento e o resultado da sua varredura mais recente.' }}</p>
     </div>
     <div class="actions">
       <a class="button button-primary" routerLink="/scans/new">Nova varredura</a>
@@ -12,7 +12,7 @@
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
 
   <section class="card">
-    <div class="card-body filters">
+    <div *ngIf="plan.canViewHistory" class="card-body filters">
       <input class="input" type="search" placeholder="Buscar por URL ou tipo de falha" name="search"
         [(ngModel)]="filters.search" (ngModelChange)="onFilterChange()" aria-label="Buscar" />
       <select class="select" name="status" [(ngModel)]="filters.status" (ngModelChange)="onFilterChange()" aria-label="Status">
@@ -70,5 +70,13 @@
     </div>
   </section>
 
-  <p class="hint" *ngIf="visible.length > 0">{{ visible.length }} de {{ scans.length }} varredura(s)</p>
+  <p class="hint" *ngIf="plan.canViewHistory && visible.length > 0">{{ visible.length }} de {{ scans.length }} varredura(s)</p>
+
+  <div *ngIf="!plan.canViewHistory" class="locked-card">
+    <div>
+      <strong>Histórico completo e relatórios no Premium</strong>
+      <p>No plano {{ plan.name }} você vê só a varredura mais recente. No Premium ficam todas, com busca, filtros e exportação em PDF e JSON.</p>
+    </div>
+    <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+  </div>
 </app-shell>

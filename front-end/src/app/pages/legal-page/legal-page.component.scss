@@ -2,9 +2,9 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: #0f1117;
-  color: #e6e8ee;
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: #111213;
+  color: #f1f1f2;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .legal-top {
@@ -13,7 +13,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 16px 32px;
-  border-bottom: 1px solid #242a36;
+  border-bottom: 1px solid #303135;
 
   a {
     color: inherit;
@@ -27,13 +27,13 @@
     a {
       padding: 6px 12px;
       border-radius: 7px;
-      color: #b4bac8;
+      color: #d5d5d8;
       font-size: 13.5px;
 
       &.active,
       &:hover {
-        background: #1b1f2a;
-        color: #e6e8ee;
+        background: #202124;
+        color: #f1f1f2;
       }
     }
   }
@@ -69,7 +69,7 @@
 
   p,
   li {
-    color: #b4bac8;
+    color: #d5d5d8;
     font-size: 14.5px;
   }
 
@@ -84,7 +84,7 @@
 }
 
 .meta {
-  color: #7d8596 !important;
+  color: #b0b0b5 !important;
   font-size: 13px !important;
 }
 

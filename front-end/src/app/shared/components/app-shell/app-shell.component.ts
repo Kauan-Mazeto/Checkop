@@ -5,12 +5,13 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService, AuthUser } from '../../../core/services/auth.service';
 import { ROLE_LABEL } from '../../ui/labels';
+import { planOf } from '../../ui/plans';
 
 interface NavItem {
   path: string;
   label: string;
-  icon: string;
-  pro?: boolean;
+  /** recurso que o plano atual não libera: mostra o selo PRO */
+  locked?: (user: AuthUser | null) => boolean;
   /** decide se o item está ativo para a URL atual */
   match: (url: string) => boolean;
 }
@@ -20,30 +21,19 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// Ícones SVG (traço) embutidos: sem biblioteca extra.
-const ICON = {
-  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
-  plus: 'M12 5v14M5 12h14',
-  history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2',
-  globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z',
-  code: 'm8 17-5-5 5-5M16 7l5 5-5 5M14 4l-4 16',
-  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
-  star: 'm12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z',
-};
-
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Visão geral',
-    items: [{ path: '/dashboard', label: 'Painel', icon: ICON.home, match: (u) => u.startsWith('/dashboard') }],
+    items: [{ path: '/dashboard', label: 'Painel', match: (u) => u.startsWith('/dashboard') }],
   },
   {
     label: 'Varreduras',
     items: [
-      { path: '/scans/new', label: 'Nova varredura', icon: ICON.plus, match: (u) => u.startsWith('/scans/new') },
+      { path: '/scans/new', label: 'Nova varredura', match: (u) => u.startsWith('/scans/new') },
       {
         path: '/scans',
         label: 'Histórico',
-        icon: ICON.history,
+        locked: (user) => !planOf(user).canViewHistory,
         match: (u) => /^\/scans(\/(?!new)[^/?#]+)?([?#].*)?$/.test(u),
       },
     ],
@@ -51,29 +41,54 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Segurança',
     items: [
-      { path: '/targets', label: 'Domínios', icon: ICON.globe, match: (u) => u.startsWith('/targets') },
-      { path: '/code-analysis', label: 'Análise de código', icon: ICON.code, pro: true, match: (u) => u.startsWith('/code-analysis') },
+      { path: '/targets', label: 'Domínios', match: (u) => u.startsWith('/targets') },
+      {
+        path: '/code-analysis',
+        label: 'Análise de código',
+        locked: (user) => !planOf(user).canAnalyzeCode,
+        match: (u) => u.startsWith('/code-analysis'),
+      },
     ],
   },
   {
     label: 'Conta',
     items: [
-      { path: '/plans', label: 'Planos', icon: ICON.star, match: (u) => u.startsWith('/plans') },
-      { path: '/account', label: 'Conta e privacidade', icon: ICON.user, match: (u) => u.startsWith('/account') },
+      { path: '/plans', label: 'Planos', match: (u) => u.startsWith('/plans') },
+      { path: '/account', label: 'Conta e privacidade', match: (u) => u.startsWith('/account') },
     ],
   },
 ];
 
+const HIGH_CONTRAST_KEY = 'checkop-high-contrast';
+
+// preferência só deste navegador; sem storage (aba anônima) vale o padrão
+const readHighContrast = (): boolean => {
+  try {
+    return localStorage.getItem(HIGH_CONTRAST_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const saveHighContrast = (value: boolean): void => {
+  try {
+    localStorage.setItem(HIGH_CONTRAST_KEY, value ? '1' : '0');
+  } catch {
+    // sem storage: a escolha vale só até recarregar
+  }
+};
+
 /**
- * Layout das telas logadas: menu lateral fixo à esquerda e conteúdo alinhado
- * à esquerda. Estilos em src/styles/_app-ui.scss (escopo .ck-app).
+ * Layout das telas logadas, no visual da branch `front` (Kauan): menu lateral
+ * fixo com o perfil e o plano no rodapé, alto contraste e conteúdo à esquerda.
+ * Estilos em src/styles/_app-ui.scss (escopo .ck-app).
  */
 @Component({
   selector: 'app-shell',
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="ck-app">
+    <div class="ck-app" [class.high-contrast]="highContrast">
       <div class="app-layout">
         <aside class="sidebar" [class.open]="menuOpen" aria-label="Menu principal">
           <a class="brand" routerLink="/dashboard" (click)="menuOpen = false">
@@ -92,24 +107,30 @@ export const NAV_GROUPS: NavGroup[] = [
                 [attr.aria-current]="item.match(url) ? 'page' : null"
                 (click)="menuOpen = false"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path [attr.d]="item.icon" />
-                </svg>
                 {{ item.label }}
-                <span *ngIf="item.pro && !isPremium" class="badge badge-pro nav-badge">PRO</span>
+                <span *ngIf="item.locked?.(user)" class="badge badge-pro nav-badge">PRO</span>
               </a>
             </div>
           </nav>
 
           <div class="sidebar-footer" *ngIf="user">
-            <div class="user-card">
-              <span class="avatar" aria-hidden="true">{{ initials }}</span>
-              <div class="user-meta">
-                <strong>{{ user.name }}</strong>
-                <span>{{ roleLabel[user.role] }} · {{ isPremium ? 'Premium' : 'Free' }}</span>
+            <div class="identity">
+              <span>Perfil atual</span>
+              <strong [title]="user.name">{{ user.name }}</strong>
+              <div class="identity-plan">
+                <span class="plan-badge">{{ roleLabel[user.role] }}</span>
+                <span class="plan-badge" [class.plan-badge-premium]="plan.id === 'PREMIUM'">{{ plan.name }}</span>
               </div>
             </div>
-            <button class="button button-ghost button-sm button-block" type="button" (click)="logout()">Sair</button>
+            <button
+              class="button button-outline button-sm button-block"
+              type="button"
+              [attr.aria-pressed]="highContrast"
+              (click)="toggleHighContrast()"
+            >
+              Alto contraste
+            </button>
+            <button class="button button-outline button-sm button-block" type="button" (click)="logout()">Sair</button>
           </div>
         </aside>
 
@@ -133,8 +154,10 @@ export class AppShellComponent {
   protected readonly groups = NAV_GROUPS;
   protected readonly roleLabel = ROLE_LABEL;
   protected readonly user: AuthUser | null = this.auth.getCachedUser();
+  protected readonly plan = planOf(this.user);
   protected url = this.router.url;
   protected menuOpen = false;
+  protected highContrast = readHighContrast();
 
   constructor() {
     this.router.events
@@ -145,17 +168,9 @@ export class AppShellComponent {
       .subscribe((event) => (this.url = (event as NavigationEnd).urlAfterRedirects));
   }
 
-  protected get isPremium(): boolean {
-    return this.user?.plan === 'PREMIUM';
-  }
-
-  protected get initials(): string {
-    return (this.user?.name ?? '?')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('');
+  protected toggleHighContrast(): void {
+    this.highContrast = !this.highContrast;
+    saveHighContrast(this.highContrast);
   }
 
   protected logout(): void {

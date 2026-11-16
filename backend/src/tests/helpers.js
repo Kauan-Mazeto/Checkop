@@ -25,6 +25,8 @@ export const fakeReq = (overrides = {}) => ({
   params: {},
   headers: { 'user-agent': 'node-test' },
   ip: '203.0.113.10',
+  // auth_middleware sempre preenche o plano; os testes de plano trocam para FREE
+  userPlan: 'PREMIUM',
   ...overrides,
 });
 

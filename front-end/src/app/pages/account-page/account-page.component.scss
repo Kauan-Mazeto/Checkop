@@ -10,7 +10,7 @@
   margin: 0;
 
   dt {
-    color: #7d8596;
+    color: #b0b0b5;
     font-size: 12px;
   }
 
@@ -33,12 +33,12 @@
   gap: 8px;
   max-height: 360px;
   overflow-y: auto;
-  color: #b4bac8;
+  color: #d5d5d8;
   font-size: 13px;
 
   h3 {
     margin-top: 10px;
-    color: #e6e8ee;
+    color: #f1f1f2;
     font-size: 13.5px;
   }
 
@@ -49,5 +49,5 @@
 }
 
 .danger-zone {
-  border-color: rgba(229, 72, 77, 0.3);
+  border-color: rgba(216, 74, 86, 0.3);
 }

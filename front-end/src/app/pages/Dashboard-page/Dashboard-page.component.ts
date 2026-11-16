@@ -2,42 +2,52 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService, AuthUser, UserRole } from '../../core/services/auth.service';
-import { Scan, ScanService, ScanStats } from '../../core/services/scan.service';
+import { Finding, Scan, ScanService, ScanStats } from '../../core/services/scan.service';
 import { TargetService } from '../../core/services/target.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
+import { BAR_OPTIONS, DOUGHNUT_OPTIONS, chartTotal, owaspBar, severityDoughnut } from '../../shared/ui/chart-data';
+import { ENVIRONMENT_LABEL, ROLE_LABEL, STATUS_LABEL } from '../../shared/ui/labels';
+import { planOf, scansRemainingToday } from '../../shared/ui/plans';
 import {
-  BAR_OPTIONS,
-  DOUGHNUT_OPTIONS,
-  LINE_OPTIONS,
-  chartTotal,
-  countBar,
-  owaspBar,
-  severityDoughnut,
-  timelineLine,
-} from '../../shared/ui/chart-data';
-import { ENVIRONMENT_LABEL, STATUS_LABEL } from '../../shared/ui/labels';
+  DevPanelComponent,
+  PentesterPanelComponent,
+  PlansPanelComponent,
+  QaPanelComponent,
+  RolePanel,
+  StudentPanelComponent,
+} from './role-panels';
 
-// Cada perfil vê UM bloco extra além do núcleo comum (RF-11).
-type RoleWidget = 'reports' | 'alerts' | 'logs' | 'learning';
-
-const ROLE_WIDGET: Record<UserRole, RoleWidget> = {
-  QA: 'reports',
-  DEV: 'alerts',
-  PENTESTER: 'logs',
-  STUDENT: 'learning',
-  ADM: 'alerts',
+// Cada perfil vê UM painel extra além do núcleo comum (RF-11). ADM usa o de Dev.
+export const ROLE_PANEL: Record<UserRole, RolePanel> = {
+  QA: 'qa',
+  DEV: 'dev',
+  PENTESTER: 'pentester',
+  STUDENT: 'student',
+  ADM: 'dev',
 };
 
-const STATUS_COLOR = '#6aa6f8';
+// Os painéis leem os achados das varreduras concluídas mais recentes.
+// O backend não tem um endpoint que agregue achados de todas as varreduras.
+const FINDINGS_FROM_LAST = 5;
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, AppShellComponent, ChartComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    AppShellComponent,
+    ChartComponent,
+    QaPanelComponent,
+    DevPanelComponent,
+    PentesterPanelComponent,
+    StudentPanelComponent,
+    PlansPanelComponent,
+  ],
   templateUrl: './Dashboard-page.component.html',
   styleUrl: './Dashboard-page.component.scss',
 })
@@ -48,15 +58,17 @@ export class DashboardPageComponent implements OnInit {
 
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly environmentLabel = ENVIRONMENT_LABEL;
+  protected readonly roleLabel = ROLE_LABEL;
   protected readonly doughnutOptions = DOUGHNUT_OPTIONS as ChartOptions;
   protected readonly barOptions = BAR_OPTIONS as ChartOptions;
-  protected readonly lineOptions = LINE_OPTIONS as ChartOptions;
   protected readonly chartTotal = chartTotal;
 
   protected user: AuthUser | null = this.auth.getCachedUser();
-  protected widget: RoleWidget = ROLE_WIDGET[this.user?.role ?? 'STUDENT'];
+  protected readonly plan = planOf(this.user);
+  protected readonly panel: RolePanel = ROLE_PANEL[this.user?.role ?? 'STUDENT'];
 
   protected scans: Scan[] = [];
+  protected findings: Finding[] = [];
   protected stats: ScanStats | null = null;
   protected verifiedTargets = 0;
   protected isLoading = true;
@@ -64,9 +76,7 @@ export class DashboardPageComponent implements OnInit {
 
   // começam vazios para os cartões dos gráficos aparecerem já no carregamento
   protected severityChart: ChartData = severityDoughnut({}) as ChartData;
-  protected timelineChart: ChartData = timelineLine({}) as ChartData;
   protected owaspChart: ChartData = owaspBar({}) as ChartData;
-  protected statusChart: ChartData = countBar({}) as ChartData;
 
   ngOnInit(): void {
     forkJoin({
@@ -79,14 +89,9 @@ export class DashboardPageComponent implements OnInit {
         this.stats = stats;
         this.verifiedTargets = targets.filter((t) => t.verified).length;
         this.severityChart = severityDoughnut(stats.findings.bySeverity) as ChartData;
-        this.timelineChart = timelineLine(stats.findings.timelineLast30Days) as ChartData;
         this.owaspChart = owaspBar(stats.findings.byOwaspCategory) as ChartData;
-        this.statusChart = countBar(
-          stats.scans.byStatus,
-          (key) => STATUS_LABEL[key as Scan['status']] ?? key,
-          STATUS_COLOR
-        ) as ChartData;
         this.isLoading = false;
+        this.loadFindings(scans);
       },
       error: (error: ApiError) => {
         this.loadError = error.message;
@@ -95,16 +100,18 @@ export class DashboardPageComponent implements OnInit {
     });
   }
 
+  private loadFindings(scans: Scan[]): void {
+    const completed = scans.filter((s) => s.status === 'COMPLETED' && s.findingsCount > 0).slice(0, FINDINGS_FROM_LAST);
+    if (completed.length === 0) return;
+
+    // uma varredura que falhar ao carregar não derruba os painéis
+    forkJoin(completed.map((s) => this.scanService.getScan(s.id).pipe(catchError(() => of(null))))).subscribe(
+      (details) => (this.findings = details.flatMap((d) => d?.findings ?? []))
+    );
+  }
+
   protected get firstName(): string {
     return this.user?.name.split(' ')[0] ?? '';
-  }
-
-  protected get isPremium(): boolean {
-    return this.user?.plan === 'PREMIUM';
-  }
-
-  protected get completedScans(): number {
-    return this.scans.filter((scan) => scan.status === 'COMPLETED').length;
   }
 
   protected get runningScans(): number {
@@ -116,19 +123,12 @@ export class DashboardPageComponent implements OnInit {
     return (bySeverity['CRITICAL'] ?? 0) + (bySeverity['HIGH'] ?? 0);
   }
 
-  protected get totalFindings(): number {
-    return this.stats?.findings.total ?? 0;
+  /** null = ilimitado */
+  protected get remainingToday(): number | null {
+    return scansRemainingToday(this.plan, this.scans);
   }
 
   protected get recentScans(): Scan[] {
     return this.scans.slice(0, 6);
-  }
-
-  protected get flaggedScans(): Scan[] {
-    return this.scans.filter((scan) => scan.status === 'FAILED' || scan.suspiciousEnvironment).slice(0, 5);
-  }
-
-  protected get completedList(): Scan[] {
-    return this.scans.filter((scan) => scan.status === 'COMPLETED').slice(0, 5);
   }
 }

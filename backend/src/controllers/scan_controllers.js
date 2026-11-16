@@ -6,6 +6,7 @@ import { getDomain } from 'tldts';
 import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
+import { DAILY_LIMIT_CODE, PREMIUM_REQUIRED_CODE, isObjectiveAllowed, planRules, startOfToday } from '../constants/plans.js';
 
 const serializeIps = (ips) => ips.join(',');
 const deserializeIps = (value) => (value ? value.split(',') : []);
@@ -184,11 +185,56 @@ const ACTIVE_SCAN_REQUIRED_RESPONSE = Object.freeze({
   code: 'ACTIVE_SCAN_REQUIRED',
 });
 
+// ---------- regras do plano (constants/plans.js) ----------
+
+const OBJECTIVE_LOCKED_RESPONSE = Object.freeze({
+  error: 'No plano Free a varredura é sempre o scan básico. Escolher o tipo de teste é um recurso Premium.',
+  code: PREMIUM_REQUIRED_CODE,
+});
+
+const HISTORY_LOCKED_RESPONSE = Object.freeze({
+  error: 'No plano Free só a varredura mais recente fica disponível. O histórico completo é um recurso Premium.',
+  code: PREMIUM_REQUIRED_CODE,
+});
+
+const dailyLimitResponse = (limit) => ({
+  error: `Seu plano permite ${limit} varredura(s) por dia e o limite de hoje já foi usado. Volte amanhã ou conheça o Premium.`,
+  code: DAILY_LIMIT_CODE,
+});
+
+// ids das varreduras que o plano deixa ver; null = todas
+const visibleScanIds = async (req) => {
+  const { visibleScans } = planRules(req.userPlan);
+  if (visibleScans === null) return null;
+  const latest = await prisma.scan.findMany({
+    where: { userId: req.userId },
+    orderBy: { createdAt: 'desc' },
+    take: visibleScans,
+    select: { id: true },
+  });
+  return latest.map((scan) => scan.id);
+};
+
 const getObjectives = (req, res) => res.status(200).json({ objectives: listObjectives() });
 
 const createScan = async (req, res) => {
   try {
-    const { targetUrl, objective } = req.body;
+    const { targetUrl } = req.body;
+    const rules = planRules(req.userPlan);
+    const objective = req.body.objective ?? rules.defaultObjective;
+
+    if (!isObjectiveAllowed(req.userPlan, objective)) {
+      return res.status(403).json(OBJECTIVE_LOCKED_RESPONSE);
+    }
+
+    if (rules.dailyScanLimit !== null) {
+      const createdToday = await prisma.scan.count({
+        where: { userId: req.userId, createdAt: { gte: startOfToday() } },
+      });
+      if (createdToday >= rules.dailyScanLimit) {
+        return res.status(429).json(dailyLimitResponse(rules.dailyScanLimit));
+      }
+    }
 
     let detection;
     try {
@@ -265,9 +311,12 @@ const createScan = async (req, res) => {
 
 const listScans = async (req, res) => {
   try {
+    const { visibleScans } = planRules(req.userPlan);
     const scans = await prisma.scan.findMany({
       where: { userId: req.userId },
       orderBy: { createdAt: 'desc' },
+      // Free enxerga só a(s) mais recente(s)
+      ...(visibleScans !== null && { take: visibleScans }),
       select: {
         id: true,
         targetUrl: true,
@@ -331,13 +380,17 @@ const listSuspiciousScans = async (req, res) => {
 // (pizza de severidade, barra por objetivo, linha do tempo, etc.)
 const getScanStats = async (req, res) => {
   try {
+    // os gráficos usam só as varreduras que o plano deixa ver
+    const ids = await visibleScanIds(req);
+    const scanWhere = { userId: req.userId, ...(ids && { id: { in: ids } }) };
+
     const scans = await prisma.scan.findMany({
-      where: { userId: req.userId },
+      where: scanWhere,
       select: { id: true, status: true, objective: true, environment: true, createdAt: true },
     });
 
     const findings = await prisma.finding.findMany({
-      where: { scan: { userId: req.userId } },
+      where: { scan: scanWhere },
       select: { severity: true, tool: true, owaspUrl: true, status: true, createdAt: true },
     });
 
@@ -382,6 +435,11 @@ const getScanStats = async (req, res) => {
 
 const getScanById = async (req, res) => {
   try {
+    const ids = await visibleScanIds(req);
+    if (ids && !ids.includes(req.resource.id)) {
+      return res.status(403).json(HISTORY_LOCKED_RESPONSE);
+    }
+
     const findings = await prisma.finding.findMany({
       where: { scanId: req.resource.id },
     });
@@ -502,6 +560,11 @@ const runScan = async (req, res) => {
   try {
     const scan = req.resource;
     const { auth, useAjaxSpider, activeScanConfirmed } = req.body;
+
+    // varredura criada no Premium e executada depois de voltar ao Free
+    if (!isObjectiveAllowed(req.userPlan, scan.objective)) {
+      return res.status(403).json(OBJECTIVE_LOCKED_RESPONSE);
+    }
 
     const blockReason = await revalidateTargetBeforeRun(scan);
     if (blockReason) {

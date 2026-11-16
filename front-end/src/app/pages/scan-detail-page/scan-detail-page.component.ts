@@ -191,13 +191,14 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
    * O @media print esconde o menu e mostra a seção .print-report.
    */
   protected exportPdf(): void {
+    if (!this.isPremium) return; // relatório é recurso Premium (shared/ui/plans.ts)
     this.expanded = new Set(this.sortedFindings.map((f) => f.id));
     setTimeout(() => window.print());
   }
 
   /** RF-12: relatório completo em JSON, como o usuário vê na tela. */
   protected exportJson(): void {
-    if (!this.scan) return;
+    if (!this.scan || !this.isPremium) return;
     const blob = new Blob([JSON.stringify(this.scan, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');

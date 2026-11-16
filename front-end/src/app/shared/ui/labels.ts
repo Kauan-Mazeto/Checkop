@@ -14,11 +14,11 @@ export const SEVERITY_LABEL: Record<FindingSeverity, string> = {
 // Mesma paleta dos tokens do projeto. espec.txt 2.2: crítico/alto vermelho,
 // médio amarelo, baixo/informativo azul.
 export const SEVERITY_COLOR: Record<FindingSeverity, string> = {
-  CRITICAL: '#e5484d',
-  HIGH: '#ef8a4c',
-  MEDIUM: '#e9b949',
-  LOW: '#6aa6f8',
-  INFO: '#8b93a5',
+  CRITICAL: '#d84a56',
+  HIGH: '#d07a5a',
+  MEDIUM: '#c5a66c',
+  LOW: '#8299ad',
+  INFO: '#85858b',
 };
 
 export const STATUS_LABEL: Record<ScanStatus, string> = {

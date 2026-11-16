@@ -279,6 +279,25 @@ export const SCAN_OBJECTIVES = {
     nuclei: null,
     zap: null,
   },
+  // Scan do plano Free (espec.txt, seção 2): diagnóstico externo rápido, só
+  // passivo. Observa as respostas do site sem enviar nenhum ataque.
+  BASIC_SCAN: {
+    label: 'Scan básico (diagnóstico rápido)',
+    description: 'Cabeçalhos de segurança, cookies, clickjacking, vazamento de informação e TLS, sem enviar ataques.',
+    owasp: 'A05:2021',
+    coverage: 'FULL',
+    requiresActiveScan: false,
+    engines: ['NUCLEI', 'ZAP'],
+    nuclei: { tags: ['headers', 'cookie', 'clickjacking', 'ssl'] },
+    zap: passiveZap([
+      ...new Set([
+        ...ZAP_PASSIVE.SECURITY_HEADERS,
+        ...ZAP_PASSIVE.COOKIES,
+        ...ZAP_PASSIVE.CLICKJACKING,
+        ...ZAP_PASSIVE.INFO_DISCLOSURE,
+      ]),
+    ]),
+  },
   FULL_SCAN: {
     label: 'Varredura completa (todas as categorias)',
     description: 'Executa todas as verificações. Pode levar mais de 20 minutos.',

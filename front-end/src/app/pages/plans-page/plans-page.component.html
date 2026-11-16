@@ -9,13 +9,13 @@
     <div class="cell intro">
       <span class="eyebrow">Planos Checkop</span>
       <h1>Encontre a falha.<br /><span>Entenda e corrija.</span></h1>
-      <p>O Free mostra onde está o risco. O Premium entrega a prova, a correção, o impacto legal e a revisão do código.</p>
+      <p>O Free faz um scan básico por dia e mostra onde está o risco. O Premium libera todos os testes, o histórico, os relatórios, a prova, a correção, o impacto legal e a revisão do código.</p>
     </div>
 
     <div class="cell head">
       <h2>Free</h2>
       <p class="price"><strong>R$ 0</strong><span>/mês</span></p>
-      <p class="tagline">Para conhecer e diagnosticar.</p>
+      <p class="tagline">1 scan básico por dia, para conhecer e diagnosticar.</p>
       <button class="button button-secondary button-block" type="button" [disabled]="!isPremium || isChanging" (click)="choose('FREE')">
         {{ isPremium ? 'Voltar para o Free' : 'Seu plano atual' }}
       </button>

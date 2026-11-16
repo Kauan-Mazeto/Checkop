@@ -18,8 +18,15 @@
         </div>
       </div>
       <div class="actions no-print" *ngIf="s.status === 'COMPLETED'">
-        <button class="button button-secondary" type="button" (click)="exportJson()">Exportar JSON</button>
-        <button class="button button-secondary" type="button" (click)="exportPdf()">Exportar PDF</button>
+        <ng-container *ngIf="isPremium; else exportLocked">
+          <button class="button button-secondary" type="button" (click)="exportJson()">Exportar JSON</button>
+          <button class="button button-secondary" type="button" (click)="exportPdf()">Exportar PDF</button>
+        </ng-container>
+        <ng-template #exportLocked>
+          <a class="button button-secondary" routerLink="/plans" title="Relatório em PDF e JSON é um recurso Premium">
+            Relatório PDF/JSON <span class="badge badge-pro">PRO</span>
+          </a>
+        </ng-template>
         <a class="button button-primary" routerLink="/scans/new" [queryParams]="{ url: s.targetUrl }">Nova varredura</a>
       </div>
     </header>
@@ -144,7 +151,7 @@
       <div *ngIf="!isPremium" class="paywall no-print">
         <div>
           <strong>Recurso Premium bloqueado</strong>
-          <p>Quer ver a correção exata, o payload que provou a falha e o impacto em LGPD/PCI?</p>
+          <p>Quer ver a correção exata, o payload que provou a falha, o impacto em LGPD/PCI e baixar o relatório em PDF?</p>
         </div>
         <a class="button button-secondary button-sm" routerLink="/plans">Desbloquear análise avançada</a>
       </div>

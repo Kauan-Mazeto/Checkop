@@ -151,12 +151,14 @@ export class ScanService {
    * POST /api/scans. authorizationConfirmed só é enviado como true quando o
    * usuário marcou o checkbox na tela (obrigatório por lei/ética, não é forma).
    * Site público sem alvo verificado → ApiError com code TARGET_NOT_VERIFIED.
+   * Sem objetivo, o backend usa o padrão do plano (Free = scan básico).
+   * Regras do plano → PREMIUM_REQUIRED (objetivo) ou DAILY_SCAN_LIMIT.
    */
-  createScan(targetUrl: string, objective: string): Observable<Scan> {
+  createScan(targetUrl: string, objective?: string | null): Observable<Scan> {
     return this.http
       .post<{ scan: Scan }>(
         `${API_BASE_URL}/scans`,
-        { targetUrl, objective, authorizationConfirmed: true },
+        { targetUrl, ...(objective ? { objective } : {}), authorizationConfirmed: true },
         withCredentials
       )
       .pipe(map((response) => response.scan), catchError(this.fail));
