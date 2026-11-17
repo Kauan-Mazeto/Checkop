@@ -416,6 +416,48 @@
     }
   }
 
+  // vermelho sólido: ação destrutiva confirmada (cancelar, remover)
+  .button-danger-solid {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      border-color: var(--brand-hover);
+      background: var(--brand-hover);
+    }
+  }
+
+  // confirmação dentro da própria tela (o sistema não usa pop-up do navegador)
+  .confirm-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-sm);
+    background: var(--brand-soft);
+
+    strong {
+      color: var(--text);
+    }
+
+    p {
+      margin: 4px 0 0;
+      color: var(--text-2);
+      font-size: 13px;
+    }
+  }
+
+  .confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .button-sm {
     min-height: 30px;
     padding: 0 10px;

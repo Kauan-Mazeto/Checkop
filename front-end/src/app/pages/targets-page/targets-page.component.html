@@ -72,7 +72,20 @@
                 <button class="button button-ghost button-sm" type="button" (click)="toggle(target)">
                   {{ expandedId === target.id ? 'Ocultar' : 'Instruções' }}
                 </button>
-                <button class="button button-ghost button-sm" type="button" (click)="remove(target)">Remover</button>
+                <button class="button button-ghost button-sm" type="button" (click)="confirmingRemoveId = target.id" [disabled]="removingId === target.id">
+                  {{ removingId === target.id ? 'Removendo...' : 'Remover' }}
+                </button>
+              </div>
+            </div>
+
+            <div *ngIf="confirmingRemoveId === target.id" class="confirm-box" role="alertdialog" [attr.aria-labelledby]="'remove-' + target.id">
+              <div>
+                <strong [id]="'remove-' + target.id">Remover {{ target.hostname }}?</strong>
+                <p>Para varrer este endereço de novo, será preciso verificar a posse outra vez. As varreduras já feitas continuam no histórico.</p>
+              </div>
+              <div class="confirm-actions">
+                <button type="button" class="button button-outline button-sm" (click)="confirmingRemoveId = null">Manter</button>
+                <button type="button" class="button button-danger-solid button-sm" (click)="remove(target)">Sim, remover</button>
               </div>
             </div>
 

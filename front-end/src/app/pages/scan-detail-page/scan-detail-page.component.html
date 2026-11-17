@@ -115,10 +115,23 @@
         </div>
         <p class="hint">Mapeando o site e testando as falhas escolhidas. Pode levar de alguns minutos. Você pode sair desta página.</p>
         <div class="progress"><div></div></div>
-        <div class="running-actions">
+        <div *ngIf="cancelError" class="alert alert-error" role="alert">{{ cancelError }}</div>
+
+        <!-- confirmação no próprio cartão -->
+        <div *ngIf="confirmingCancel" class="confirm-box" role="alertdialog" aria-labelledby="cancel-title">
+          <div>
+            <strong id="cancel-title">Cancelar esta varredura?</strong>
+            <p>As ferramentas param agora. O resultado vai mostrar só o que já foi verificado até aqui, e a varredura não pode ser retomada.</p>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="button button-outline button-sm" (click)="confirmingCancel = false">Continuar varredura</button>
+            <button type="button" class="button button-sm cancel-scan" (click)="cancel()">Sim, cancelar</button>
+          </div>
+        </div>
+
+        <div *ngIf="!confirmingCancel" class="running-actions">
           <span *ngIf="cancelMessage" class="hint" role="status">{{ cancelMessage }}</span>
-          <div *ngIf="cancelError" class="alert alert-error" role="alert">{{ cancelError }}</div>
-          <button type="button" class="button button-sm cancel-scan" (click)="cancel()" [disabled]="isCanceling">
+          <button type="button" class="button button-sm cancel-scan" (click)="confirmingCancel = true" [disabled]="isCanceling">
             <span *ngIf="isCanceling" class="spinner" aria-hidden="true"></span>
             <span>{{ isCanceling ? 'Cancelando...' : 'Cancelar varredura' }}</span>
           </button>

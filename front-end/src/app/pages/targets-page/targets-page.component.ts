@@ -147,11 +147,23 @@ export class TargetsPageComponent implements OnInit {
     });
   }
 
+  /** domínio aguardando confirmação de remoção (confirmação na própria linha, sem pop-up) */
+  protected confirmingRemoveId: string | null = null;
+  protected removingId: string | null = null;
+
   protected remove(target: Target): void {
-    if (!confirm(`Remover o alvo ${target.hostname}? As varreduras já feitas continuam no histórico.`)) return;
+    if (this.removingId) return;
+    this.confirmingRemoveId = null;
+    this.removingId = target.id;
     this.targetService.deleteTarget(target.id).subscribe({
-      next: () => (this.targets = this.targets.filter((t) => t.id !== target.id)),
-      error: (error: ApiError) => (this.feedback[target.id] = { type: 'error', text: error.message }),
+      next: () => {
+        this.removingId = null;
+        this.targets = this.targets.filter((t) => t.id !== target.id);
+      },
+      error: (error: ApiError) => {
+        this.removingId = null;
+        this.feedback[target.id] = { type: 'error', text: error.message };
+      },
     });
   }
 

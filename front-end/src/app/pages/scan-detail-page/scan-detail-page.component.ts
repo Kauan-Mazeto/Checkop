@@ -54,12 +54,14 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   // cancelamento: as ferramentas param e o que já foi verificado vira resultado parcial
   protected isCanceling = false;
+  /** primeiro clique pede confirmação no próprio cartão (sem pop-up do navegador) */
+  protected confirmingCancel = false;
   protected cancelMessage: string | null = null;
   protected cancelError: string | null = null;
 
   protected cancel(): void {
     if (!this.scan || this.isCanceling) return;
-    if (!window.confirm('Cancelar a varredura? As ferramentas param agora e o resultado mostra só o que já foi verificado.')) return;
+    this.confirmingCancel = false;
     this.isCanceling = true;
     this.cancelError = null;
     this.scanService.cancelScan(this.scan.id).subscribe({
