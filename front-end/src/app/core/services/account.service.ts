@@ -13,6 +13,7 @@ export interface LoginAttempt {
 }
 
 export interface PrivacyPolicy {
+  version?: string;
   lastUpdated: string;
   content: string;
 }

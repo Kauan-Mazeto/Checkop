@@ -1,10 +1,15 @@
-// Página pública de leitura, no mesmo tom escuro suave das telas logadas.
+// Página pública de leitura dos documentos legais, no visual da equipe:
+// cinzas neutros, fonte do sistema e o vermelho só nos destaques.
 :host {
   display: block;
   min-height: 100vh;
   background: #111213;
   color: #f1f1f2;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+a {
+  color: inherit;
 }
 
 .legal-top {
@@ -16,7 +21,6 @@
   border-bottom: 1px solid #303135;
 
   a {
-    color: inherit;
     text-decoration: none;
   }
 
@@ -52,19 +56,121 @@
   }
 }
 
-.legal-body {
-  max-width: 760px;
-  padding: 36px 32px 72px;
-  line-height: 1.7;
+// ---------- cabeçalho do documento ----------
+.legal-hero {
+  border-bottom: 1px solid #252529;
+  background: #151618;
+}
 
-  h1 {
-    margin: 0 0 24px;
-    font-size: 26px;
+.legal-hero-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 32px 30px;
+
+  .kicker {
+    color: #e16a73;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
+  h1 {
+    margin: 8px 0 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+  }
+}
+
+.meta {
+  margin: 0;
+  color: #b0b0b5;
+  font-size: 13px;
+}
+
+.error {
+  color: #e6b9bd;
+}
+
+// ---------- sumário + texto ----------
+.legal-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 760px);
+  gap: 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 32px 72px;
+}
+
+.legal-toc {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: start;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+
+  .toc-title {
+    margin-bottom: 8px;
+    color: #85858b;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  a {
+    padding: 5px 10px;
+    border-left: 2px solid #303135;
+    color: #b0b0b5;
+    font-size: 13px;
+    line-height: 1.4;
+    text-decoration: none;
+
+    &:hover {
+      border-left-color: #d84a56;
+      color: #f1f1f2;
+    }
+  }
+
+  .print {
+    margin-top: 16px;
+    padding: 8px 10px;
+    border: 1px solid #46474c;
+    border-radius: 5px;
+    background: #202124;
+    color: #f1f1f2;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+
+    &:hover {
+      border-color: #77787e;
+    }
+  }
+}
+
+.legal-body {
+  min-width: 0;
+  line-height: 1.75;
+
   h2 {
-    margin: 28px 0 8px;
-    font-size: 16px;
+    margin: 36px 0 10px;
+    padding-top: 4px;
+    font-size: 17px;
+    scroll-margin-top: 24px;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h3 {
+    margin: 20px 0 6px;
+    color: #f1f1f2;
+    font-size: 14.5px;
   }
 
   p,
@@ -74,28 +180,106 @@
   }
 
   p {
-    margin: 0 0 10px;
+    margin: 0 0 12px;
   }
 
   ul {
-    margin: 0 0 10px;
+    margin: 0 0 14px;
     padding-left: 22px;
+  }
+
+  li {
+    margin-bottom: 6px;
+  }
+
+  strong {
+    color: #f1f1f2;
   }
 }
 
-.meta {
-  color: #b0b0b5 !important;
-  font-size: 13px !important;
+// destaque ("> ") no topo dos documentos
+.notice {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border-left: 3px solid #d84a56;
+  border-radius: 6px;
+  background: #1a1517;
+  color: #d5d5d8;
+  font-size: 14px;
 }
 
-.error {
-  color: #f3b9bb !important;
+.legal-end {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #303135;
+
+  p {
+    margin: 0 0 6px;
+    color: #b0b0b5;
+    font-size: 13.5px;
+  }
+
+  a {
+    color: #f1f1f2;
+  }
+}
+
+@media (max-width: 900px) {
+  .legal-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .legal-toc {
+    position: static;
+    max-height: none;
+    padding: 14px;
+    border: 1px solid #303135;
+    border-radius: 6px;
+  }
 }
 
 @media (max-width: 700px) {
   .legal-top,
-  .legal-body {
+  .legal-hero-inner,
+  .legal-layout {
     padding-right: 16px;
     padding-left: 16px;
+  }
+}
+
+// impressão / "salvar como PDF": só o texto, em fundo branco
+@media print {
+  :host {
+    background: #fff;
+    color: #000;
+  }
+
+  .legal-top,
+  .legal-toc {
+    display: none;
+  }
+
+  .legal-hero {
+    border: 0;
+    background: none;
+  }
+
+  .legal-layout {
+    display: block;
+    padding-top: 0;
+  }
+
+  .legal-body p,
+  .legal-body li,
+  .legal-body strong,
+  .notice,
+  .meta {
+    color: #000;
+  }
+
+  .notice {
+    border-color: #000;
+    background: none;
   }
 }

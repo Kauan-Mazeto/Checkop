@@ -19,6 +19,7 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 | 04 | [Objetivos de varredura da matriz e filtro por objetivo](04-objetivos-de-varredura/README.md) | Implementado e testado | 2026-11-09 |
 | 05 | [Front-end: fluxo real de varredura, resultados e gráficos](05-front-end-fluxo-de-varredura/README.md) | Implementado e testado | 2026-11-09 |
 | 06 | [Visual da equipe nas telas logadas e regras Free/Premium](06-visual-da-equipe-e-planos/README.md) | Implementado e testado | 2026-11-16 |
+| 07 | [Login com Google](07-login-com-google/README.md) | Implementado e testado | 2026-11-16 |
 
 ## Como rodar os testes
 

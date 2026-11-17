@@ -4,11 +4,12 @@ import { FormsModule, NgForm } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
+import { GoogleSignInComponent } from '../../shared/components/google-sign-in/google-sign-in.component';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, GoogleSignInComponent],
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.scss',
 })
@@ -32,6 +33,13 @@ export class LoginPageComponent {
   protected isSubmitting = false;
   protected errorMessage: string | null = null;
   protected showPassword = false;
+  /** o botão do Google só aparece se o servidor tiver GOOGLE_CLIENT_ID */
+  protected googleAvailable = false;
+
+  protected onGoogleSignedIn(): void {
+    this.drafts.clear('login');
+    this.router.navigateByUrl('/dashboard');
+  }
 
   protected togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;

@@ -152,9 +152,27 @@ const login = async (req, res) => {
   }
 };
 
+const GOOGLE_NOT_CONFIGURED = Object.freeze({
+  error: 'O login com Google não está configurado neste servidor.',
+  code: 'GOOGLE_NOT_CONFIGURED',
+});
+
+// O client id do Google é público (vai no HTML de qualquer site que usa o botão);
+// expor por aqui deixa o .env do backend como fonte única.
+const getGoogleConfig = (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || null;
+  return res.status(200).json({ enabled: Boolean(clientId), clientId });
+};
+
 const googleLogin = async (req, res) => {
   try {
-    const { credential, termsAccepted } = req.body;
+    const { credential, termsAccepted, role } = req.body;
+
+    // sem client id o verifyIdToken falharia com "token inválido", o que
+    // confunde: o problema é de configuração, não do usuário
+    if (!process.env.GOOGLE_CLIENT_ID?.trim()) {
+      return res.status(503).json(GOOGLE_NOT_CONFIGURED);
+    }
 
     let payload;
     try {
@@ -189,7 +207,8 @@ const googleLogin = async (req, res) => {
 
     if (!user) {
       user = await prisma.user.create({
-        data: { name, email, googleId },
+        // o perfil só é escolhido na criação; quem já tem conta mantém o seu
+        data: { name: name || email.split('@')[0], email, googleId, ...(role && { role }) },
       });
     } else if (!user.googleId) {
       user = await prisma.user.update({
@@ -453,4 +472,4 @@ const changePlan = async (req, res) => {
   }
 };
 
-export default {register , login , googleLogin , forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan};
+export default {register , login , getGoogleConfig , googleLogin ,forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan};

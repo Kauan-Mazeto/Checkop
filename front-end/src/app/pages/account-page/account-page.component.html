@@ -62,16 +62,22 @@
   <!-- Política de privacidade -->
   <section class="card">
     <header class="card-header">
-      <div><h2>Política de privacidade</h2><p *ngIf="policyUpdated">Atualizada em {{ policyUpdated | date: 'dd/MM/yyyy' }}</p></div>
+      <div><h2>Documentos legais</h2><p>Os textos que regem o uso do Checkop e o tratamento dos seus dados.</p></div>
     </header>
-    <div class="card-body policy">
-      <ng-container *ngFor="let block of policy">
-        <ng-container [ngSwitch]="block.kind">
-          <h3 *ngSwitchCase="'h2'">{{ $any(block).text }}</h3>
-          <ul *ngSwitchCase="'ul'"><li *ngFor="let item of $any(block).items">{{ item }}</li></ul>
-          <p *ngSwitchCase="'p'">{{ $any(block).text }}</p>
-        </ng-container>
-      </ng-container>
+    <div class="card-body legal-docs">
+      <a class="legal-doc" routerLink="/terms" target="_blank" rel="noopener">
+        <strong>Termos de Uso</strong>
+        <span>{{ terms ? 'Versão ' + terms.version + ' · atualizado em ' + (terms.lastUpdated | date: 'dd/MM/yyyy') : 'Regras de uso, planos e autorização de testes' }}</span>
+      </a>
+      <a class="legal-doc" routerLink="/privacy" target="_blank" rel="noopener">
+        <strong>Política de Privacidade</strong>
+        <span>{{ policy ? 'Versão ' + policy.version + ' · atualizada em ' + (policy.lastUpdated | date: 'dd/MM/yyyy') : 'Dados coletados, finalidades e seus direitos (LGPD)' }}</span>
+      </a>
+      <p class="hint">
+        Pela LGPD (art. 18) você pode pedir acesso, correção ou portabilidade dos seus dados em
+        <a class="link" href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>. A exclusão da conta pode ser
+        feita abaixo, a qualquer momento.
+      </p>
     </div>
   </section>
 

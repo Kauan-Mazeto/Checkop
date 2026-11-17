@@ -1,6 +1,5 @@
 import { Scan } from '../../core/services/scan.service';
 import { filterScans } from './scan-history-page.component';
-import { parsePolicy } from '../account-page/account-page.component';
 import { NAV_GROUPS } from '../../shared/components/app-shell/app-shell.component';
 import { DraftService } from '../../core/services/draft.service';
 
@@ -29,17 +28,6 @@ describe('histórico: filtros', () => {
   });
 });
 
-describe('conta: política de privacidade', () => {
-  it('converte títulos, parágrafos e listas', () => {
-    const blocks = parsePolicy('# Título\n\n## 1. Dados\n- nome\n- e-mail\nTexto final.');
-    expect(blocks).toEqual([
-      { kind: 'h1', text: 'Título' },
-      { kind: 'h2', text: '1. Dados' },
-      { kind: 'ul', items: ['nome', 'e-mail'] },
-      { kind: 'p', text: 'Texto final.' },
-    ]);
-  });
-});
 
 describe('menu lateral: item ativo', () => {
   const item = (label: string) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.label === label)!;

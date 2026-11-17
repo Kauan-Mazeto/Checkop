@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { PLAN_CARDS } from '../../shared/ui/plans';
 
 type AppView = 'landing' | 'dashboard';
 type DashboardTab = 'overview' | 'scans' | 'reports' | 'logs';
@@ -22,6 +23,7 @@ interface ScanVulnerability {
 })
 export class LandingPageComponent {
   protected readonly appName = 'ShieldTest';
+  protected readonly planCards = PLAN_CARDS;
 
   protected currentView: AppView = 'landing';
   protected dashboardTab: DashboardTab = 'overview';

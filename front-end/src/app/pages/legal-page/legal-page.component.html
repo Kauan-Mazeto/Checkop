@@ -1,26 +1,61 @@
 <div class="legal">
   <header class="legal-top">
     <a class="brand" routerLink="/landing"><img src="/checkop-logo.png" alt="" /> Checkop</a>
-    <nav>
+    <nav aria-label="Documentos legais">
       <a routerLink="/terms" [class.active]="doc === 'terms'">Termos de uso</a>
       <a routerLink="/privacy" [class.active]="doc === 'privacy'">Privacidade</a>
     </nav>
   </header>
 
-  <main class="legal-body">
-    <p *ngIf="isLoading" class="meta">Carregando...</p>
-    <p *ngIf="error" class="error">{{ error }}</p>
+  <!-- trechos com negrito: montados como elementos, nunca como HTML -->
+  <ng-template #inline let-segments>
+    <ng-container *ngFor="let s of segments"><strong *ngIf="s.bold">{{ s.text }}</strong><ng-container *ngIf="!s.bold">{{ s.text }}</ng-container></ng-container>
+  </ng-template>
 
-    <article *ngIf="!isLoading && !error">
-      <p class="meta">
-        <ng-container *ngIf="version">Versão {{ version }} · </ng-container>Atualizado em {{ lastUpdated | date: 'dd/MM/yyyy' }}
+  <div class="legal-hero">
+    <div class="legal-hero-inner">
+      <span class="kicker">Documento legal</span>
+      <h1>{{ info.title }}</h1>
+      <p class="meta" *ngIf="!isLoading && !error">
+        <ng-container *ngIf="version">Versão {{ version }} · </ng-container>Última atualização em {{ lastUpdated | date: 'dd/MM/yyyy' }}
       </p>
-      <ng-container *ngFor="let block of blocks">
-        <h1 *ngIf="block.kind === 'h1'">{{ asText(block) }}</h1>
-        <h2 *ngIf="block.kind === 'h2'">{{ asText(block) }}</h2>
-        <p *ngIf="block.kind === 'p'">{{ asText(block) }}</p>
-        <ul *ngIf="block.kind === 'ul'"><li *ngFor="let item of asItems(block)">{{ item }}</li></ul>
-      </ng-container>
-    </article>
-  </main>
+    </div>
+  </div>
+
+  <div class="legal-layout">
+    <aside class="legal-toc" *ngIf="toc.length > 0" aria-label="Sumário">
+      <span class="toc-title">Sumário</span>
+      <a *ngFor="let item of toc" [routerLink]="[]" [fragment]="item.id">{{ item.text }}</a>
+      <button class="print" type="button" (click)="print()">Imprimir ou salvar em PDF</button>
+    </aside>
+
+    <main class="legal-body">
+      <p *ngIf="isLoading" class="meta">Carregando...</p>
+      <p *ngIf="error" class="error">{{ error }}</p>
+
+      <article *ngIf="!isLoading && !error">
+        <ng-container *ngFor="let block of blocks">
+          <h2 *ngIf="block.kind === 'h2'" [id]="anchor(block)">
+            <ng-container *ngTemplateOutlet="inline; context: { $implicit: segments(block) }"></ng-container>
+          </h2>
+          <h3 *ngIf="block.kind === 'h3'"><ng-container *ngTemplateOutlet="inline; context: { $implicit: segments(block) }"></ng-container></h3>
+          <p *ngIf="block.kind === 'p'"><ng-container *ngTemplateOutlet="inline; context: { $implicit: segments(block) }"></ng-container></p>
+          <aside *ngIf="block.kind === 'quote'" class="notice" role="note">
+            <ng-container *ngTemplateOutlet="inline; context: { $implicit: segments(block) }"></ng-container>
+          </aside>
+          <ul *ngIf="block.kind === 'ul'">
+            <li *ngFor="let item of items(block)"><ng-container *ngTemplateOutlet="inline; context: { $implicit: item }"></ng-container></li>
+          </ul>
+        </ng-container>
+
+        <footer class="legal-end">
+          <p>Leia também a <a [routerLink]="info.otherLink">{{ info.other }}</a>.</p>
+          <p>
+            Dúvidas: <a href="mailto:contato@checkop.com.br">contato&#64;checkop.com.br</a> · Privacidade:
+            <a href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>
+          </p>
+        </footer>
+      </article>
+    </main>
+  </div>
 </div>

@@ -1,4 +1,5 @@
-import { PLAN_DEFINITIONS, planOf, scansCreatedToday, scansRemainingToday } from './plans';
+import { isSelectablePlan } from '../../pages/register-page/register-page.component';
+import { PLAN_CARDS, PLAN_DEFINITIONS, planOf, scansCreatedToday, scansRemainingToday } from './plans';
 
 describe('regras de plano (espelham backend/src/constants/plans.js)', () => {
   const now = new Date(2026, 10, 16, 15, 0);
@@ -24,6 +25,17 @@ describe('regras de plano (espelham backend/src/constants/plans.js)', () => {
     const premium = PLAN_DEFINITIONS.PREMIUM;
     expect(premium.dailyScanLimit).toBeNull();
     expect(premium.canChooseObjective && premium.canViewHistory && premium.canExportReports && premium.canSeeDetails).toBeTrue();
+  });
+
+  it('cartões da landing/cadastro batem com as regras e o Enterprise é só vitrine', () => {
+    const byId = Object.fromEntries(PLAN_CARDS.map((c) => [c.id, c]));
+    expect(PLAN_CARDS.map((c) => c.id)).toEqual(['FREE', 'PREMIUM', 'ENTERPRISE']);
+    expect(byId['FREE'].included).toContain(`${PLAN_DEFINITIONS.FREE.dailyScanLimit} scan por dia`);
+    expect(byId['PREMIUM'].price.replace(/\s/g, '')).toBe(PLAN_DEFINITIONS.PREMIUM.priceLabel.replace(/\s|\/mês/g, ''));
+    expect(byId['ENTERPRISE'].available).toBeFalse();
+    expect(isSelectablePlan('ENTERPRISE')).toBeFalse();
+    expect(isSelectablePlan('PRO')).toBeFalse(); // rascunho antigo
+    expect(isSelectablePlan('PREMIUM')).toBeTrue();
   });
 
   it('conta só as varreduras de hoje', () => {

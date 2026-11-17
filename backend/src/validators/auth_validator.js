@@ -19,6 +19,8 @@ export const googleLoginSchema = z.object({
   credential: z.string().min(1, 'Credencial do Google é obrigatória.'),
   // obrigatório só quando a conta ainda não tem aceite registrado (ver googleLogin)
   termsAccepted: z.boolean().optional(),
+  // perfil escolhido no primeiro acesso; só vale ao criar a conta (RF-05)
+  role: z.enum(['DEV', 'QA', 'PENTESTER', 'STUDENT']).optional(),
 });
 
 export const forgotPasswordSchema = z.object({

@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, tap, throwError } from 'rxjs';
 import { API_BASE_URL } from '../constants/api.constants';
+import { toApiError } from '../http/api-error';
 
 // Espelha o campo "role" do enum Role no backend (backend/src/constants/enums.js).
 export type UserRole = 'DEV' | 'QA' | 'PENTESTER' | 'STUDENT' | 'ADM';
@@ -97,6 +98,25 @@ export class AuthService {
         tap((response) => this.cacheUser(response.user)),
         map((response) => response.user),
         catchError((error: HttpErrorResponse) => throwError(() => this.toErrorMessage(error)))
+      );
+  }
+
+  /**
+   * Login com Google: envia o id_token do botão oficial para POST /api/auth/google.
+   * No primeiro acesso o backend responde 400 TERMS_REQUIRED; a tela pede o
+   * aceite (e o perfil) e chama de novo com `termsAccepted` e `role`.
+   * Erro vem como ApiError para a tela poder olhar o `code`.
+   */
+  googleLogin(
+    credential: string,
+    extras: { termsAccepted?: true; role?: Exclude<UserRole, 'ADM'> } = {}
+  ): Observable<AuthUser> {
+    return this.http
+      .post<AuthResponse>(`${API_BASE_URL}/auth/google`, { credential, ...extras }, { withCredentials: true })
+      .pipe(
+        tap((response) => this.cacheUser(response.user)),
+        map((response) => response.user),
+        catchError((error: HttpErrorResponse) => throwError(() => toApiError(error)))
       );
   }
 

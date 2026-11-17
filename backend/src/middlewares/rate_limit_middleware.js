@@ -25,6 +25,16 @@ export const loginLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Tente novamente mais tarde.' },
 });
 
+// login com Google: contador próprio (o fluxo de primeiro acesso faz 2
+// chamadas, aceite dos termos) para não gastar a cota do login por senha
+export const googleLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login com Google. Tente novamente mais tarde.' },
+});
+
 export const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,

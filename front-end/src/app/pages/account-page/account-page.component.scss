@@ -27,24 +27,44 @@
   }
 }
 
-.policy {
+.legal-docs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+
+  .hint {
+    grid-column: 1 / -1;
+  }
+}
+
+.legal-doc {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 360px;
-  overflow-y: auto;
-  color: #d5d5d8;
-  font-size: 13px;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid #303135;
+  border-radius: 6px;
+  background: #1b1c1e;
+  transition: border-color 0.2s ease;
 
-  h3 {
-    margin-top: 10px;
+  strong {
     color: #f1f1f2;
-    font-size: 13.5px;
+    font-size: 14px;
   }
 
-  ul {
-    margin: 0;
-    padding-left: 18px;
+  span {
+    color: #b0b0b5;
+    font-size: 12.5px;
+  }
+
+  &:hover {
+    border-color: #d84a56;
+  }
+}
+
+@media (max-width: 700px) {
+  .legal-docs {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

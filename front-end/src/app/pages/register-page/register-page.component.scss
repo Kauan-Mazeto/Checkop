@@ -817,7 +817,7 @@ a {
     border-color 0.2s ease,
     background 0.2s ease;
 
-  &:hover,
+  &:hover:not(:disabled),
   &.selected {
     border-color: var(--primary);
     background: rgba(var(--primary-rgb), 0.06);
@@ -826,6 +826,17 @@ a {
   &.selected {
     box-shadow: 0 0 0 1px var(--primary);
   }
+
+  // Enterprise: só vitrine, ainda não contratável
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.plan-badge-soon {
+  background: var(--surface-light);
+  color: var(--muted);
 }
 
 .plan-badge {

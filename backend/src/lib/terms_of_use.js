@@ -1,57 +1,125 @@
 // Termos de Uso do Checkop. A versão é a mesma gravada em TermsAcceptance.version
-// (schema.prisma, padrão "1.0"): mudou o texto de forma relevante, suba a versão.
+// (schema.prisma): mudou o texto de forma relevante, suba a versão.
 //
-// RASCUNHO elaborado pela equipe do TCC. Antes de uso comercial, deve ser
-// revisado por advogado.
+// Texto elaborado pela equipe do TCC com base no Código Civil, no Código de
+// Defesa do Consumidor, no Marco Civil da Internet, na LGPD e no art. 154-A do
+// Código Penal. Antes de uso comercial, deve ser revisado por advogado.
+//
+// Formato: markdown simples lido por front-end/src/app/shared/ui/markdown.ts
+// (#, ##, ###, listas com "-", destaque com "> " e negrito com **texto**).
 export const TERMS_OF_USE = {
-  version: '1.0',
-  lastUpdated: '2026-11-09',
+  version: '2.0',
+  lastUpdated: '2026-11-16',
   content: `
-# Termos de Uso — Checkop
+# Termos de Uso
 
-## 1. Aceite
-Ao criar uma conta ou usar o Checkop, você declara que leu e concorda com estes Termos e com a Política de Privacidade. Se não concordar, não utilize a plataforma.
+Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Leia com atenção: ao criar uma conta, inclusive pelo login com Google, ou ao utilizar qualquer funcionalidade, você declara que leu, compreendeu e concorda integralmente com estes Termos e com a Política de Privacidade, que é parte integrante deles.
 
-## 2. O que é o Checkop
-O Checkop é uma plataforma de análise de segurança que executa ferramentas de código aberto (OWASP ZAP, Nuclei, Subfinder e Semgrep) contra aplicações web e trechos de código indicados pelo próprio usuário, e apresenta os resultados em relatórios.
+> O Checkop executa testes de segurança reais. Utilize a plataforma somente em sistemas que são seus ou para os quais você tem autorização expressa do responsável. Testar sistemas de terceiros sem autorização pode configurar crime (art. 154-A do Código Penal).
 
-## 3. Uso permitido: somente sistemas seus ou autorizados
-- Você só pode testar aplicações das quais é o responsável ou para as quais tem autorização expressa e por escrito do responsável.
-- Testar sistemas de terceiros sem autorização pode configurar crime de invasão de dispositivo informático (art. 154-A do Código Penal, Lei 12.737/2012, com redação da Lei 14.155/2021).
-- Para sites públicos, o Checkop exige a verificação de propriedade do domínio (registro DNS, arquivo ou meta tag). A verificação é conferida novamente antes de cada varredura.
-- Ambientes locais (localhost e redes privadas) são tratados como ambiente de desenvolvimento e não exigem verificação; você continua responsável por ter autorização sobre eles.
+## 1. Definições
+- **Checkop ou Plataforma:** o serviço de análise de segurança de aplicações web e de código-fonte disponibilizado por meio do site e da API.
+- **Usuário ou você:** a pessoa que cria uma conta e utiliza a Plataforma.
+- **Alvo:** a aplicação, o domínio, o endereço ou o código indicado pelo Usuário para análise.
+- **Varredura:** a execução das ferramentas de análise contra um Alvo.
+- **Varredura passiva:** a análise que apenas observa as respostas do Alvo, sem enviar tentativas de ataque.
+- **Varredura ativa:** a análise que envia requisições de ataque reais, como tentativas de injeção de SQL ou de scripts, para confirmar a existência de uma falha.
+- **Verificação de propriedade:** a prova técnica, por registro DNS, arquivo ou meta tag, de que o Usuário controla o domínio ou o host do Alvo.
+- **Relatório:** o conjunto de achados, evidências e recomendações gerado a partir de uma Varredura.
 
-## 4. Varredura ativa
-- A varredura ativa envia requisições de ataque reais (por exemplo, tentativas de SQL Injection e XSS) para confirmar falhas.
-- Em sites públicos, ela só é executada com a sua autorização expressa a cada execução, registrada com data, hora e endereço IP.
-- Mesmo com velocidade reduzida, a varredura ativa pode gerar lentidão, registros de teste em formulários ou alertas em sistemas de monitoramento. Faça backup e, sempre que possível, prefira ambientes de homologação.
-- Se a aplicação estiver em hospedagem compartilhada ou de terceiros, você declara que os termos do provedor permitem testes de segurança.
+## 2. Sobre o Checkop
+2.1. O Checkop é um projeto acadêmico, desenvolvido como Trabalho de Conclusão de Curso, que orquestra ferramentas de código aberto (OWASP ZAP, Nuclei, Subfinder, Semgrep e Gitleaks) e apresenta os resultados em relatórios adaptados ao perfil de cada Usuário.
 
-## 5. Condutas proibidas
-- Testar, ou tentar testar, sistemas sem autorização, inclusive burlando a verificação de domínio.
-- Usar a plataforma para ataques de negação de serviço, coleta de dados de terceiros ou qualquer fim ilícito.
-- Tentar acessar a infraestrutura do próprio Checkop, contas de outros usuários ou o motor de varredura por fora da interface.
-- Compartilhar sua conta ou suas credenciais.
+2.2. A Plataforma é oferecida no estado em que se encontra, com as funcionalidades disponíveis em cada momento, e pode ser alterada, ampliada ou descontinuada, total ou parcialmente.
 
-## 6. Responsabilidades
-- Você é o único responsável pelos alvos que cadastra, pelas autorizações que declara e pelo uso que faz dos resultados.
-- O Checkop fornece as ferramentas e as salvaguardas técnicas descritas nestes Termos, mas não se responsabiliza por danos causados por uso em desacordo com eles ou por informações falsas prestadas pelo usuário.
-- Os resultados são gerados por ferramentas automatizadas: podem conter falsos positivos e não garantem que uma aplicação esteja livre de falhas. Eles não substituem uma auditoria de segurança profissional.
+## 3. Cadastro e conta
+3.1. Para utilizar a Plataforma, o Usuário deve ter pelo menos 18 anos e plena capacidade civil, ou agir em nome de pessoa jurídica com poderes para tanto.
 
-## 7. Registros e cooperação com autoridades
-- O Checkop registra ações relevantes (cadastro e verificação de domínios, criação e execução de varreduras, autorizações) e os acessos à conta, com data, hora e IP.
-- Esses registros são guardados por 6 meses, em ambiente seguro, conforme o art. 15 do Marco Civil da Internet (Lei 12.965/2014), e podem ser fornecidos mediante ordem judicial.
+3.2. O Usuário se compromete a fornecer informações verdadeiras e a mantê-las atualizadas. O cadastro pode ser feito com e-mail e senha ou com uma conta Google; neste caso, o nome, o e-mail e o identificador da conta são recebidos do Google.
 
-## 8. Suspensão e encerramento
-O Checkop pode suspender ou encerrar contas que violem estes Termos, especialmente em caso de indício de teste não autorizado. Você pode excluir sua conta a qualquer momento em "Conta e privacidade".
+3.3. A conta é pessoal e intransferível. O Usuário é responsável por manter a confidencialidade da senha e por todas as atividades realizadas na sua conta, devendo comunicar imediatamente qualquer uso não autorizado.
 
-## 9. Planos
-Os planos Free e Premium desta versão são demonstrativos e não envolvem cobrança.
+3.4. O perfil de uso (QA, Desenvolvedor, Pentester ou Estudante) define a forma de apresentação dos resultados e não altera os limites de uso destes Termos.
 
-## 10. Alterações
-Estes Termos podem ser atualizados. Mudanças relevantes serão informadas na plataforma e poderão exigir novo aceite.
+## 4. Planos
+4.1. A Plataforma oferece os planos **Free** e **Premium**, cujos recursos e limites são apresentados na página de Planos. O plano **Enterprise** está em definição e não pode ser contratado nesta versão.
 
-## 11. Legislação e foro
-Estes Termos são regidos pelas leis brasileiras, incluindo a Lei Geral de Proteção de Dados (Lei 13.709/2018) e o Marco Civil da Internet.
+4.2. No plano Free, o Usuário pode realizar 1 (uma) varredura por dia, sempre do tipo básico (passiva), e visualizar a varredura mais recente, sem acesso à correção detalhada, à prova de conceito, ao painel de conformidade, ao histórico completo, à exportação de relatórios e à análise de código.
+
+4.3. Nesta versão acadêmica, **os valores exibidos são demonstrativos e não há cobrança**: a troca entre os planos Free e Premium é gratuita e pode ser feita a qualquer momento na própria Plataforma. Caso venha a existir cobrança, as condições comerciais serão apresentadas previamente e dependerão de novo aceite.
+
+## 5. Uso autorizado: somente alvos seus ou autorizados
+5.1. O Usuário somente pode indicar como Alvo sistemas dos quais seja o responsável ou para os quais possua **autorização expressa e prévia** de quem é o responsável.
+
+5.2. Antes de cada Varredura, o Usuário declara possuir essa autorização. A declaração é registrada com data, hora e endereço IP.
+
+5.3. Para sites públicos, a Plataforma exige a Verificação de propriedade do domínio ou do host, conferida novamente antes de cada execução. Remover a prova de verificação suspende imediatamente a possibilidade de novas Varreduras.
+
+5.4. Endereços locais e de redes privadas (como localhost) são tratados como ambiente de desenvolvimento e dispensam a Verificação de propriedade, sem afastar a responsabilidade do Usuário de possuir autorização sobre eles.
+
+5.5. A Plataforma recusa automaticamente a execução de Varreduras em domínios públicos que resolvam para endereços de redes internas, mantendo o registro da tentativa para fins de auditoria.
+
+## 6. Varredura ativa
+6.1. Em sites públicos, a Varredura ativa somente é executada mediante autorização específica do Usuário a cada execução, na qual ele declara: (a) possuir autorização do responsável pelo Alvo; e (b) que os termos do provedor de hospedagem do Alvo permitem testes de segurança.
+
+6.2. Em ambientes de produção, a Plataforma aplica limitação de velocidade e exclui modelos de teste reconhecidamente destrutivos ou de negação de serviço. Ainda assim, a Varredura ativa pode causar lentidão, gerar registros de teste em formulários, disparar alertas em sistemas de monitoramento ou alterar dados do Alvo.
+
+6.3. Recomenda-se realizar backup antes de qualquer Varredura ativa e, sempre que possível, utilizar ambientes de homologação. A decisão de executar uma Varredura ativa e os seus efeitos sobre o Alvo são de responsabilidade do Usuário.
+
+## 7. Análise de código
+7.1. Ao enviar código-fonte para análise, o Usuário declara ter o direito de fazê-lo e se compromete a não enviar código de terceiros sem autorização.
+
+7.2. O código enviado é processado apenas para gerar a análise, não é armazenado no banco de dados da Plataforma após a resposta e não é compartilhado com terceiros. Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
+
+## 8. Condutas proibidas
+É vedado ao Usuário:
+- testar, ou tentar testar, sistemas sem autorização, inclusive burlando ou simulando a Verificação de propriedade;
+- utilizar a Plataforma para ataques de negação de serviço, coleta não autorizada de dados, invasão, fraude ou qualquer finalidade ilícita;
+- tentar acessar a infraestrutura do Checkop, as contas de outros usuários ou o motor de varredura por meios diversos da interface oferecida;
+- realizar engenharia reversa, sobrecarregar intencionalmente a Plataforma ou contornar limites de uso e de plano;
+- compartilhar a conta, revender o acesso ou utilizar os resultados para prejudicar terceiros;
+- divulgar publicamente vulnerabilidades de sistemas de terceiros encontradas por meio da Plataforma sem observar práticas de divulgação responsável.
+
+## 9. Resultados e limitações
+9.1. Os resultados são produzidos por ferramentas automatizadas e podem conter falsos positivos e falsos negativos. A ausência de achados **não garante** que o Alvo esteja livre de vulnerabilidades.
+
+9.2. As recomendações de correção e o mapeamento de conformidade (LGPD e PCI-DSS) têm caráter orientativo e **não substituem** uma auditoria de segurança, um parecer jurídico ou uma certificação oficial.
+
+9.3. Em ambientes de produção, a Plataforma oculta automaticamente requisições, respostas e parâmetros sensíveis dos relatórios (Modo Seguro), para reduzir a exposição de dados reais.
+
+## 10. Responsabilidades
+10.1. O Usuário é o único responsável pelos Alvos que indica, pelas autorizações que declara, pela veracidade das informações prestadas e pelo uso que faz dos resultados.
+
+10.2. O Usuário se compromete a indenizar o Checkop e a sua equipe por danos e despesas decorrentes do descumprimento destes Termos, em especial por testes realizados sem autorização.
+
+10.3. Na máxima extensão permitida pela legislação aplicável, inclusive o Código de Defesa do Consumidor, o Checkop não responde por danos causados por uso em desacordo com estes Termos, por informações falsas prestadas pelo Usuário, por indisponibilidade temporária da Plataforma ou por decisões tomadas exclusivamente com base nos resultados automatizados.
+
+## 11. Registros e cooperação com autoridades
+11.1. A Plataforma registra ações relevantes (cadastro e verificação de alvos, criação e execução de varreduras, autorizações e trocas de plano) e os acessos à conta, com data, hora e endereço IP.
+
+11.2. Esses registros são mantidos por 6 (seis) meses, em ambiente controlado e de acesso restrito, conforme o art. 15 do Marco Civil da Internet (Lei nº 12.965/2014), e somente serão fornecidos a terceiros mediante ordem judicial ou requisição de autoridade competente, nos termos da lei.
+
+## 12. Propriedade intelectual
+12.1. A marca, o código, o layout e os textos do Checkop pertencem aos seus autores. As ferramentas de código aberto utilizadas permanecem sujeitas às suas próprias licenças.
+
+12.2. Os Alvos, o código enviado e os dados das Varreduras continuam pertencendo ao Usuário ou ao respectivo titular. O Checkop os utiliza apenas para prestar o serviço, conforme a Política de Privacidade.
+
+## 13. Suspensão e encerramento
+13.1. O Checkop pode suspender ou encerrar contas, sem aviso prévio, em caso de indício de teste não autorizado, de uso ilícito ou de descumprimento destes Termos, preservando os registros necessários para a apuração.
+
+13.2. O Usuário pode excluir a sua conta a qualquer momento em "Conta e privacidade". A exclusão é definitiva e remove os alvos, as varreduras e os relatórios associados, observado o prazo legal de guarda dos registros de acesso descrito na Política de Privacidade.
+
+## 14. Alterações destes Termos
+Estes Termos podem ser atualizados para refletir mudanças na Plataforma ou na legislação. A versão e a data da última atualização ficam indicadas no topo do documento. Alterações relevantes serão comunicadas na Plataforma e poderão exigir novo aceite para a continuidade do uso.
+
+## 15. Disposições gerais
+15.1. Se alguma cláusula destes Termos for considerada inválida, as demais permanecem em vigor.
+
+15.2. A tolerância quanto ao descumprimento de qualquer cláusula não significa renúncia ao direito de exigi-la.
+
+15.3. Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro do domicílio do Usuário para dirimir eventuais controvérsias, conforme o Código de Defesa do Consumidor.
+
+## 16. Contato
+Dúvidas sobre estes Termos podem ser enviadas para **contato@checkop.com.br**. Assuntos relacionados a dados pessoais devem ser tratados pelo canal indicado na Política de Privacidade.
 `.trim(),
 };

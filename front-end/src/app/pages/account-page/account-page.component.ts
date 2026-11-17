@@ -3,16 +3,11 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/http/api-error';
-import { AccountService, LoginAttempt } from '../../core/services/account.service';
+import { AccountService, LoginAttempt, PrivacyPolicy, TermsOfUse } from '../../core/services/account.service';
 import { AuthService, AuthUser, UserPlan } from '../../core/services/auth.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
 import { ROLE_LABEL } from '../../shared/ui/labels';
-import { MarkdownBlock, parseSimpleMarkdown } from '../../shared/ui/markdown';
-
-// o parser fica em shared/ui/markdown.ts (também usado nas páginas públicas de termos/privacidade)
-export type PolicyBlock = MarkdownBlock;
-export const parsePolicy = parseSimpleMarkdown;
 
 const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
 
@@ -35,8 +30,9 @@ export class AccountPageComponent implements OnInit {
 
   protected attempts: LoginAttempt[] = [];
   protected attemptsError: string | null = null;
-  protected policy: PolicyBlock[] = [];
-  protected policyUpdated = '';
+  // só versão e data; o texto completo abre em /terms e /privacy
+  protected terms: TermsOfUse | null = null;
+  protected policy: PrivacyPolicy | null = null;
 
   protected isChangingPlan = false;
   protected planMessage: string | null = null;
@@ -53,13 +49,9 @@ export class AccountPageComponent implements OnInit {
       next: (attempts) => (this.attempts = attempts),
       error: (error: ApiError) => (this.attemptsError = error.message),
     });
-    this.account.privacyPolicy().subscribe({
-      next: (policy) => {
-        this.policy = parsePolicy(policy.content);
-        this.policyUpdated = policy.lastUpdated;
-      },
-      error: () => (this.policy = [{ kind: 'p', text: 'Não foi possível carregar a política de privacidade.' }]),
-    });
+    // sem resposta, os cartões mostram a descrição genérica
+    this.account.termsOfUse().subscribe({ next: (terms) => (this.terms = terms), error: () => undefined });
+    this.account.privacyPolicy().subscribe({ next: (policy) => (this.policy = policy), error: () => undefined });
   }
 
   protected get isPremium(): boolean {

@@ -24,7 +24,7 @@
     <div class="cell head premium top">
       <span class="ribbon">{{ isPremium ? 'Seu plano' : 'Recomendado' }}</span>
       <h2>Premium</h2>
-      <p class="price"><strong>Grátis</strong><span>na demonstração</span></p>
+      <p class="price"><strong>R$ 149.99</strong><span>/mês · sem cobrança na demonstração</span></p>
       <p class="tagline">Para corrigir de verdade e provar conformidade.</p>
       <button class="button button-primary button-block" type="button" [disabled]="isPremium || isChanging" (click)="choose('PREMIUM')">
         <span *ngIf="isChanging" class="spinner" aria-hidden="true"></span>

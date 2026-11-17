@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService, AuthUser } from '../../../core/services/auth.service';
+import { GoogleAuthService } from '../../../core/services/google-auth.service';
 import { ROLE_LABEL } from '../../ui/labels';
 import { planOf } from '../../ui/plans';
 
@@ -150,6 +151,7 @@ const saveHighContrast = (value: boolean): void => {
 export class AppShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly google = inject(GoogleAuthService);
 
   protected readonly groups = NAV_GROUPS;
   protected readonly roleLabel = ROLE_LABEL;
@@ -174,6 +176,7 @@ export class AppShellComponent {
   }
 
   protected logout(): void {
+    this.google.disableAutoSelect(); // o Google não reentra sozinho na mesma conta
     this.auth.logout().subscribe({
       next: () => this.router.navigateByUrl('/landing'),
       error: () => this.router.navigateByUrl('/landing'),

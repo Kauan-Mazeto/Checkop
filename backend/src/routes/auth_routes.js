@@ -2,14 +2,16 @@ import express from 'express';
 import authController from '../controllers/auth_controllers.js';
 import validate from '../middlewares/auth_validate.js';
 import authMiddleware from '../middlewares/auth_middleware.js';
-import { forgotPasswordLimiter, resetPasswordLimiter, loginLimiter, registerLimiter } from '../middlewares/rate_limit_middleware.js';
+import { forgotPasswordLimiter, resetPasswordLimiter, loginLimiter, registerLimiter, googleLoginLimiter } from '../middlewares/rate_limit_middleware.js';
 import { registerSchema, loginSchema, googleLoginSchema, forgotPasswordSchema, resetPasswordSchema, changePlanSchema} from '../validators/auth_validator.js';
 
 const router = express.Router();
 
 router.post('/register', registerLimiter, validate(registerSchema), authController.register);
 router.post('/login', loginLimiter, validate(loginSchema), authController.login);
-router.post('/google', validate(googleLoginSchema), authController.googleLogin);
+// público: o front descobre se o botão do Google deve aparecer e com qual client id
+router.get('/google/config', authController.getGoogleConfig);
+router.post('/google', googleLoginLimiter, validate(googleLoginSchema), authController.googleLogin);
 router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), authController.resetPassword);
 router.post('/logout', authMiddleware, authController.logout);

@@ -4,6 +4,7 @@ import { fakeReq, fakeRes } from './helpers.js';
 
 process.env.JWT_SECRET ??= 'segredo-de-teste';
 process.env.EXPIRES_IN ??= '1h';
+process.env.GOOGLE_CLIENT_ID ??= 'client-de-teste.apps.googleusercontent.com';
 
 const googlePayload = { sub: 'google-123', email: 'novo@exemplo.com', name: 'Novo', email_verified: true };
 
@@ -131,4 +132,63 @@ test('confirmação errada não apaga nada', async () => {
 
   assert.equal(res.statusCode, 400);
   assert.equal(prismaMock.$transaction.mock.callCount(), 0);
+});
+
+// ---------- login com Google: configuração e perfil ----------
+
+const withClientId = async (value, fn) => {
+  const previous = process.env.GOOGLE_CLIENT_ID;
+  if (value === undefined) delete process.env.GOOGLE_CLIENT_ID;
+  else process.env.GOOGLE_CLIENT_ID = value;
+  try {
+    await fn();
+  } finally {
+    process.env.GOOGLE_CLIENT_ID = previous;
+  }
+};
+
+test('GET /api/auth/google/config informa o client id público', () => {
+  const res = fakeRes();
+  authController.getGoogleConfig(fakeReq(), res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { enabled: true, clientId: process.env.GOOGLE_CLIENT_ID });
+});
+
+test('sem GOOGLE_CLIENT_ID o botão é desligado e o login responde GOOGLE_NOT_CONFIGURED', async () => {
+  await withClientId(undefined, async () => {
+    const config = fakeRes();
+    authController.getGoogleConfig(fakeReq(), config);
+    assert.deepEqual(config.body, { enabled: false, clientId: null });
+
+    const res = fakeRes();
+    await authController.googleLogin(fakeReq({ body: { credential: 'x', termsAccepted: true } }), res);
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.body.code, 'GOOGLE_NOT_CONFIGURED');
+    assert.equal(prismaMock.user.create.mock.callCount(), 0);
+  });
+});
+
+test('conta nova pelo Google usa o perfil escolhido no primeiro acesso', async () => {
+  const res = fakeRes();
+  await authController.googleLogin(fakeReq({ body: { credential: 'x', termsAccepted: true, role: 'PENTESTER' } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(prismaMock.user.create.mock.calls[0].arguments[0].data.role, 'PENTESTER');
+  assert.equal(res.body.user.role, 'PENTESTER');
+});
+
+test('quem já tem conta não troca de perfil pelo login com Google', async () => {
+  prismaMock.user.findUnique.mock.mockImplementation(async () => ({
+    id: 'user-1', email: googlePayload.email, googleId: 'google-123', role: 'QA', tokenVersion: 0,
+  }));
+  prismaMock.termsAcceptance.findUnique.mock.mockImplementation(async () => ({ id: 't1' }));
+  const res = fakeRes();
+  await authController.googleLogin(fakeReq({ body: { credential: 'x', role: 'PENTESTER' } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.user.role, 'QA');
+  assert.equal(prismaMock.user.create.mock.callCount(), 0);
+});
+
+test('schema do login Google aceita só perfis do cadastro (sem ADM)', () => {
+  assert.equal(googleLoginSchema.safeParse({ credential: 'x', role: 'STUDENT' }).success, true);
+  assert.equal(googleLoginSchema.safeParse({ credential: 'x', role: 'ADM' }).success, false);
 });

@@ -37,7 +37,8 @@ export const PLAN_DEFINITIONS: Record<UserPlan, PlanDefinition> = {
   PREMIUM: {
     id: 'PREMIUM',
     name: 'Premium',
-    priceLabel: 'Grátis na demonstração',
+    // valor de vitrine definido pela equipe (branch front); sem cobrança no MVP
+    priceLabel: 'R$ 149.99/mês',
     dailyScanLimit: null,
     canChooseObjective: true,
     defaultObjective: 'FULL_SCAN',
@@ -66,6 +67,60 @@ export const scansCreatedToday = (scans: { createdAt: string }[], now = new Date
 /** null = ilimitado. */
 export const scansRemainingToday = (plan: PlanDefinition, scans: { createdAt: string }[], now = new Date()): number | null =>
   plan.dailyScanLimit === null ? null : Math.max(plan.dailyScanLimit - scansCreatedToday(scans, now), 0);
+
+// Cartões de plano da landing (#pricing) e do passo "Plano" do cadastro.
+// Free e Premium seguem PLAN_DEFINITIONS; o Enterprise é só vitrine por
+// enquanto (a definir pela equipe) e não pode ser escolhido.
+export type PlanCardId = UserPlan | 'ENTERPRISE';
+
+export interface PlanCard {
+  id: PlanCardId;
+  name: string;
+  price: string;
+  period: string;
+  included: string[];
+  excluded: string[];
+  badge?: string;
+  /** false = só vitrine, sem como contratar */
+  available: boolean;
+}
+
+export const PLAN_CARDS: PlanCard[] = [
+  {
+    id: 'FREE',
+    name: 'Free',
+    price: 'R$ 0',
+    period: '/mês',
+    included: ['1 scan por dia', 'Scan básico da URL', 'Diagnóstico e severidade'],
+    excluded: ['Escolher o tipo de teste', 'Histórico e relatórios'],
+    available: true,
+  },
+  {
+    id: 'PREMIUM',
+    name: 'Premium',
+    price: 'R$ 149.99',
+    period: '/mês',
+    included: [
+      'Scans ilimitados',
+      'Escolher o tipo de teste (25 tipos)',
+      'Histórico e relatório em PDF/JSON',
+      'Correção, prova (PoC) e compliance',
+      'Análise de código-fonte',
+    ],
+    excluded: [],
+    badge: 'Mais popular',
+    available: true,
+  },
+  {
+    id: 'ENTERPRISE',
+    name: 'Enterprise',
+    price: 'A definir',
+    period: 'em breve',
+    included: ['Tudo do Premium', 'API dedicada', 'Suporte prioritário', 'White-label'],
+    excluded: [],
+    available: false,
+  },
+];
 
 // Comparação mostrada em Planos e em Conta (espec.txt, seções 2 e 3).
 export interface PlanFeature {

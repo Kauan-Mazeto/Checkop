@@ -5,19 +5,16 @@ import { Router, RouterLink } from '@angular/router';
 import { AccountService } from '../../core/services/account.service';
 import { AuthService, RegisterPayload } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
+import { GoogleSignInComponent } from '../../shared/components/google-sign-in/google-sign-in.component';
+import { PLAN_CARDS, PlanCard, PlanCardId } from '../../shared/ui/plans';
 
 type SelectableRole = RegisterPayload['role'];
 type RegisterStep = 1 | 2 | 3;
-type PlanId = 'FREE' | 'PRO' | 'ENTERPRISE';
+type PlanId = PlanCardId;
 
-interface PlanOption {
-  id: PlanId;
-  name: string;
-  price: string;
-  period: string;
-  features: string[];
-  badge?: string;
-}
+/** Só Free e Premium podem ser escolhidos; o Enterprise é vitrine. */
+export const isSelectablePlan = (plan: unknown): plan is PlanId =>
+  PLAN_CARDS.some((card) => card.id === plan && card.available);
 
 const REGISTER_DRAFT_KEY = 'register';
 
@@ -31,7 +28,7 @@ interface RegisterDraft {
 @Component({
   selector: 'app-register-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, GoogleSignInComponent],
   templateUrl: './register-page.component.html',
   styleUrl: './register-page.component.scss',
 })
@@ -50,36 +47,9 @@ export class RegisterPageComponent {
     { id: 'STUDENT', label: 'Estudante' },
   ];
 
-  // Mesmos planos exibidos na landing page (ver seção #pricing em
-  // landing-page.component.html), só que aqui como passo final do cadastro.
-  // O backend ainda não tem um campo de plano no model User (ver
-  // backend/prisma/schema.prisma), então essa escolha por enquanto só define
-  // o texto do botão final e fica guardada no cliente — ver comentário em
-  // submit().
-  protected readonly plans: PlanOption[] = [
-    {
-      id: 'FREE',
-      name: 'Free',
-      price: 'R$0',
-      period: '/mês',
-      features: ['5 scans/mês', 'Relatório básico', '3 vetores de ataque'],
-    },
-    {
-      id: 'PRO',
-      name: 'Pro',
-      price: 'R$97',
-      period: '/mês',
-      features: ['Scans ilimitados', 'Relatório completo', '14 vetores de ataque'],
-      badge: 'Mais popular',
-    },
-    {
-      id: 'ENTERPRISE',
-      name: 'Enterprise',
-      price: 'Custom',
-      period: 'sob consulta',
-      features: ['Tudo do Pro', 'API dedicada', 'Suporte prioritário'],
-    },
-  ];
+  // Os mesmos cartões da landing (shared/ui/plans.ts). O Enterprise aparece,
+  // mas ainda não pode ser escolhido (a definir pela equipe).
+  protected readonly plans: PlanCard[] = PLAN_CARDS;
 
   protected readonly steps: { id: RegisterStep; label: string }[] = [
     { id: 1, label: 'Conta' },
@@ -96,7 +66,8 @@ export class RegisterPageComponent {
   private _email = this.draft.email ?? '';
   protected password = '';
   protected selectedRole: SelectableRole | null = this.draft.selectedRole ?? null;
-  protected selectedPlan: PlanId | null = this.draft.selectedPlan ?? null;
+  // rascunho antigo pode trazer um plano que não existe mais (ex.: "PRO")
+  protected selectedPlan: PlanId | null = isSelectablePlan(this.draft.selectedPlan) ? this.draft.selectedPlan : null;
 
   protected get name(): string {
     return this._name;
@@ -127,6 +98,14 @@ export class RegisterPageComponent {
   protected termsAccepted = false;
   protected showPassword = false;
   protected isSubmitting = false;
+  /** o botão do Google só aparece se o servidor tiver GOOGLE_CLIENT_ID */
+  protected googleAvailable = false;
+
+  /** conta criada (ou já existente) pelo Google: o perfil foi escolhido no primeiro acesso */
+  protected onGoogleSignedIn(): void {
+    this.drafts.clear(REGISTER_DRAFT_KEY);
+    this.router.navigateByUrl('/dashboard');
+  }
   protected errorMessage: string | null = null;
 
   protected get isAccountStepValid(): boolean {
@@ -146,6 +125,7 @@ export class RegisterPageComponent {
   }
 
   protected selectPlan(plan: PlanId): void {
+    if (!isSelectablePlan(plan)) return; // Enterprise: só vitrine por enquanto
     this.selectedPlan = plan;
     this.errorMessage = null;
     this.saveDraft();
@@ -237,9 +217,9 @@ export class RegisterPageComponent {
       termsAccepted: true,
     };
 
-    // O backend tem os planos FREE/PREMIUM (sem cobrança: TCC 6.3). PRO e
-    // ENTERPRISE da tela de cadastro ativam o Premium logo após criar a conta.
-    const wantsPremium = this.selectedPlan !== 'FREE';
+    // A conta nasce no Free; quem escolheu o Premium já sai com ele ativado
+    // (troca demonstrativa, sem cobrança: TCC 6.3).
+    const wantsPremium = this.selectedPlan === 'PREMIUM';
     this.auth.register(payload).subscribe({
       next: () => {
         this.drafts.clear(REGISTER_DRAFT_KEY);

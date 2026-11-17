@@ -3,9 +3,14 @@ import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { AccountService, PrivacyPolicy } from '../../core/services/account.service';
-import { MarkdownBlock, parseSimpleMarkdown } from '../../shared/ui/markdown';
+import { InlineSegment, MarkdownBlock, inlineSegments, parseSimpleMarkdown, tableOfContents } from '../../shared/ui/markdown';
 
 export type LegalDocument = 'terms' | 'privacy';
+
+const TITLES: Record<LegalDocument, { title: string; other: string; otherLink: string }> = {
+  terms: { title: 'Termos de Uso', other: 'Política de Privacidade', otherLink: '/privacy' },
+  privacy: { title: 'Política de Privacidade', other: 'Termos de Uso', otherLink: '/terms' },
+};
 
 /** Páginas públicas de Termos de Uso e Política de Privacidade (o texto vem do backend). */
 @Component({
@@ -21,10 +26,15 @@ export class LegalPageComponent implements OnInit {
 
   protected doc: LegalDocument = 'terms';
   protected blocks: MarkdownBlock[] = [];
+  protected toc: { id: string; text: string }[] = [];
   protected lastUpdated = '';
   protected version = '';
   protected error: string | null = null;
   protected isLoading = true;
+
+  protected get info() {
+    return TITLES[this.doc];
+  }
 
   ngOnInit(): void {
     this.doc = (this.route.snapshot.data['doc'] as LegalDocument) ?? 'terms';
@@ -33,7 +43,9 @@ export class LegalPageComponent implements OnInit {
 
     source.subscribe({
       next: (document) => {
-        this.blocks = parseSimpleMarkdown(document.content);
+        // o título vem no topo da página; o "# ..." do texto não se repete
+        this.blocks = parseSimpleMarkdown(document.content).filter((b) => b.kind !== 'h1');
+        this.toc = tableOfContents(this.blocks);
         this.lastUpdated = document.lastUpdated;
         this.version = document.version ?? '';
         this.isLoading = false;
@@ -45,11 +57,19 @@ export class LegalPageComponent implements OnInit {
     });
   }
 
-  protected asText(block: MarkdownBlock): string {
-    return 'text' in block ? block.text : '';
+  protected segments(block: MarkdownBlock): InlineSegment[] {
+    return 'text' in block ? inlineSegments(block.text) : [];
   }
 
-  protected asItems(block: MarkdownBlock): string[] {
-    return 'items' in block ? block.items : [];
+  protected items(block: MarkdownBlock): InlineSegment[][] {
+    return 'items' in block ? block.items.map(inlineSegments) : [];
+  }
+
+  protected anchor(block: MarkdownBlock): string | null {
+    return block.kind === 'h2' ? block.id : null;
+  }
+
+  protected print(): void {
+    window.print();
   }
 }
