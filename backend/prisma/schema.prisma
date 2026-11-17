@@ -111,6 +111,8 @@ model User {
   password                 String?
   role                     Role      @default(DEV)
   plan                     Plan      @default(FREE)
+  // RF-22: e-mail ao terminar cada varredura (o usuário desliga em Conta)
+  notifyScanEmail          Boolean   @default(true)
   googleId                 String?   @unique
   resetPasswordToken       String?
   resetPasswordExpires     DateTime?

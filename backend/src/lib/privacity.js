@@ -38,7 +38,9 @@ O controlador dos dados pessoais é a equipe responsável pelo Checkop, projeto 
 - Registros de auditoria das ações relevantes na conta (alvos, varreduras, autorizações e trocas de plano).
 
 ### 2.4. Código enviado para análise
-O código-fonte enviado para análise é processado apenas para gerar o resultado, **não é armazenado** no banco de dados após a resposta e não é enviado a terceiros.
+O código-fonte enviado para análise é processado nos servidores do Checkop apenas para gerar o resultado e **não é armazenado** no banco de dados após a resposta.
+
+Se você clicar em **"Gerar correção com IA"** em um achado, somente as linhas em volta daquele achado (não o arquivo inteiro) são enviadas à Anthropic, provedora do modelo de IA Claude, para gerar a sugestão de correção. Esse envio acontece apenas quando você pede, achado por achado.
 
 ### 2.5. Dados sobre terceiros nos resultados
 As varreduras podem revelar informações presentes nos sistemas analisados. Esses dados são de responsabilidade do Usuário, que declara ter autorização sobre o Alvo, e são tratados apenas para compor o relatório solicitado.
@@ -49,27 +51,28 @@ As varreduras podem revelar informações presentes nos sistemas analisados. Ess
 - **Comprovar que cada varredura foi autorizada e prevenir o uso da plataforma para ataques a terceiros:** legítimo interesse e exercício regular de direitos (art. 7º, IX e VI).
 - **Detectar e investigar acessos indevidos e proteger a sua conta:** legítimo interesse (art. 7º, IX).
 - **Guardar os registros de acesso pelo prazo legal:** cumprimento de obrigação legal (art. 7º, II, e art. 15 do Marco Civil da Internet).
-- **Enviar o código de redefinição de senha:** execução de contrato (art. 7º, V).
+- **Enviar o código de redefinição de senha e o aviso de varredura concluída (que pode ser desligado a qualquer momento):** execução de contrato (art. 7º, V).
 
 Não utilizamos os seus dados para publicidade, não traçamos perfis comerciais e não tomamos decisões automatizadas que produzam efeitos jurídicos sobre você.
 
 ## 4. Compartilhamento de dados
 Os dados pessoais não são vendidos nem cedidos. Eles são compartilhados apenas nas situações abaixo, na medida do necessário:
 - **Google:** quando você escolhe entrar com Google, para autenticar a sua identidade.
-- **Provedor de e-mail:** o seu endereço de e-mail é enviado ao serviço de envio de mensagens somente para entregar o código de redefinição de senha.
+- **Provedor de e-mail:** o seu endereço de e-mail é enviado ao serviço de envio de mensagens para entregar o código de redefinição de senha e, se a opção estiver ligada em "Conta e privacidade", o aviso de varredura concluída (só com a contagem de falhas por severidade).
 - **Serviços de tradução automática (DeepL ou MyMemory):** apenas os textos padronizados que descrevem as regras de segurança são enviados para tradução ao português. Nenhum dado da sua conta, endereço analisado ou código é enviado.
+- **Anthropic (IA Claude):** somente quando você pede uma correção com IA na análise de código, as linhas em volta do achado são enviadas para gerar a sugestão. Pelos termos comerciais da Anthropic, dados recebidos pela API não são usados, por padrão, para treinar os modelos dela.
 - **Infraestrutura de hospedagem:** onde a plataforma e o banco de dados são executados.
 - **Autoridades:** mediante ordem judicial ou requisição legal, nos limites da lei.
 
 As ferramentas de análise (OWASP ZAP, Nuclei, Subfinder, Semgrep e Gitleaks) são executadas nos servidores do próprio Checkop.
 
 ## 5. Transferência internacional
-Alguns fornecedores, como o Google e os serviços de tradução, podem tratar dados fora do Brasil. Nesses casos, a transferência ocorre para a execução do serviço solicitado por você e com fornecedores que adotam padrões de proteção compatíveis com a LGPD (art. 33).
+Alguns fornecedores, como o Google, a Anthropic e os serviços de tradução, podem tratar dados fora do Brasil. Nesses casos, a transferência ocorre para a execução do serviço solicitado por você e com fornecedores que adotam padrões de proteção compatíveis com a LGPD (art. 33).
 
 ## 6. Por quanto tempo guardamos
 - **Dados da conta, alvos, varreduras e relatórios:** enquanto a conta existir. Ao excluir a conta, eles são removidos definitivamente.
 - **Registros de acesso, tentativas de login e auditoria:** 6 (seis) meses, por obrigação legal (Marco Civil da Internet, art. 15), inclusive após a exclusão da conta. Após a exclusão, esses registros deixam de estar associados ao seu e-mail e à sua conta. Ao fim do prazo, são eliminados automaticamente.
-- **Código enviado para análise:** não é armazenado.
+- **Código enviado para análise:** não é armazenado pelo Checkop. Trechos enviados à Anthropic para a correção com IA seguem a política de retenção da Anthropic para uso da API.
 
 ## 7. Cookies e armazenamento no navegador
 - **Cookie de sessão (token):** essencial para manter você conectado. É protegido contra acesso por scripts (httpOnly), enviado apenas ao próprio Checkop (SameSite estrito) e expira em até 24 horas.

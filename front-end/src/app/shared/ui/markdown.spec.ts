@@ -1,4 +1,15 @@
+import { formatIp } from './labels';
 import { inlineSegments, parseSimpleMarkdown, slugify, tableOfContents } from './markdown';
+
+describe('IP nos acessos recentes', () => {
+  it('localhost aparece legível e IPv4 sem o prefixo IPv6', () => {
+    expect(formatIp('::1')).toBe('Este computador (local)');
+    expect(formatIp('::ffff:127.0.0.1')).toBe('Este computador (local)');
+    expect(formatIp('::ffff:203.0.113.7')).toBe('203.0.113.7');
+    expect(formatIp('2001:db8::1')).toBe('2001:db8::1');
+    expect(formatIp(null)).toBe('—');
+  });
+});
 
 describe('markdown dos documentos legais', () => {
   it('converte títulos, subtítulos, destaque, parágrafos e listas', () => {

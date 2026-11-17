@@ -75,3 +75,13 @@ export const owaspExplanation = (category: string | null | undefined): string | 
   const code = /^(A\d{2})/.exec(category ?? '')?.[1];
   return code ? (OWASP_EXPLANATION[code] ?? null) : null;
 };
+
+/**
+ * IP para exibição: "::1" e "127.0.0.1" são o próprio computador (acesso local)
+ * e "::ffff:1.2.3.4" é um IPv4 escrito no formato IPv6.
+ */
+export const formatIp = (ip: string | null | undefined): string => {
+  if (!ip) return '—';
+  const clean = ip.replace(/^::ffff:/i, '');
+  return clean === '::1' || clean === '127.0.0.1' ? 'Este computador (local)' : clean;
+};

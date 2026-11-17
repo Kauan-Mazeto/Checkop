@@ -141,4 +141,39 @@ describe('ScanDetailPageComponent', () => {
       jasmine.clock().uninstall();
     }
   });
+// ---------- RF-11: relatório por perfil ----------
+  const highFinding = {
+    id: 'f1', title: 'SQL Injection', severity: 'HIGH', status: 'OPEN', tool: 'ZAP', ruleId: '40018',
+    affectedUrl: 'http://localhost:3000/a', cveId: null, cvssScore: 8.5, owaspUrl: 'A03:2021 – Injection',
+    remediation: 'Use consultas parametrizadas.', rawRequest: 'GET /a?q=1', rawResponse: 'erro SQL', compliance: [],
+    premiumLocked: false, createdAt: '2026-11-09T10:00:00Z',
+  };
+  const completed = (role: string) =>
+    scan({ status: 'COMPLETED', plan: 'PREMIUM', role, environment: 'DEVELOPMENT', safeMode: false, findings: [highFinding] });
+
+  it('Pentester abre direto nas evidências (payload completo)', () => {
+    const fixture = create(completed('PENTESTER'));
+    expect((fixture.componentInstance as any).tab).toBe('evidence');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Visão de Pentester');
+  });
+
+  it('Dev abre nos achados com os críticos e altos já expandidos e a regra visível', () => {
+    const fixture = create(completed('DEV'));
+    const component = fixture.componentInstance as any;
+    expect(component.tab).toBe('findings');
+    expect(component.expanded.has('f1')).toBeTrue();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('40018');
+  });
+
+  it('QA abre no resumo com gráficos', () => {
+    expect((create(completed('QA')).componentInstance as any).tab).toBe('overview');
+  });
+
+  it('Estudante abre nos achados, em modo estudo, com a explicação da falha', () => {
+    const fixture = create(completed('STUDENT'));
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect((fixture.componentInstance as any).tab).toBe('findings');
+    expect(text).toContain('Modo estudo');
+    expect(text).toContain('Entenda a falha');
+  });
 });

@@ -6,12 +6,12 @@ import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
-import { SAST_MAX_TOTAL_BYTES, SastFinding, SastResult, SastService, parseSastLocation } from '../../core/services/sast.service';
+import { AiFixResult, SAST_MAX_TOTAL_BYTES, SastFinding, SastResult, SastService, parseSastLocation } from '../../core/services/sast.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { DOUGHNUT_OPTIONS, severityCountsFrom, severityDoughnut } from '../../shared/ui/chart-data';
 import { SEVERITY_LABEL, SEVERITY_ORDER } from '../../shared/ui/labels';
-import { CodeLanguage, CodeLine, LANGUAGES, buildCodeView, isAcceptedFile } from './code-view';
+import { CodeLanguage, CodeLine, DiffRow, LANGUAGES, buildCodeView, codeWindow, isAcceptedFile, sideBySideDiff } from './code-view';
 
 type InputMode = 'paste' | 'upload';
 
@@ -21,6 +21,9 @@ interface FindingView {
   start: number;
   end: number;
   code: CodeLine[];
+  /** janela enviada para a IA quando o usuário pede a correção */
+  source: { code: string; firstLine: number };
+  ai: { loading: boolean; error: string | null; result: AiFixResult | null; rows: DiffRow[] };
 }
 
 interface CodeDraft {
@@ -60,11 +63,16 @@ export class CodeAnalysisPageComponent implements OnInit {
   protected views: FindingView[] = [];
   protected severityChart: ChartData | null = null;
   private analyzedFiles: Record<string, string> = {};
+  /** correção com IA disponível neste servidor (há credencial da Anthropic) */
+  protected aiEnabled = false;
 
   ngOnInit(): void {
     const draft = this.drafts.load<CodeDraft>(DRAFT_KEY);
     if (draft.filename && LANGUAGES.some((l) => l.filename === draft.filename)) this.filename = draft.filename;
     this.code = draft.code ?? '';
+    if (this.isPremium) {
+      this.sastService.aiConfig().subscribe({ next: ({ enabled }) => (this.aiEnabled = enabled), error: () => (this.aiEnabled = false) });
+    }
   }
 
   protected get language(): CodeLanguage {
@@ -157,7 +165,40 @@ export class CodeAnalysisPageComponent implements OnInit {
               number: l.number + start - 1,
               vulnerable: true,
             }));
-        return { finding, file, start, end, code };
+        // janela em volta do achado; sem o arquivo original, o trecho devolvido pelo motor
+        const source = original
+          ? codeWindow(original, start, end)
+          : { code: finding.rawResponse ?? '', firstLine: start };
+        return { finding, file, start, end, code, source, ai: { loading: false, error: null, result: null, rows: [] } };
+      });
+  }
+  /** espec.txt 3.2: pede à IA o trecho corrigido e monta o diff lado a lado. */
+  protected suggestFix(view: FindingView): void {
+    if (view.ai.loading || !view.source.code.trim()) return;
+    view.ai = { loading: true, error: null, result: null, rows: [] };
+    this.sastService
+      .suggestFix({
+        code: view.source.code,
+        firstLine: view.source.firstLine,
+        startLine: view.start,
+        endLine: view.end,
+        language: languageOf(view.file),
+        title: view.finding.title,
+        description: view.finding.description,
+        remediation: view.finding.remediation,
+      })
+      .subscribe({
+        next: (result) => {
+          view.ai = { loading: false, error: null, result, rows: sideBySideDiff(view.source.code, result.fixedCode, view.source.firstLine) };
+        },
+        error: (error: ApiError) => (view.ai = { loading: false, error: error.message, result: null, rows: [] }),
       });
   }
 }
+
+/** Nome da linguagem pela extensão do arquivo, para orientar a IA. */
+export const languageOf = (file: string): string => {
+  const ext = file.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = { js: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript', jsx: 'JavaScript (React)', ts: 'TypeScript', tsx: 'TypeScript (React)', py: 'Python', php: 'PHP', java: 'Java', go: 'Go', rb: 'Ruby', cs: 'C#', kt: 'Kotlin', html: 'HTML', sql: 'SQL', yml: 'YAML', yaml: 'YAML', json: 'JSON' };
+  return map[ext] ?? (ext || 'desconhecida');
+};

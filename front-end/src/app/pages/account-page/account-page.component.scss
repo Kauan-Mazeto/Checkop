@@ -71,3 +71,37 @@
 .danger-zone {
   border-color: rgba(216, 74, 86, 0.3);
 }
+
+// troca de perfil (RF-05 / RF-11)
+.role-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 0;
+}
+
+.role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-option {
+  padding: 7px 14px;
+  border: 1px solid #46474c;
+  border-radius: 999px;
+  background: #1b1c1e;
+  color: #d5d5d8;
+  font-size: 13px;
+
+  &.selected {
+    border-color: #d84a56;
+    background: #301018;
+    color: #fff;
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+}

@@ -156,11 +156,16 @@
         <a class="button button-secondary button-sm" routerLink="/plans">Desbloquear análise avançada</a>
       </div>
 
+      <div class="hint-bar no-print">
+        {{ view.intro }} <a class="link" routerLink="/account">Trocar de perfil</a>
+      </div>
+
       <nav class="tabs no-print" role="tablist">
         <button type="button" role="tab" [class.active]="tab === 'overview'" (click)="tab = 'overview'">Resumo</button>
         <button type="button" role="tab" [class.active]="tab === 'findings'" (click)="tab = 'findings'">Achados ({{ sortedFindings.length }})</button>
         <button type="button" role="tab" [class.active]="tab === 'evidence'" (click)="tab = 'evidence'">Evidências / PoC <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
         <button type="button" role="tab" [class.active]="tab === 'compliance'" (click)="tab = 'compliance'">Compliance <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
+        <button *ngIf="s.status === 'COMPLETED'" type="button" role="tab" [class.active]="tab === 'compare'" (click)="openCompare()">Comparação <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
       </nav>
 
       <!-- Resumo -->
@@ -209,6 +214,11 @@
               <div *ngIf="f.parameter"><dt>Parâmetro</dt><dd class="mono">{{ f.parameter }}</dd></div>
               <div *ngIf="f.owaspUrl"><dt>OWASP Top 10</dt><dd>{{ f.owaspUrl }}</dd></div>
               <div *ngIf="f.cveId"><dt>CVE</dt><dd class="mono">{{ f.cveId }}</dd></div>
+              <ng-container *ngIf="view.technicalDetails">
+                <div><dt>Ferramenta</dt><dd>{{ toolLabel[f.tool] || f.tool }}</dd></div>
+                <div *ngIf="f.ruleId"><dt>Regra</dt><dd class="mono">{{ f.ruleId }}</dd></div>
+                <div *ngIf="f.cvssScore !== null"><dt>CVSS</dt><dd class="mono">{{ f.cvssScore | number: '1.1-1' }}</dd></div>
+              </ng-container>
             </dl>
 
             <div *ngIf="f.description"><h3>Descrição</h3><p class="prose">{{ f.description }}</p></div>
@@ -243,6 +253,7 @@
 
         <div *ngIf="isPremium && evidenceFindings.length === 0" class="card"><div class="empty">
           <strong>Sem evidências para exibir</strong>
+          <p *ngIf="view.explanations">No modo estudo os payloads de ataque ficam ocultos. Para vê-los, troque o perfil em <a class="link" routerLink="/account">Conta</a>.</p>
           <p *ngIf="s.safeMode">Em produção o Modo Seguro oculta requisições e respostas para não expor dados reais.</p>
           <p *ngIf="!s.safeMode">As ferramentas não retornaram requisição/resposta para estes achados.</p>
         </div></div>
@@ -285,6 +296,82 @@
           </ul>
         </article>
         <p *ngIf="isPremium" class="hint">Mapeamento orientativo; não substitui uma auditoria de conformidade.</p>
+      </section>
+
+      <!-- Comparação com uma varredura anterior (RF-19) -->
+      <section *ngIf="tab === 'compare'" class="stack no-print">
+        <div *ngIf="!isPremium" class="card"><div class="empty">
+          <strong>Comparar varreduras é um recurso Premium</strong>
+          <p>Veja o que foi corrigido, o que continua e o que apareceu desde a última varredura do mesmo site.</p>
+          <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+        </div></div>
+
+        <ng-container *ngIf="isPremium">
+          <div *ngIf="isComparing" class="empty"><span class="spinner spinner-muted"></span></div>
+          <div *ngIf="compareError" class="alert alert-error" role="alert">{{ compareError }}</div>
+
+          <div *ngIf="comparison && !comparison.base && !isComparing" class="card"><div class="empty">
+            <strong>Ainda não há o que comparar</strong>
+            <p>Rode de novo o mesmo tipo de teste neste endereço (por exemplo, depois de corrigir as falhas) para ver a evolução.</p>
+            <a class="button button-primary button-sm" routerLink="/scans/new" [queryParams]="{ url: s.targetUrl }">Nova varredura</a>
+          </div></div>
+
+          <ng-container *ngIf="comparison?.base && !isComparing">
+            <div class="card">
+              <div class="card-body compare-head">
+                <label class="field">
+                  <span>Comparar com a varredura de</span>
+                  <select class="select" name="compareBase" [ngModel]="compareBaseId" (ngModelChange)="loadComparison($event)">
+                    <option *ngFor="let c of comparison!.candidates" [value]="c.id">{{ c.createdAt | date: 'dd/MM/yyyy HH:mm' }}</option>
+                  </select>
+                </label>
+                <div class="compare-counters">
+                  <div class="compare-counter fixed"><strong>{{ comparison!.summary?.fixed }}</strong><span>corrigidas</span></div>
+                  <div class="compare-counter persistent"><strong>{{ comparison!.summary?.persistent }}</strong><span>persistentes</span></div>
+                  <div class="compare-counter added"><strong>{{ comparison!.summary?.added }}</strong><span>novas</span></div>
+                </div>
+              </div>
+            </div>
+
+            <article class="card">
+              <header class="card-header"><div><h2>Corrigidas</h2><p>Estavam na varredura anterior e não apareceram mais.</p></div></header>
+              <div *ngIf="!comparison!.fixed?.length" class="empty"><p>Nenhuma falha corrigida desde a varredura anterior.</p></div>
+              <ul class="list" *ngIf="comparison!.fixed?.length">
+                <li *ngFor="let f of comparison!.fixed" class="list-row">
+                  <span><s>{{ f.title }}</s><br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+                </li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <header class="card-header"><div><h2>Novas</h2><p>Apareceram nesta varredura.</p></div></header>
+              <div *ngIf="!comparison!.added?.length" class="empty"><p>Nenhuma falha nova.</p></div>
+              <ul class="list" *ngIf="comparison!.added?.length">
+                <li *ngFor="let f of comparison!.added" class="list-row">
+                  <span>{{ f.title }}<br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+                </li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <header class="card-header"><div><h2>Persistentes</h2><p>Continuam presentes nas duas varreduras.</p></div></header>
+              <div *ngIf="!comparison!.persistent?.length" class="empty"><p>Nenhuma falha persistente.</p></div>
+              <ul class="list" *ngIf="comparison!.persistent?.length">
+                <li *ngFor="let f of comparison!.persistent" class="list-row">
+                  <span>{{ f.title }}<br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span class="compare-trend">
+                    <span *ngIf="f.trend !== 'SAME'" class="hint">
+                      {{ f.trend === 'WORSE' ? 'piorou' : 'melhorou' }} (era {{ severityLabel[f.previousSeverity] }})
+                    </span>
+                    <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+                  </span>
+                </li>
+              </ul>
+            </article>
+          </ng-container>
+        </ng-container>
       </section>
 
       <!-- ===== Relatório para impressão / PDF (RF-12) ===== -->

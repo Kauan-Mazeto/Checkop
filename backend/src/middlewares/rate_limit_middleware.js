@@ -68,6 +68,15 @@ export const sastLimiter = rateLimit({
   message: { error: 'Limite de análises de código por hora atingido. Tente novamente mais tarde.' },
 });
 
+// cada correção com IA é uma chamada paga à Anthropic
+export const aiFixLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Limite de correções com IA por hora atingido. Tente novamente mais tarde.' },
+});
+
 // verificação faz o servidor buscar DNS/HTTP externo: limita para não virar
 // ferramenta de requisições em massa
 export const targetVerificationLimiter = rateLimit({

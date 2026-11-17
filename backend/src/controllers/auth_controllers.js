@@ -472,4 +472,47 @@ const changePlan = async (req, res) => {
   }
 };
 
-export default {register , login , getGoogleConfig , googleLogin ,forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan};
+// RF-05 / RF-11: o perfil de uso define o painel e o formato do relatório.
+// Administrador não é escolhível e não troca de perfil por aqui (perderia o papel).
+const changeRole = async (req, res) => {
+  try {
+    if (req.userRole === 'ADM') {
+      return res.status(403).json({ error: 'Contas de administrador não trocam de perfil por aqui.' });
+    }
+
+    const { role } = req.body;
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { role } });
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.ROLE_CHANGED,
+      resourceType: 'user',
+      resourceId: req.userId,
+      details: { from: req.userRole, to: role },
+    });
+
+    return res.status(200).json({
+      message: 'Perfil de uso atualizado.',
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan },
+    });
+  } catch (error) {
+    console.error('Erro ao trocar de perfil:', error);
+    return res.status(500).json({ error: 'Erro interno ao trocar de perfil.' });
+  }
+};
+
+// RF-22: liga ou desliga o e-mail ao terminar cada varredura
+const updatePreferences = async (req, res) => {
+  try {
+    const { notifyScanEmail } = req.body;
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { notifyScanEmail } });
+    return res.status(200).json({
+      message: notifyScanEmail ? 'Você vai receber um e-mail quando cada varredura terminar.' : 'Notificações por e-mail desligadas.',
+      preferences: { notifyScanEmail: user.notifyScanEmail },
+    });
+  } catch (error) {
+    console.error('Erro ao salvar preferências:', error);
+    return res.status(500).json({ error: 'Erro interno ao salvar as preferências.' });
+  }
+};
+
+export default {register , login , getGoogleConfig , googleLogin ,forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan, changeRole, updatePreferences};

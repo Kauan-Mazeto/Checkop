@@ -146,3 +146,79 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+// ---------- correção com IA: diff lado a lado (espec.txt 3.2) ----------
+.ai-fix {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ai-fix-cta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.diff {
+  overflow-x: auto;
+  border: 1px solid #303135;
+  border-radius: 6px;
+  background: #141517;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+}
+
+.diff-head,
+.diff-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.diff-head span {
+  padding: 8px 12px;
+  border-bottom: 1px solid #303135;
+  color: #b0b0b5;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diff-cell {
+  min-height: 20px;
+  padding: 1px 12px 1px 0;
+  white-space: pre;
+
+  & + & {
+    border-left: 1px solid #303135;
+  }
+
+  .ln {
+    display: inline-block;
+    width: 44px;
+    padding-right: 10px;
+    color: #85858b;
+    text-align: right;
+    user-select: none;
+  }
+
+  &.removed {
+    background: rgba(216, 74, 86, 0.16);
+  }
+
+  &.added {
+    background: rgba(126, 170, 140, 0.18);
+  }
+
+  &.empty {
+    background: repeating-linear-gradient(135deg, transparent 0 6px, #1b1c1e 6px 12px);
+  }
+}
+
+.ai-explanation {
+  margin: 0;
+  color: #d5d5d8;
+  font-size: 13px;
+}

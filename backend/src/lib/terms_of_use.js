@@ -69,7 +69,9 @@ Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Lei
 ## 7. Análise de código
 7.1. Ao enviar código-fonte para análise, o Usuário declara ter o direito de fazê-lo e se compromete a não enviar código de terceiros sem autorização.
 
-7.2. O código enviado é processado apenas para gerar a análise, não é armazenado no banco de dados da Plataforma após a resposta e não é compartilhado com terceiros. Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
+7.2. O código enviado é processado apenas para gerar a análise e não é armazenado no banco de dados da Plataforma após a resposta. Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
+
+7.3. A **correção com IA** é opcional e acionada pelo Usuário achado por achado: apenas as linhas em volta do achado são enviadas à Anthropic (modelo Claude) para gerar a sugestão. A sugestão é automática e pode conter erros; o Usuário deve revisá-la e testá-la antes de aplicá-la.
 
 ## 8. Condutas proibidas
 É vedado ao Usuário:

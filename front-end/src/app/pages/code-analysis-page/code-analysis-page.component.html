@@ -111,6 +111,30 @@
               <p>{{ v.finding.remediation }}</p>
             </div>
           </div>
+
+          <!-- Correção sugerida pela IA, em diff lado a lado (espec.txt 3.2) -->
+          <div *ngIf="aiEnabled" class="ai-fix">
+            <div *ngIf="!v.ai.result" class="ai-fix-cta">
+              <button class="button button-secondary button-sm" type="button" [disabled]="v.ai.loading || !v.source.code.trim()" (click)="suggestFix(v)">
+                <span *ngIf="v.ai.loading" class="spinner spinner-muted" aria-hidden="true"></span>
+                {{ v.ai.loading ? 'Gerando correção...' : 'Gerar correção com IA' }}
+              </button>
+              <span class="hint">Envia só as linhas em volta deste achado ao Claude (Anthropic) para sugerir o código corrigido.</span>
+            </div>
+            <div *ngIf="v.ai.error" class="alert alert-error" role="alert">{{ v.ai.error }}</div>
+
+            <ng-container *ngIf="v.ai.result as fix">
+              <div class="diff" role="table" aria-label="Código original e código corrigido">
+                <div class="diff-head" role="row"><span role="columnheader">Código inseguro</span><span role="columnheader">Correção sugerida</span></div>
+                <div *ngFor="let row of v.ai.rows" class="diff-row" role="row">
+                  <span class="diff-cell" role="cell" [class.removed]="row.left?.changed" [class.empty]="!row.left"><span class="ln">{{ row.left?.number }}</span>{{ row.left?.text }}</span>
+                  <span class="diff-cell" role="cell" [class.added]="row.right?.changed" [class.empty]="!row.right"><span class="ln">{{ row.right?.number }}</span>{{ row.right?.text }}</span>
+                </div>
+              </div>
+              <p class="ai-explanation"><strong>Por que muda:</strong> {{ fix.explanation }}</p>
+              <p class="hint">Sugestão gerada por IA: revise e teste antes de aplicar.</p>
+            </ng-container>
+          </div>
         </div>
       </article>
     </ng-container>

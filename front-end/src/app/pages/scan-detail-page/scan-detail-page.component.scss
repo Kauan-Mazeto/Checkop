@@ -306,3 +306,52 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+// ---------- comparação (RF-19) ----------
+.compare-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.compare-counters {
+  display: flex;
+  gap: 10px;
+}
+
+.compare-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 92px;
+  padding: 10px 14px;
+  border: 1px solid #303135;
+  border-radius: 6px;
+  background: #1b1c1e;
+
+  strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+  }
+
+  span {
+    color: #b0b0b5;
+    font-size: 12px;
+  }
+
+  &.fixed strong {
+    color: #7eaa8c;
+  }
+
+  &.added strong {
+    color: #e16a73;
+  }
+}
+
+.compare-trend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

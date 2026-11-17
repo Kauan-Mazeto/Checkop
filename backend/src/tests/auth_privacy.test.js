@@ -192,3 +192,21 @@ test('schema do login Google aceita só perfis do cadastro (sem ADM)', () => {
   assert.equal(googleLoginSchema.safeParse({ credential: 'x', role: 'STUDENT' }).success, true);
   assert.equal(googleLoginSchema.safeParse({ credential: 'x', role: 'ADM' }).success, false);
 });
+// ---------- RF-05 / RF-11: troca de perfil ----------
+
+const { changeRoleSchema } = await import('../validators/auth_validator.js');
+
+test('troca de perfil grava o novo perfil e não aceita ADM', async () => {
+  assert.equal(changeRoleSchema.safeParse({ role: 'ADM' }).success, false);
+  const res = fakeRes();
+  await authController.changeRole(fakeReq({ userId: 'user-1', userRole: 'DEV', body: { role: 'STUDENT' } }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(prismaMock.user.update.mock.calls.at(-1).arguments[0].data.role, 'STUDENT');
+  assert.equal(res.body.user.role, 'STUDENT');
+});
+
+test('administrador não troca de perfil por aqui (não perde o papel)', async () => {
+  const res = fakeRes();
+  await authController.changeRole(fakeReq({ userId: 'user-1', userRole: 'ADM', body: { role: 'QA' } }), res);
+  assert.equal(res.statusCode, 403);
+});

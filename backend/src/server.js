@@ -15,6 +15,8 @@ import scanRoutes from './routes/scan_routes.js';
 import privacyRoutes from './routes/privacy_routes.js';
 import sastRoutes from './routes/sast_routes.js';
 import targetRoutes from './routes/target_routes.js';
+import adminRoutes from './routes/admin_routes.js';
+import { scheduleTemplateUpdates } from './lib/template_updates.js';
 import prisma from './lib/prisma.js';
 import { scheduleRetentionPurge } from './lib/retention.js';
 
@@ -29,11 +31,13 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// quando for para producao, essa variavel vai ser false, entao ele vai rodar
-// para pegar o ip do usuario e nao do serv
-if (!process.env.MODO_DEV) {
-  app.set('trust proxy', true);
-}
+// IP real do usuário atrás de proxy (ng serve em dev, nginx em produção).
+// Só confia no X-Forwarded-For quando quem repassa é um proxy NESTA máquina
+// ('loopback'): confiar em qualquer origem ('true') deixava o próprio usuário
+// inventar o IP e burlar o limite de tentativas de login e a auditoria.
+// Proxy em outra máquina: defina TRUST_PROXY (ex.: "10.0.0.5" ou "1" saltos).
+const trustProxy = process.env.TRUST_PROXY?.trim() || 'loopback';
+app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -72,6 +76,7 @@ app.use('/api/targets', targetRoutes);
 app.use('/api/scans', scanRoutes);
 app.use('/api/sast', sastRoutes);
 app.use('/api/privacy', privacyRoutes);
+app.use('/api/admin', adminRoutes);
 
 // fallback, para se nao achar, retornar aqui, sem estourar banco
 app.use((req, res) => {
@@ -94,6 +99,7 @@ const server = app.listen(PORT, async () => {
   }
 
   scheduleRetentionPurge();
+  scheduleTemplateUpdates(); // RF-45
 });
 
 // p/ deploy, desligar automaticamente

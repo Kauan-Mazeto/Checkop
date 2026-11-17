@@ -110,3 +110,28 @@ export const runSubdomainEnum = async ({ domain }) => {
         clearTimeout(timeoutId);
     }
 };
+// RF-45: o motor baixa a versão mais recente dos templates do Nuclei
+const TEMPLATE_UPDATE_TIMEOUT_MS = 11 * 60 * 1000;
+
+export const updateNucleiTemplates = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TEMPLATE_UPDATE_TIMEOUT_MS);
+    try {
+        const response = await fetch(`${SECURITY_ENGINE_URL}/templates/update`, {
+            method: 'POST',
+            headers: engineHeaders(),
+            signal: controller.signal,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new SecurityEngineError(data?.detail || 'Erro ao atualizar os templates do Nuclei.', response.status);
+        }
+        return data;
+    } catch (err) {
+        if (err.name === 'AbortError') throw new SecurityEngineError('Tempo limite excedido ao atualizar os templates.', 504);
+        if (err instanceof SecurityEngineError) throw err;
+        throw new SecurityEngineError('Motor de segurança indisponível.', 503);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};

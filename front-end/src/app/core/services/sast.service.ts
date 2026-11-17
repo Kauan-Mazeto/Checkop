@@ -24,12 +24,44 @@ export interface SastResult {
   durationSeconds: number;
 }
 
+// Espelha backend/src/validators/sast_validator.js (aiFixSchema).
+export interface AiFixRequest {
+  code: string;
+  firstLine: number;
+  startLine: number;
+  endLine: number;
+  language: string;
+  title: string;
+  description?: string | null;
+  remediation?: string | null;
+}
+
+export interface AiFixResult {
+  fixedCode: string;
+  explanation: string;
+  model: string;
+}
+
 // limites do backend: 10mb por requisição (server.js) e 10 análises/hora (sastLimiter)
 export const SAST_MAX_TOTAL_BYTES = 9 * 1024 * 1024;
 
 @Injectable({ providedIn: 'root' })
 export class SastService {
   private readonly http = inject(HttpClient);
+
+  /** O servidor tem credencial da Anthropic para a correção com IA? */
+  aiConfig(): Observable<{ enabled: boolean }> {
+    return this.http
+      .get<{ enabled: boolean }>(`${API_BASE_URL}/sast/ai-config`, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** POST /api/sast/fix — correção sugerida pela IA para a janela de código do achado. */
+  suggestFix(request: AiFixRequest): Observable<AiFixResult> {
+    return this.http
+      .post<AiFixResult>(`${API_BASE_URL}/sast/fix`, request, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
 
   /** POST /api/sast/analyze — { files: { "nome.ext": "conteúdo" } }. Pode levar até 2 min. */
   analyze(files: Record<string, string>): Observable<SastResult> {

@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, throwError } from 'rxjs';
 import { API_BASE_URL } from '../constants/api.constants';
 import { toApiError } from '../http/api-error';
+import type { UserRole } from './auth.service';
 
 // Espelham os enums do backend (backend/prisma/schema.prisma).
 export type ScanEnvironment = 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
@@ -78,10 +79,37 @@ export interface ScanSummary {
 export interface ScanDetail extends Omit<Scan, 'findingsCount'> {
   objectiveLabel: string;
   plan?: 'FREE' | 'PREMIUM';
+  /** perfil de quem pediu (RF-11): define o formato do relatório */
+  role?: UserRole;
   engineWarnings: string[];
   activeScanConfirmedAt: string | null;
   summary: ScanSummary;
   findings: Finding[];
+}
+
+// Espelha GET /api/scans/:id/compare (RF-19).
+export interface ComparedScan {
+  id: string;
+  createdAt: string;
+  finishedAt: string | null;
+  objective: string;
+  objectiveLabel: string;
+}
+
+export interface PersistentFinding extends Finding {
+  previousSeverity: FindingSeverity;
+  trend: 'WORSE' | 'BETTER' | 'SAME';
+}
+
+export interface ScanComparison {
+  current: ComparedScan;
+  /** null = não há varredura anterior do mesmo alvo e tipo de teste */
+  base: ComparedScan | null;
+  candidates: ComparedScan[];
+  summary?: { added: number; fixed: number; persistent: number };
+  added?: Finding[];
+  fixed?: Finding[];
+  persistent?: PersistentFinding[];
 }
 
 // Espelha GET /api/scans/stats.
@@ -135,6 +163,14 @@ export class ScanService {
     return this.http
       .get<{ scan: ScanDetail }>(`${API_BASE_URL}/scans/${encodeURIComponent(id)}`, withCredentials)
       .pipe(map((response) => response.scan), catchError(this.fail));
+  }
+
+  /** RF-19: compara com a varredura anterior do mesmo alvo (ou com `withId`). Premium. */
+  compareScan(id: string, withId?: string | null): Observable<ScanComparison> {
+    const query = withId ? `?with=${encodeURIComponent(withId)}` : '';
+    return this.http
+      .get<ScanComparison>(`${API_BASE_URL}/scans/${encodeURIComponent(id)}/compare${query}`, withCredentials)
+      .pipe(catchError(this.fail));
   }
 
   getStats(): Observable<ScanStats> {

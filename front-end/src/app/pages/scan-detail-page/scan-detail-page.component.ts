@@ -5,7 +5,8 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService } from '../../core/services/auth.service';
-import { Finding, FindingSeverity, ScanDetail, ScanObjective, ScanService, ZapAuthOptions } from '../../core/services/scan.service';
+import { Finding, FindingSeverity, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions } from '../../core/services/scan.service';
+import { RoleView, roleView } from '../../shared/ui/role-views';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
@@ -29,7 +30,7 @@ import {
   sortBySeverity,
 } from './scan-detail.logic';
 
-type Tab = 'overview' | 'findings' | 'evidence' | 'compliance';
+type Tab = 'overview' | 'findings' | 'evidence' | 'compliance' | 'compare';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -54,7 +55,13 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected readonly hasEvidence = hasEvidence;
   protected readonly doughnutOptions = DOUGHNUT_OPTIONS as ChartOptions;
   protected readonly barOptions = BAR_OPTIONS as ChartOptions;
-  protected readonly isStudent = this.auth.getCachedUser()?.role === 'STUDENT';
+  // RF-11: formato do relatório pelo perfil (o servidor confirma o perfil em scan.role)
+  protected view: RoleView = roleView(this.auth.getCachedUser()?.role);
+  private viewApplied = false;
+
+  protected get isStudent(): boolean {
+    return this.view.explanations;
+  }
   protected readonly today = new Date();
 
   private scanId = '';
@@ -85,6 +92,34 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected hostingTermsConfirmed = false;
   protected isStarting = false;
   protected runError: ApiError | null = null;
+
+  // RF-19: comparação com uma varredura anterior (carregada ao abrir a aba)
+  protected comparison: ScanComparison | null = null;
+  protected compareBaseId: string | null = null;
+  protected isComparing = false;
+  protected compareError: string | null = null;
+
+  protected openCompare(): void {
+    this.tab = 'compare';
+    if (!this.comparison && !this.isComparing && this.isPremium) this.loadComparison();
+  }
+
+  protected loadComparison(withId: string | null = null): void {
+    if (!this.scan) return;
+    this.isComparing = true;
+    this.compareError = null;
+    this.scanService.compareScan(this.scan.id, withId).subscribe({
+      next: (comparison) => {
+        this.comparison = comparison;
+        this.compareBaseId = comparison.base?.id ?? null;
+        this.isComparing = false;
+      },
+      error: (error: ApiError) => {
+        this.compareError = error.message;
+        this.isComparing = false;
+      },
+    });
+  }
 
   ngOnInit(): void {
     this.scanId = this.route.snapshot.paramMap.get('id') ?? '';
@@ -213,6 +248,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
       next: (scan) => {
         this.scan = scan;
         this.isLoading = false;
+        this.applyRoleView(scan);
         this.loadError = null;
         this.derive(scan);
         scan.status === 'RUNNING' ? this.startPolling() : this.stopPolling();
@@ -226,6 +262,19 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   }
 
   // ---------- internos ----------
+
+  /** Na primeira carga, abre a aba e os achados que o perfil prioriza (RF-11). */
+  private applyRoleView(scan: ScanDetail): void {
+    if (scan.role) this.view = roleView(scan.role);
+    if (this.viewApplied || scan.status !== 'COMPLETED') return;
+    this.viewApplied = true;
+    const wantsEvidence = this.view.defaultTab === 'evidence';
+    // evidência só faz sentido se o plano e o perfil a recebem e se ela existe
+    this.tab = wantsEvidence && !scan.findings.some(hasEvidence) ? 'findings' : this.view.defaultTab;
+    if (this.view.expandHighRisk) {
+      this.expanded = new Set(scan.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').map((f) => f.id));
+    }
+  }
 
   private derive(scan: ScanDetail): void {
     this.sortedFindings = sortBySeverity(scan.findings);

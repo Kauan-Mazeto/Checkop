@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, tap, throwError } from 'rxjs';
 import { API_BASE_URL } from '../constants/api.constants';
 import { toApiError } from '../http/api-error';
-import { AuthService, AuthUser, UserPlan } from './auth.service';
+import { AuthService, AuthUser, UserPlan, UserRole } from './auth.service';
 
 export interface LoginAttempt {
   success: boolean;
@@ -45,6 +45,28 @@ export class AccountService {
   }
 
   /** Troca demonstrativa de plano (sem cobrança). Atualiza o cache local. */
+  /** RF-05 / RF-11: troca o perfil de uso (muda o painel e o formato dos relatórios). */
+  changeRole(role: Exclude<UserRole, 'ADM'>): Observable<AuthUser> {
+    return this.http
+      .patch<{ user: AuthUser }>(`${API_BASE_URL}/auth/role`, { role }, withCredentials)
+      .pipe(
+        map((r) => r.user),
+        tap((user) => this.auth.updateCachedUser({ role: user.role })),
+        catchError(this.fail)
+      );
+  }
+
+  /** RF-22: liga ou desliga o e-mail ao terminar cada varredura. */
+  updatePreferences(notifyScanEmail: boolean): Observable<{ notifyScanEmail: boolean }> {
+    return this.http
+      .patch<{ preferences: { notifyScanEmail: boolean } }>(`${API_BASE_URL}/auth/preferences`, { notifyScanEmail }, withCredentials)
+      .pipe(
+        map((r) => r.preferences),
+        tap((prefs) => this.auth.updateCachedUser(prefs)),
+        catchError(this.fail)
+      );
+  }
+
   changePlan(plan: UserPlan): Observable<AuthUser> {
     return this.http
       .patch<{ user: AuthUser }>(`${API_BASE_URL}/auth/plan`, { plan }, withCredentials)

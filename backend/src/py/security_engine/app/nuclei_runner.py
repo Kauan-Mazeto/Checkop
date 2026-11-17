@@ -168,9 +168,25 @@ async def run_nuclei_scan(
 
     return findings, duration
 
+TEMPLATE_UPDATE_TIMEOUT_SECONDS = int(os.getenv("NUCLEI_TEMPLATE_UPDATE_TIMEOUT_SECONDS", "600"))
+
+
 def update_templates() -> None:
+    """RF-45: baixa a versão mais recente dos templates do Nuclei."""
     if not NUCLEI_BINARY:
         raise NucleiNotInstalledError("Binário 'nuclei' não encontrado no PATH.")
-    # RF-45
     import subprocess
-    subprocess.run([NUCLEI_BINARY, "-update-templates"], check=True, capture_output=True)
+
+    try:
+        subprocess.run(
+            [NUCLEI_BINARY, "-update-templates"],
+            check=True,
+            capture_output=True,
+            timeout=TEMPLATE_UPDATE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise NucleiExecutionError("A atualização dos templates demorou demais e foi interrompida.") from err
+    except subprocess.CalledProcessError as err:
+        # o detalhe (stderr) fica no log do motor; quem chama recebe uma mensagem curta
+        print(f"[nuclei] falha ao atualizar templates: {err.stderr[-500:] if err.stderr else err}")
+        raise NucleiExecutionError("O Nuclei não conseguiu atualizar os templates (sem internet?).") from err

@@ -15,6 +15,8 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   plan?: UserPlan;
+  /** RF-22: e-mail ao terminar cada varredura */
+  notifyScanEmail?: boolean;
 }
 
 // Espelha o corpo de resposta de POST /api/auth/login e /api/auth/register
@@ -49,6 +51,8 @@ export interface MeResponse {
   email: string;
   name?: string;
   plan?: UserPlan;
+  /** RF-22: e-mail ao terminar cada varredura */
+  notifyScanEmail?: boolean;
 }
 
 // Espelha os formatos de erro do backend:

@@ -59,3 +59,18 @@ test('requirePlan bloqueia Free com PREMIUM_REQUIRED e libera Premium', () => {
   requirePlan('PREMIUM')(fakeReq({ userPlan: 'PREMIUM' }), fakeRes(), () => (nextCalled = true));
   assert.equal(nextCalled, true);
 });
+
+// ---------- RF-11: relatório por perfil ----------
+
+test('Estudante recebe o modo de estudo: sem requisição e resposta cruas, mesmo no Premium', () => {
+  const out = serializeFinding(finding, { safeMode: false, plan: 'PREMIUM', role: 'STUDENT' });
+  assert.equal('rawRequest' in out, false);
+  assert.equal('rawResponse' in out, false);
+  assert.equal(out.remediation, finding.remediation); // a correção continua (é educativa)
+});
+
+test('Pentester no Premium recebe o payload completo', () => {
+  const out = serializeFinding(finding, { safeMode: false, plan: 'PREMIUM', role: 'PENTESTER' });
+  assert.equal(out.rawRequest, finding.rawRequest);
+  assert.equal(out.parameter, finding.parameter);
+});

@@ -37,3 +37,13 @@ export const resetPasswordSchema = z.object({
 export const changePlanSchema = z.object({
   plan: z.enum(['FREE', 'PREMIUM']),
 });
+
+// troca do perfil de uso (RF-05); ADM não é escolhível
+export const changeRoleSchema = z.object({
+  role: z.enum(['DEV', 'QA', 'PENTESTER', 'STUDENT']),
+});
+
+// RF-22: preferências de notificação
+export const preferencesSchema = z.object({
+  notifyScanEmail: z.boolean(),
+});

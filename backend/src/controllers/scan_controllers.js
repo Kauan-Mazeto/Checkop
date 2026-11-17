@@ -6,6 +6,9 @@ import { getDomain } from 'tldts';
 import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
+import { SEVERITY_RANK, findingKey } from '../lib/finding_identity.js';
+import { compareFindings } from '../lib/scan_compare.js';
+import { notifyScanFinished } from '../lib/scan_notifications.js';
 import { DAILY_LIMIT_CODE, PREMIUM_REQUIRED_CODE, isObjectiveAllowed, planRules, startOfToday } from '../constants/plans.js';
 
 const serializeIps = (ips) => ips.join(',');
@@ -15,7 +18,6 @@ const deserializeIps = (value) => (value ? value.split(',') : []);
 // Dois achados são "o mesmo" quando têm a mesma CLASSE de vulnerabilidade e a mesma
 // URL (sem query string). Assim, ZAP e Nuclei apontando o mesmo SQLi em /api/busca
 // viram um único registro, mesmo que cada um dê um nome diferente ao achado.
-const SEVERITY_RANK = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
 const FILL_FIELDS = ['description', 'cveId', 'cvssScore', 'rawRequest', 'rawResponse', 'remediation', 'owaspUrl'];
 
 const SEVERITY_BADGE = {
@@ -56,41 +58,11 @@ const buildScanSummary = (findings) => {
   return { badge: SEVERITY_BADGE[worst.severity], verdict, severityCounts };
 };
 
-const VULN_CLASSES = [
-  ['sqli', /sql[\s-]*inj|sqli/i],
-  ['xss', /xss|cross[\s-]*site[\s-]*scripting/i],
-  ['csrf', /csrf|cross[\s-]*site[\s-]*request[\s-]*forgery/i],
-  ['ssrf', /ssrf|server[\s-]*side[\s-]*request/i],
-  ['open-redirect', /redirect/i],
-  ['path-traversal', /path[\s-]*traversal|\blfi\b|local[\s-]*file/i],
-  ['rce', /\brce\b|remote[\s-]*code|command[\s-]*inj/i],
-];
-
-const classifyFinding = (finding) => {
-  const title = (finding.title ?? '').trim();
-  for (const [name, pattern] of VULN_CLASSES) {
-    if (pattern.test(title)) return name;
-  }
-  return title.toLowerCase();
-};
-
-const normalizeUrl = (value) => {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    const path = url.pathname.replace(/\/+$/, '') || '/';
-    return `${url.protocol}//${url.host}${path}`.toLowerCase();
-  } catch {
-    return String(value).toLowerCase(); // ex.: Subfinder devolve só o host
-  }
-};
-
 const dedupeFindings = (findings) => {
   const groups = new Map();
 
   for (const finding of findings) {
-    const where = normalizeUrl(finding.affectedUrl) ?? finding.rawRequest ?? finding.description ?? '';
-    const key = `${classifyFinding(finding)}::${where}`;
+    const key = findingKey(finding);
 
     if (!groups.has(key)) {
       groups.set(key, { best: finding, rest: [], tools: new Set([finding.tool]) });
@@ -452,12 +424,98 @@ const getScanById = async (req, res) => {
         engineWarnings: req.resource.engineWarnings ? JSON.parse(req.resource.engineWarnings) : [],
         summary: buildScanSummary(findings),
         plan: req.userPlan,
-        findings: serializeFindings(findings, { safeMode: req.resource.safeMode, plan: req.userPlan }),
+        role: req.userRole,
+        findings: serializeFindings(findings, { safeMode: req.resource.safeMode, plan: req.userPlan, role: req.userRole }),
       },
     });
   } catch (error) {
     console.error('Erro ao buscar varredura:', error);
     return res.status(500).json({ error: 'Erro interno ao buscar varredura.' });
+  }
+};
+
+// RF-19 - compara esta varredura com uma anterior do MESMO alvo e do MESMO
+// objetivo (objetivos diferentes testam coisas diferentes: comparar um scan de
+// SQLi com um de cabeçalhos diria que tudo foi "corrigido"). Sem ?with=, usa a
+// varredura concluída imediatamente anterior. Comparar exige histórico (Premium).
+const SCAN_SUMMARY_FIELDS = { id: true, targetUrl: true, objective: true, createdAt: true, finishedAt: true, status: true, safeMode: true };
+
+const compareScans = async (req, res) => {
+  try {
+    if (planRules(req.userPlan).visibleScans !== null) {
+      return res.status(403).json({
+        error: 'Comparar varreduras usa o histórico completo, um recurso Premium.',
+        code: PREMIUM_REQUIRED_CODE,
+      });
+    }
+
+    const current = req.resource;
+    if (current.status !== 'COMPLETED') {
+      return res.status(409).json({ error: 'A varredura ainda não terminou; compare quando ela estiver concluída.' });
+    }
+
+    const sameTarget = {
+      userId: req.userId,
+      targetUrl: current.targetUrl,
+      objective: current.objective,
+      status: 'COMPLETED',
+      id: { not: current.id },
+    };
+
+    // varreduras que podem ser escolhidas para comparar (mais recentes primeiro)
+    const candidates = await prisma.scan.findMany({
+      where: sameTarget,
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: SCAN_SUMMARY_FIELDS,
+    });
+
+    const withId = typeof req.query.with === 'string' ? req.query.with : null;
+    const base = withId
+      ? candidates.find((scan) => scan.id === withId)
+      : candidates.find((scan) => scan.createdAt < current.createdAt) ?? null;
+
+    if (withId && !base) {
+      return res.status(404).json({ error: 'Varredura para comparação não encontrada (precisa ser do mesmo alvo e do mesmo tipo de teste).' });
+    }
+
+    const pick = (scan) => ({
+      id: scan.id,
+      createdAt: scan.createdAt,
+      finishedAt: scan.finishedAt,
+      objective: scan.objective,
+      objectiveLabel: SCAN_OBJECTIVES[scan.objective]?.label ?? scan.objective,
+    });
+
+    if (!base) {
+      return res.status(200).json({ current: pick(current), base: null, candidates: candidates.map(pick) });
+    }
+
+    const [previousFindings, currentFindings] = await Promise.all([
+      prisma.finding.findMany({ where: { scanId: base.id } }),
+      prisma.finding.findMany({ where: { scanId: current.id } }),
+    ]);
+    const diff = compareFindings(previousFindings, currentFindings);
+
+    // cada achado segue o Modo Seguro da varredura de onde veio (RF-08)
+    const serializeFrom = (scan) => (list) => serializeFindings(list, { safeMode: scan.safeMode, plan: req.userPlan, role: req.userRole });
+
+    return res.status(200).json({
+      current: pick(current),
+      base: pick(base),
+      candidates: candidates.map(pick),
+      summary: diff.summary,
+      added: serializeFrom(current)(diff.added),
+      fixed: serializeFrom(base)(diff.fixed),
+      persistent: diff.persistent.map((item) => ({
+        ...serializeFrom(current)([item.finding])[0],
+        previousSeverity: item.previousSeverity,
+        trend: item.trend,
+      })),
+    });
+  } catch (error) {
+    console.error('Erro ao comparar varreduras:', error);
+    return res.status(500).json({ error: 'Erro interno ao comparar varreduras.' });
   }
 };
 
@@ -552,6 +610,8 @@ const executeScan = async (scan, runOptions = {}) => {
       console.error(`[scan ${scan.id}] não foi possível marcar como FAILED:`, updateError);
     }
   }
+  // RF-22: avisa o dono por e-mail (concluída ou com falha); nunca lança erro
+  await notifyScanFinished(scan.id);
 };
 
 // Dispara a varredura (RF-10) e responde NA HORA com 202. O trabalho pesado
@@ -639,4 +699,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, runScan };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan };

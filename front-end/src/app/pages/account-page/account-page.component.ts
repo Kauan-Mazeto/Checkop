@@ -4,10 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/http/api-error';
 import { AccountService, LoginAttempt, PrivacyPolicy, TermsOfUse } from '../../core/services/account.service';
-import { AuthService, AuthUser, UserPlan } from '../../core/services/auth.service';
+import { AuthService, AuthUser, UserPlan, UserRole } from '../../core/services/auth.service';
+import { ROLE_VIEWS } from '../../shared/ui/role-views';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
-import { ROLE_LABEL } from '../../shared/ui/labels';
+import { ROLE_LABEL, formatIp } from '../../shared/ui/labels';
 
 const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
 
@@ -24,6 +25,7 @@ export class AccountPageComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly roleLabel = ROLE_LABEL;
+  protected readonly formatIp = formatIp;
   protected readonly deletePhrase = DELETE_PHRASE;
 
   protected user: AuthUser | null = this.auth.getCachedUser();
@@ -36,6 +38,45 @@ export class AccountPageComponent implements OnInit {
 
   protected isChangingPlan = false;
   protected planMessage: string | null = null;
+
+  // RF-05 / RF-11: troca de perfil de uso
+  protected readonly selectableRoles = (['QA', 'DEV', 'PENTESTER', 'STUDENT'] as const).map((id) => ({ id, ...ROLE_VIEWS[id] }));
+  protected isChangingRole = false;
+
+  // RF-22: notificação por e-mail (padrão: ligada)
+  protected notifyScanEmail = this.auth.getCachedUser()?.notifyScanEmail ?? true;
+  protected notifyMessage: { ok: boolean; text: string } | null = null;
+
+  protected toggleNotify(value: boolean): void {
+    const previous = this.notifyScanEmail;
+    this.notifyScanEmail = value;
+    this.notifyMessage = null;
+    this.account.updatePreferences(value).subscribe({
+      next: () => (this.notifyMessage = { ok: true, text: value ? 'Você vai receber um e-mail quando cada varredura terminar.' : 'Notificações por e-mail desligadas.' }),
+      error: (error: ApiError) => {
+        this.notifyScanEmail = previous;
+        this.notifyMessage = { ok: false, text: error.message };
+      },
+    });
+  }
+  protected roleMessage: { ok: boolean; text: string } | null = null;
+
+  protected changeRole(role: Exclude<UserRole, 'ADM'>): void {
+    if (!this.user || this.isChangingRole || this.user.role === role) return;
+    this.isChangingRole = true;
+    this.roleMessage = null;
+    this.account.changeRole(role).subscribe({
+      next: (user) => {
+        this.isChangingRole = false;
+        this.user = { ...this.user!, role: user.role };
+        this.roleMessage = { ok: true, text: 'Perfil atualizado. O painel e os relatórios já seguem o novo perfil.' };
+      },
+      error: (error: ApiError) => {
+        this.isChangingRole = false;
+        this.roleMessage = { ok: false, text: error.message };
+      },
+    });
+  }
 
   protected googleAccount = false;
   protected deletePassword = '';

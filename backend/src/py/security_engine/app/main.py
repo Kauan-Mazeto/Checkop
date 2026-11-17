@@ -119,4 +119,6 @@ def update_nuclei_templates():
         update_templates()
     except NucleiNotInstalledError as err:
         raise HTTPException(status_code=503, detail=str(err))
+    except NucleiExecutionError as err:
+        raise HTTPException(status_code=502, detail=str(err))
     return {"message": "Templates do Nuclei atualizados com sucesso."}
