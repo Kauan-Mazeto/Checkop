@@ -30,6 +30,7 @@ router.get('/me', authMiddleware, (req, res) => {
     name: req.userName,
     plan: req.userPlan,
     notifyScanEmail: req.userNotifyScanEmail,
+    language: req.userLanguage,
   });
 });
 

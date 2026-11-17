@@ -355,3 +355,46 @@ h3 {
   align-items: center;
   gap: 8px;
 }
+// mesma falha em vários locais: lista dentro do achado
+.locations ul {
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+// botão de cancelar dentro do cartão "em andamento"
+.running-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+// vermelho sólido: ação que interrompe a varredura
+.cancel-scan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+  line-height: 1;
+  text-align: center;
+
+  &:hover:not(:disabled) {
+    border-color: var(--brand-hover);
+    background: var(--brand-hover);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+  }
+}

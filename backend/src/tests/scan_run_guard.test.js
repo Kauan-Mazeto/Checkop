@@ -37,6 +37,11 @@ const prismaMock = {
 };
 
 mock.module(new URL('../lib/prisma.js', import.meta.url).href, { defaultExport: prismaMock });
+// as chamadas longas ao motor usam node:http (engine_http.js); aqui elas caem no
+// fetch falso de cada teste, que registra o que foi enviado
+mock.module(new URL('../lib/py/engine_http.js', import.meta.url).href, {
+  namedExports: { engineRequest: (url, init) => globalThis.fetch(url, init) },
+});
 
 const { default: scanController } = await import('../controllers/scan_controllers.js');
 const { runScanAuthSchema } = await import('../validators/scan_validator.js');

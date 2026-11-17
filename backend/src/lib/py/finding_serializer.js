@@ -6,7 +6,7 @@ const PREMIUM_FIELDS = ['remediation', 'rawRequest', 'rawResponse', 'parameter']
 
 const SAFE_MODE_FIELDS = [
   'id', 'title', 'severity', 'status', 'tool', 'ruleId', 'affectedUrl', 'cveId',
-  'cvssScore', 'owaspUrl', 'remediation', 'createdAt',
+  'cvssScore', 'cvssVector', 'cvssSource', 'confidence', 'owaspUrl', 'remediation', 'createdAt',
 ];
 
 // RF-11: o perfil Estudante recebe o painel educacional; requisições e

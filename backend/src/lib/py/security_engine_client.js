@@ -1,3 +1,5 @@
+import { engineRequest } from './engine_http.js';
+
 // (RNF 1)
 const SECURITY_ENGINE_URL = process.env.SECURITY_ENGINE_URL || 'http://localhost:8010';
 const REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // varredura roda em segundo plano, então pode demorar
@@ -17,15 +19,15 @@ export class SecurityEngineError extends Error {
     }
 }
 
-export const runNucleiScan = async ({ targetUrl, safeMode, rateLimit, tags }) => {
+export const runNucleiScan = async ({ targetUrl, safeMode, rateLimit, tags, jobId }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
 
-        const response = await fetch(`${SECURITY_ENGINE_URL}/scans/nuclei`, {
+        const response = await engineRequest(`${SECURITY_ENGINE_URL}/scans/nuclei`, {
             method: 'POST',
             headers: engineHeaders(),
-            body: JSON.stringify({ targetUrl, safeMode, rateLimit, tags }),
+            body: JSON.stringify({ targetUrl, safeMode, rateLimit, tags, jobId }),
             signal: controller.signal,
         });
 
@@ -53,15 +55,15 @@ export const runNucleiScan = async ({ targetUrl, safeMode, rateLimit, tags }) =>
 };
 
 
-export const runZapScan = async ({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider }) => {
+export const runZapScan = async ({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider, jobId }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${SECURITY_ENGINE_URL}/scans/zap`, {
+        const response = await engineRequest(`${SECURITY_ENGINE_URL}/scans/zap`, {
             method: 'POST',
             headers: engineHeaders(),
-            body: JSON.stringify({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider }),
+            body: JSON.stringify({ targetUrl, safeMode, activeScan, scannerIds, auth, useAjaxSpider, jobId }),
             signal: controller.signal,
         });
 
@@ -91,7 +93,7 @@ export const runSubdomainEnum = async ({ domain }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-        const response = await fetch(`${SECURITY_ENGINE_URL}/scans/subdomains`, {
+        const response = await engineRequest(`${SECURITY_ENGINE_URL}/scans/subdomains`, {
             method: 'POST',
             headers: engineHeaders(),
             body: JSON.stringify({ domain }),
@@ -117,7 +119,7 @@ export const updateNucleiTemplates = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TEMPLATE_UPDATE_TIMEOUT_MS);
     try {
-        const response = await fetch(`${SECURITY_ENGINE_URL}/templates/update`, {
+        const response = await engineRequest(`${SECURITY_ENGINE_URL}/templates/update`, {
             method: 'POST',
             headers: engineHeaders(),
             signal: controller.signal,
@@ -131,6 +133,56 @@ export const updateNucleiTemplates = async () => {
         if (err.name === 'AbortError') throw new SecurityEngineError('Tempo limite excedido ao atualizar os templates.', 504);
         if (err instanceof SecurityEngineError) throw err;
         throw new SecurityEngineError('Motor de segurança indisponível.', 503);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+// textos das regras no idioma do usuário; devolve { original: traduzido }
+const TRANSLATE_TIMEOUT_MS = 45 * 1000;
+
+export const translateTexts = async (texts, target) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TRANSLATE_TIMEOUT_MS);
+    try {
+        const response = await fetch(`${SECURITY_ENGINE_URL}/translate`, {
+            method: 'POST',
+            headers: engineHeaders(),
+            body: JSON.stringify({ texts, target }),
+            signal: controller.signal,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new SecurityEngineError(data?.detail || 'Erro ao traduzir os textos.', response.status);
+        }
+        return data?.translations ?? {};
+    } catch (err) {
+        if (err.name === 'AbortError') throw new SecurityEngineError('Tempo limite excedido ao traduzir.', 504);
+        if (err instanceof SecurityEngineError) throw err;
+        throw new SecurityEngineError('Motor de segurança indisponível para tradução.', 503);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+// pede ao motor que pare as ferramentas desta varredura; elas devolvem o que já
+// encontraram e a chamada original (Nuclei/ZAP) termina normalmente
+export const cancelEngineJob = async (jobId) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15 * 1000);
+    try {
+        const response = await fetch(`${SECURITY_ENGINE_URL}/scans/${encodeURIComponent(jobId)}/cancel`, {
+            method: 'POST',
+            headers: engineHeaders(),
+            signal: controller.signal,
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new SecurityEngineError(data?.detail || 'Erro ao cancelar a varredura no motor.', response.status);
+        }
+        return data;
+    } catch (err) {
+        if (err instanceof SecurityEngineError) throw err;
+        throw new SecurityEngineError('Motor de segurança indisponível para cancelar.', 503);
     } finally {
         clearTimeout(timeoutId);
     }

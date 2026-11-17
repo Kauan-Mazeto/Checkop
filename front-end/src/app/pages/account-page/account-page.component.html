@@ -1,4 +1,4 @@
-<app-shell>
+﻿<app-shell>
   <header class="page-header">
     <div>
       <h1>Conta e privacidade</h1>
@@ -17,7 +17,7 @@
         <div><dt>Plano</dt><dd><span class="badge" [class.badge-pro]="isPremium">{{ isPremium ? 'Premium' : 'Free' }}</span></dd></div>
       </dl>
       <div class="card-body role-switch" *ngIf="user.role !== 'ADM'">
-        <span class="hint">O perfil muda o painel e o formato dos relatórios (RF-11).</span>
+        <span class="hint">O perfil muda o painel e o formato dos relatórios.</span>
         <div class="role-options" role="radiogroup" aria-label="Perfil de uso">
           <button *ngFor="let r of selectableRoles" type="button" role="radio" class="role-option"
             [class.selected]="user.role === r.id" [attr.aria-checked]="user.role === r.id"
@@ -57,6 +57,25 @@
         Com a contagem por severidade e destaque para falhas críticas e altas. Os detalhes técnicos ficam só na plataforma.
       </app-check>
       <div *ngIf="notifyMessage" class="alert" [class.alert-success]="notifyMessage.ok" [class.alert-error]="!notifyMessage.ok" role="status">{{ notifyMessage.text }}</div>
+    </div>
+  </section>
+
+  <!-- Idioma dos relatórios -->
+  <section class="card">
+    <header class="card-header">
+      <div>
+        <h2>Idioma dos relatórios</h2>
+        <p>Título, descrição e "como corrigir" de cada achado. As ferramentas publicam as regras em inglês; os demais idiomas são traduzidos automaticamente.</p>
+      </div>
+    </header>
+    <div class="card-body form">
+      <label class="field">
+        <span>Idioma</span>
+        <select class="select" name="language" [ngModel]="language" (ngModelChange)="changeLanguage($event)" [disabled]="isSavingLanguage">
+          <option *ngFor="let l of languages" [value]="l.code">{{ l.label }}</option>
+        </select>
+      </label>
+      <div *ngIf="languageMessage" class="alert" [class.alert-success]="languageMessage.ok" [class.alert-error]="!languageMessage.ok" role="status">{{ languageMessage.text }}</div>
     </div>
   </section>
 

@@ -664,6 +664,12 @@
       background: var(--brand-soft);
       color: var(--brand-hover);
     }
+
+    &[data-status='CANCELED'] {
+      border-color: rgba(197, 166, 108, 0.3);
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
   }
 
   .env {
@@ -864,6 +870,7 @@
   }
 
   .switch {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 10px;
@@ -871,9 +878,17 @@
     font-size: 13px;
     cursor: pointer;
 
+    // escondido de verdade e preso ao switch: um input invisível solto na
+    // página capturava cliques de outros elementos e ligava a opção sem querer
     input {
       position: absolute;
+      top: 0;
+      left: 0;
+      width: 1px;
+      height: 1px;
+      margin: 0;
       opacity: 0;
+      pointer-events: none;
     }
 
     .switch-track {
@@ -1432,6 +1447,54 @@
 
     &.alert-dot-danger {
       background: var(--brand);
+    }
+  }
+
+  // sugestões de correção recolhidas, com seta para abrir
+  .fix-list-collapsible {
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      list-style: none;
+      font-weight: 600;
+      color: var(--text);
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--info);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+    }
+
+    .fix-title {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .fix-arrow {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      margin-right: 4px;
+      border-right: 2px solid var(--text-2);
+      border-bottom: 2px solid var(--text-2);
+      transform: rotate(45deg);
+      transition: transform 0.15s ease;
+    }
+
+    details[open] .fix-arrow {
+      transform: rotate(-135deg);
+    }
+
+    details p {
+      margin: 8px 0 0;
+      white-space: pre-line;
     }
   }
 

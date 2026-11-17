@@ -4,7 +4,7 @@
 // varreduras concluídas mais recentes (GET /api/scans/:id). No plano Free o
 // backend não envia correção nem PoC, e o painel mostra o que fica no Premium.
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Finding, FindingSeverity, Scan } from '../../core/services/scan.service';
@@ -104,7 +104,7 @@ const percent = (count: number, max: number): number => (count / Math.max(1, max
     </section>
   `,
 })
-export class QaPanelComponent {
+export class QaPanelComponent implements OnChanges {
   @Input() scans: Scan[] = [];
   @Input() findings: Finding[] = [];
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
@@ -112,23 +112,24 @@ export class QaPanelComponent {
   protected readonly severityLabel = SEVERITY_LABEL;
   protected readonly pct = percent;
 
-  protected get bySeverity() {
-    return severityCounts(this.findings);
-  }
-  protected get maxSeverity(): number {
-    return Math.max(...this.bySeverity.map((i) => i.count));
-  }
-  protected get types() {
-    return topTypes(this.findings);
-  }
-  protected get maxType(): number {
-    return Math.max(0, ...this.types.map((i) => i.count));
-  }
-  protected get repeated() {
-    return repeatedTargets(this.scans);
-  }
-  protected get latestCompleted(): Scan | undefined {
-    return this.scans.find((s) => s.status === 'COMPLETED');
+  // Calculados só quando as entradas mudam. Como getters, cada verificação do
+  // Angular criava objetos novos, o *ngFor recriava as barras, o layout mudava,
+  // o gráfico (ResizeObserver) redesenhava e disparava outra verificação: loop
+  // infinito que congelava o painel.
+  protected bySeverity: { severity: FindingSeverity; count: number }[] = [];
+  protected maxSeverity = 0;
+  protected types: { title: string; count: number }[] = [];
+  protected maxType = 0;
+  protected repeated: { targetUrl: string; runs: number }[] = [];
+  protected latestCompleted: Scan | undefined;
+
+  ngOnChanges(): void {
+    this.bySeverity = severityCounts(this.findings);
+    this.maxSeverity = Math.max(0, ...this.bySeverity.map((i) => i.count));
+    this.types = topTypes(this.findings);
+    this.maxType = Math.max(0, ...this.types.map((i) => i.count));
+    this.repeated = repeatedTargets(this.scans);
+    this.latestCompleted = this.scans.find((s) => s.status === 'COMPLETED');
   }
 }
 
@@ -173,10 +174,17 @@ export class QaPanelComponent {
           <h3>Sugestões de correção</h3>
           <ng-container *ngIf="plan.canSeeDetails; else fixLocked">
             <div *ngIf="fixes.length === 0" class="empty-box">As sugestões aparecerão após a primeira varredura.</div>
-            <ul *ngIf="fixes.length > 0" class="fix-list">
+            <!-- recolhidas por padrão: a correção é longa; a seta abre cada uma -->
+            <ul *ngIf="fixes.length > 0" class="fix-list fix-list-collapsible">
               <li *ngFor="let finding of fixes">
-                <strong><span class="badge sev" [attr.data-severity]="finding.severity">{{ severityLabel[finding.severity] }}</span> {{ finding.title }}</strong>
-                <p>{{ finding.remediation }}</p>
+                <details>
+                  <summary>
+                    <span class="badge sev" [attr.data-severity]="finding.severity">{{ severityLabel[finding.severity] }}</span>
+                    <span class="fix-title">{{ finding.title }}</span>
+                    <span class="fix-arrow" aria-hidden="true"></span>
+                  </summary>
+                  <p>{{ finding.remediation }}</p>
+                </details>
               </li>
             </ul>
           </ng-container>
@@ -191,23 +199,24 @@ export class QaPanelComponent {
     </section>
   `,
 })
-export class DevPanelComponent {
+export class DevPanelComponent implements OnChanges {
   @Input() scans: Scan[] = [];
   @Input() findings: Finding[] = [];
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
 
   protected readonly severityLabel = SEVERITY_LABEL;
 
-  protected get flagged(): Scan[] {
-    return this.scans.filter((s) => s.status === 'FAILED' || s.suspiciousEnvironment).slice(0, 5);
-  }
-  protected get highRisk(): number {
-    return this.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').length;
-  }
+  // calculados só quando as entradas mudam (ver QaPanelComponent)
+  protected flagged: Scan[] = [];
+  protected highRisk = 0;
   /** uma sugestão por tipo de falha, das mais graves para as mais leves */
-  protected get fixes(): Finding[] {
+  protected fixes: Finding[] = [];
+
+  ngOnChanges(): void {
+    this.flagged = this.scans.filter((s) => s.status === 'FAILED' || s.suspiciousEnvironment).slice(0, 5);
+    this.highRisk = this.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').length;
     const seen = new Set<string>();
-    return [...this.findings]
+    this.fixes = [...this.findings]
       .filter((f) => f.remediation)
       .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
       .filter((f) => !seen.has(f.title) && Boolean(seen.add(f.title)))
@@ -226,11 +235,11 @@ export class DevPanelComponent {
       <header class="card-header">
         <div><h2>Análise técnica</h2><p>Log, payload e saída bruta das varreduras concluídas.</p></div>
         <div class="filters">
-          <select class="select" aria-label="Filtrar por severidade" [disabled]="findings.length === 0" [(ngModel)]="severityFilter">
+          <select class="select" aria-label="Filtrar por severidade" [disabled]="findings.length === 0" [(ngModel)]="severityFilter" (ngModelChange)="applyFilters()">
             <option value="">{{ findings.length === 0 ? 'Severidade: sem dados' : 'Todas as severidades' }}</option>
             <option *ngFor="let s of severityOptions" [value]="s">{{ severityLabel[s] }}</option>
           </select>
-          <select class="select" aria-label="Filtrar por ferramenta" [disabled]="findings.length === 0" [(ngModel)]="toolFilter">
+          <select class="select" aria-label="Filtrar por ferramenta" [disabled]="findings.length === 0" [(ngModel)]="toolFilter" (ngModelChange)="applyFilters()">
             <option value="">{{ findings.length === 0 ? 'Ferramenta: sem dados' : 'Todas as ferramentas' }}</option>
             <option *ngFor="let t of tools" [value]="t">{{ t }}</option>
           </select>
@@ -268,7 +277,7 @@ export class DevPanelComponent {
     </section>
   `,
 })
-export class PentesterPanelComponent {
+export class PentesterPanelComponent implements OnChanges {
   @Input() scans: Scan[] = [];
   @Input() findings: Finding[] = [];
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
@@ -278,11 +287,17 @@ export class PentesterPanelComponent {
   protected severityFilter: FindingSeverity | '' = '';
   protected toolFilter = '';
 
-  protected get tools(): string[] {
-    return [...new Set(this.findings.map((f) => f.tool))];
+  // calculados só quando as entradas ou os filtros mudam (ver QaPanelComponent)
+  protected tools: string[] = [];
+  protected filtered: Finding[] = [];
+
+  ngOnChanges(): void {
+    this.tools = [...new Set(this.findings.map((f) => f.tool))];
+    this.applyFilters();
   }
-  protected get filtered(): Finding[] {
-    return this.findings
+
+  protected applyFilters(): void {
+    this.filtered = this.findings
       .filter((f) => !this.severityFilter || f.severity === this.severityFilter)
       .filter((f) => !this.toolFilter || f.tool === this.toolFilter)
       .slice(0, 30);
@@ -322,17 +337,19 @@ export class PentesterPanelComponent {
     </section>
   `,
 })
-export class StudentPanelComponent {
+export class StudentPanelComponent implements OnChanges {
   @Input() findings: Finding[] = [];
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
 
   protected readonly severityLabel = SEVERITY_LABEL;
   protected readonly explain = owaspExplanation;
 
-  /** um exemplo por tipo de falha, dos mais graves para os mais leves */
-  protected get explained(): Finding[] {
+  /** um exemplo por tipo de falha, dos mais graves para os mais leves (calculado só quando muda) */
+  protected explained: Finding[] = [];
+
+  ngOnChanges(): void {
     const seen = new Set<string>();
-    return [...this.findings]
+    this.explained = [...this.findings]
       .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
       .filter((f) => !seen.has(f.title) && Boolean(seen.add(f.title)))
       .slice(0, 5);

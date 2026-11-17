@@ -24,6 +24,7 @@ export const authGuard: CanActivateFn = () => {
         ...(session.name ? { name: session.name } : {}),
         ...(session.plan ? { plan: session.plan } : {}),
         ...(typeof session.notifyScanEmail === 'boolean' ? { notifyScanEmail: session.notifyScanEmail } : {}),
+        ...(session.language ? { language: session.language } : {}),
       });
       return true;
     }),

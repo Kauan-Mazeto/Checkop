@@ -7,7 +7,10 @@ import type { UserRole } from './auth.service';
 
 // Espelham os enums do backend (backend/prisma/schema.prisma).
 export type ScanEnvironment = 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
-export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELED';
+
+/** Concluída ou cancelada: as duas têm resultado (a cancelada, parcial). */
+export const hasResults = (status: ScanStatus): boolean => status === 'COMPLETED' || status === 'CANCELED';
 export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 export type FindingTool = 'ZAP' | 'NUCLEI' | 'SUBFINDER';
 
@@ -47,6 +50,17 @@ export interface ComplianceNote {
 
 // Espelha lib/py/finding_serializer.js. Em Modo Seguro (produção) o backend
 // não manda description/parameter/rawRequest/rawResponse (RF-08).
+/** Um dos lugares onde a falha aparece (o backend agrupa a mesma falha). */
+export interface FindingLocation {
+  id: string;
+  affectedUrl: string | null;
+  parameter?: string | null;
+  severity: FindingSeverity;
+  cvssScore?: number | null;
+  rawRequest?: string | null;
+  rawResponse?: string | null;
+}
+
 export interface Finding {
   id: string;
   title: string;
@@ -58,6 +72,12 @@ export interface Finding {
   parameter?: string | null;
   cveId: string | null;
   cvssScore: number | null;
+  /** CVSS 3.1: vetor usado no cálculo da nota */
+  cvssVector?: string | null;
+  /** origem do vetor: template (NVD), classe da falha (CWE) ou estimativa */
+  cvssSource?: 'TEMPLATE' | 'CWE' | 'SEVERITY' | null;
+  /** confiança da ferramenta no achado */
+  confidence?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CONFIRMED' | null;
   owaspUrl: string | null;
   description?: string | null;
   remediation: string | null;
@@ -67,6 +87,10 @@ export interface Finding {
   /** plano Free: o backend não envia correção, PoC nem compliance */
   premiumLocked?: boolean;
   createdAt: string;
+  /** detalhe da varredura: ferramentas que apontaram a falha */
+  tools?: FindingTool[];
+  /** detalhe da varredura: todos os locais (o primeiro é o mais grave) */
+  locations?: FindingLocation[];
 }
 
 export interface ScanSummary {
@@ -201,6 +225,13 @@ export class ScanService {
   }
 
   /** POST /api/scans/:id/run — responde 202 e a varredura roda em segundo plano. */
+  /** Para as ferramentas; o que já foi verificado fica salvo como resultado parcial. */
+  cancelScan(id: string): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(`${API_BASE_URL}/scans/${encodeURIComponent(id)}/cancel`, {}, withCredentials)
+      .pipe(catchError(this.fail));
+  }
+
   runScan(id: string, options: RunScanOptions): Observable<{ id: string; status: ScanStatus; activeScan: boolean }> {
     return this.http
       .post<{ scan: { id: string; status: ScanStatus; activeScan: boolean } }>(

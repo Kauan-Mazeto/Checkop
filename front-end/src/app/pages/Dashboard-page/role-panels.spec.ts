@@ -74,10 +74,10 @@ describe('painéis por perfil do Painel', () => {
 
     const render = <T>(type: Type<T>, plan: 'FREE' | 'PREMIUM') => {
       const fixture = TestBed.createComponent(type);
-      const instance = fixture.componentInstance as unknown as { findings: Finding[]; scans: Scan[]; plan: unknown };
-      instance.findings = [finding({})];
-      instance.scans = [scan({})];
-      instance.plan = PLAN_DEFINITIONS[plan];
+      // setInput dispara o ngOnChanges, como o template do Painel faz
+      fixture.componentRef.setInput('findings', [finding({})]);
+      if ('scans' in (fixture.componentInstance as object)) fixture.componentRef.setInput('scans', [scan({})]);
+      fixture.componentRef.setInput('plan', PLAN_DEFINITIONS[plan]);
       fixture.detectChanges();
       return (fixture.nativeElement as HTMLElement).textContent ?? '';
     };

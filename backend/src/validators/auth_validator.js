@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LANGUAGE_CODES } from '../constants/languages.js';
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2, 'Nome deve ter no mínimo 2 caracteres.'),
@@ -43,7 +44,12 @@ export const changeRoleSchema = z.object({
   role: z.enum(['DEV', 'QA', 'PENTESTER', 'STUDENT']),
 });
 
-// RF-22: preferências de notificação
-export const preferencesSchema = z.object({
-  notifyScanEmail: z.boolean(),
-});
+// RF-22 (notificação) e idioma dos textos dos achados; manda só o que mudou
+export const preferencesSchema = z
+  .object({
+    notifyScanEmail: z.boolean().optional(),
+    language: z.enum(LANGUAGE_CODES, { errorMap: () => ({ message: 'Idioma não suportado.' }) }).optional(),
+  })
+  .refine((data) => data.notifyScanEmail !== undefined || data.language !== undefined, {
+    message: 'Informe ao menos uma preferência.',
+  });

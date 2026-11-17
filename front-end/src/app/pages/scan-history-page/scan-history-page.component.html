@@ -61,7 +61,7 @@
             <td class="muted">{{ scan.objectiveLabel }}</td>
             <td><span class="badge env" [attr.data-env]="scan.environment">{{ environmentLabel[scan.environment] }}</span></td>
             <td><span class="badge badge-dot status" [attr.data-status]="scan.status">{{ statusLabel[scan.status] }}</span></td>
-            <td>{{ scan.status === 'COMPLETED' ? scan.findingsCount : '–' }}</td>
+            <td>{{ scan.status === 'COMPLETED' || scan.status === 'CANCELED' ? scan.findingsCount : '–' }}</td>
             <td class="muted">{{ duration(scan) }}</td>
             <td class="muted">{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
           </tr>

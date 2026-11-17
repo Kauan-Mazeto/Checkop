@@ -108,7 +108,7 @@
             <td><span class="badge badge-dot status" [attr.data-status]="scan.status">{{ statusLabel[scan.status] }}</span></td>
             <td class="muted">{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
             <td class="muted">{{ scan.safeMode ? 'Modo Seguro' : 'Modo Verboso' }}</td>
-            <td>{{ scan.status === 'COMPLETED' ? scan.findingsCount : '–' }}</td>
+            <td>{{ scan.status === 'COMPLETED' || scan.status === 'CANCELED' ? scan.findingsCount : '–' }}</td>
           </tr>
         </tbody>
       </table>

@@ -7,14 +7,14 @@ from urllib.parse import quote
 
 import httpx
 
-from .mapping import map_to_owasp_category, fallback_cvss_for_severity
+from .cvss import CONFIDENCE_MAP, score_finding
+from .mapping import map_to_owasp_category
 from .schemas import Finding, ZapAuthConfig
 
 ZAP_API_URL = os.getenv("ZAP_API_URL", "http://localhost:8080")
 ZAP_API_KEY = os.getenv("ZAP_API_KEY", "")
 
 RISK_TO_SEVERITY = {"0": "INFO", "1": "LOW", "2": "MEDIUM", "3": "HIGH"}
-RISK_TO_CVSS_FALLBACK = {"0": 0.0, "1": 3.0, "2": 5.5, "3": 8.5}
 
 POLL_INTERVAL_SECONDS = 2
 
@@ -31,7 +31,16 @@ DEFAULT_THREADS_PER_HOST = int(os.getenv("ZAP_THREADS_PER_HOST", "4"))
 SPIDER_MAX_SECONDS = int(os.getenv("ZAP_SPIDER_MAX_SECONDS", "300"))
 PASSIVE_MAX_SECONDS = int(os.getenv("ZAP_PASSIVE_MAX_SECONDS", "120"))
 ACTIVE_MAX_SECONDS = int(os.getenv("ZAP_ACTIVE_MAX_SECONDS", "1200"))
-AJAX_SPIDER_MAX_SECONDS = int(os.getenv("ZAP_AJAX_SPIDER_MAX_SECONDS", "300"))
+AJAX_SPIDER_MAX_SECONDS = int(os.getenv("ZAP_AJAX_SPIDER_MAX_SECONDS", "180"))
+# navegadores em paralelo e espera após cada clique/recarga (padrão do ZAP: 1 e 1000 ms)
+AJAX_SPIDER_BROWSERS = int(os.getenv("ZAP_AJAX_SPIDER_BROWSERS", "3"))
+AJAX_SPIDER_EVENT_WAIT_MS = int(os.getenv("ZAP_AJAX_SPIDER_EVENT_WAIT_MS", "500"))
+# espera o navegador subir (até ~15 s) antes de acompanhar o fim do AJAX Spider
+AJAX_SPIDER_START_POLLS = 30
+AJAX_SPIDER_START_POLL_SECONDS = 0.5
+# Navegador do AJAX Spider. O Edge já vem no Windows (o ZAP baixa o driver sozinho);
+# fora dele, Firefox. Valores aceitos pelo ZAP: edge-headless, chrome-headless, firefox-headless...
+AJAX_SPIDER_BROWSER = os.getenv("ZAP_AJAX_SPIDER_BROWSER") or ("edge-headless" if os.name == "nt" else "firefox-headless")
 
 
 class ZapNotAvailableError(Exception):
@@ -64,11 +73,14 @@ async def _get(client: httpx.AsyncClient, path: str, params: dict) -> dict:
 
 
 async def _wait_until(
-    client: httpx.AsyncClient, status_path: str, params: dict, max_seconds: float
+    client: httpx.AsyncClient, status_path: str, params: dict, max_seconds: float,
+    cancel: asyncio.Event | None = None,
 ) -> bool:
-    """Espera o ZAP chegar a 100%. Retorna True se terminou, False se estourou o tempo."""
+    """Espera o ZAP chegar a 100%. False se estourou o tempo ou foi cancelado (quem chama para o scan)."""
     elapsed = 0.0
     while elapsed < max_seconds:
+        if cancel is not None and cancel.is_set():
+            return False
         data = await _get(client, status_path, params)
         if int(data.get("status", 0)) >= 100:
             return True
@@ -77,23 +89,43 @@ async def _wait_until(
     return False
 
 
+RISK_NAME_TO_CODE = {"informational": "0", "low": "1", "medium": "2", "high": "3"}
+
+
+def _risk_code(alert: dict) -> str:
+    # /JSON/core/view/alerts devolve só "risk" por extenso ("High"); "riskcode"
+    # existe apenas nos relatórios exportados. Aceita os dois formatos.
+    if alert.get("riskcode") is not None:
+        return str(alert["riskcode"])
+    return RISK_NAME_TO_CODE.get(str(alert.get("risk", "")).strip().lower(), "0")
+
+
+def is_false_positive(alert: dict) -> bool:
+    # o próprio ZAP marca alguns alertas como falso positivo: não viram achado
+    return str(alert.get("confidence", "")).strip().lower() in ("false positive", "0")
+
+
 def _parse_alert(alert: dict) -> Finding:
-    risk_code = str(alert.get("riskcode", "0"))
-    severity = RISK_TO_SEVERITY.get(risk_code, "INFO")
-    cvss_score = RISK_TO_CVSS_FALLBACK.get(risk_code, fallback_cvss_for_severity(severity.lower()))
+    risk_code = _risk_code(alert)
+    tool_severity = RISK_TO_SEVERITY.get(risk_code, "INFO")
 
     cwe_id = alert.get("cweid")
     tags = [f"cwe-{cwe_id}"] if cwe_id and cwe_id != "-1" else []
+    # nota CVSS 3.1 calculada pelo vetor padrão da classe (CWE) da falha
+    cvss = score_finding(tool_severity, None, [str(cwe_id)] if tags else [])
 
     return Finding(
         title=alert.get("name") or "Achado do ZAP",
         description=alert.get("description"),
-        severity=severity,
+        severity=cvss["severity"],
         tool="ZAP",
         ruleId=str(alert["pluginId"]) if alert.get("pluginId") is not None else None,
         affectedUrl=alert.get("url"),
         cveId=None,
-        cvssScore=cvss_score,
+        cvssScore=cvss["cvssScore"],
+        cvssVector=cvss["cvssVector"],
+        cvssSource=cvss["cvssSource"],
+        confidence=CONFIDENCE_MAP.get(str(alert.get("confidence", "")).strip().lower()),
         rawRequest=alert.get("request"),
         rawResponse=alert.get("evidence"),
         remediation=alert.get("solution"),
@@ -230,18 +262,41 @@ async def _cleanup_authentication(client: httpx.AsyncClient, context_name: str) 
             pass
 
 async def _run_ajax_spider(
-    client: httpx.AsyncClient, target_url: str, max_seconds: float, context_name: str | None
+    client: httpx.AsyncClient, target_url: str, max_seconds: float, context_name: str | None,
+    cancel: asyncio.Event | None = None,
 ) -> None:
     # subtreeOnly mantém o spider restrito ao alvo, sem depender de escopo/contexto.
     params = {"url": target_url, "subtreeOnly": "true"}
+    # o ZAP roda um AJAX Spider por vez: se sobrou um rodando, encerra antes
+    # (senão a configuração e o início voltam "scan_in_progress")
+    status = await _get(client, "/JSON/ajaxSpider/view/status/", {})
+    if status.get("status") == "running":
+        await _get(client, "/JSON/ajaxSpider/action/stop/", {})
+        for _ in range(15):
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            status = await _get(client, "/JSON/ajaxSpider/view/status/", {})
+            if status.get("status") != "running":
+                break
+    await _tune_ajax_spider(client)
     if context_name:
         params["contextName"] = context_name
     started = await _get(client, "/JSON/ajaxSpider/action/scan/", params)
     if started.get("Result") not in ("OK", None):
         raise ZapExecutionError(f"O ZAP não iniciou o Spider AJAX: {started}")
 
+    # o status só vira "running" depois que o navegador sobe: sem esperar por isso,
+    # o primeiro "stopped" era lido como "terminou", o motor seguia com 0 páginas e
+    # o scan ativo rodava junto com o AJAX
+    for _ in range(AJAX_SPIDER_START_POLLS):
+        status = await _get(client, "/JSON/ajaxSpider/view/status/", {})
+        if status.get("status") == "running":
+            break
+        await asyncio.sleep(AJAX_SPIDER_START_POLL_SECONDS)
+
     elapsed = 0.0
     while elapsed < max_seconds:
+        if cancel is not None and cancel.is_set():
+            break
         status = await _get(client, "/JSON/ajaxSpider/view/status/", {})
         if status.get("status") == "stopped":
             return
@@ -249,6 +304,64 @@ async def _run_ajax_spider(
         elapsed += POLL_INTERVAL_SECONDS
 
     await _get(client, "/JSON/ajaxSpider/action/stop/", {})
+
+
+# marcas de app de página única no HTML inicial (Angular, React, Vue, Next, Nuxt, Svelte...)
+_SPA_MARKERS = re.compile(
+    r"<app-root|ng-version=|\bid=[\"'](root|app|__next|__nuxt|svelte)[\"']|data-reactroot|__NEXT_DATA__|window\.__NUXT__",
+    re.IGNORECASE,
+)
+_SCRIPT_BLOCKS = re.compile(r"<(script|style)\b.*?</\1>", re.IGNORECASE | re.DOTALL)
+_TAGS = re.compile(r"<[^>]+>")
+SPA_MIN_VISIBLE_TEXT = 200  # menos que isso de texto visível + JS = tela montada no navegador
+SPA_MAX_PAGES = 2  # o spider normal achou só a raiz (e talvez mais uma)
+
+
+def detect_spa(html: str, pages_found: int) -> str | None:
+    """Diz por que a página parece SPA (precisa do AJAX Spider) ou None."""
+    if not html:
+        return None
+    if _SPA_MARKERS.search(html):
+        return "o HTML tem a raiz de um framework JavaScript"
+    has_scripts = re.search(r"<script\b", html, re.IGNORECASE) is not None
+    visible = re.sub(r"\s+", " ", _TAGS.sub(" ", _SCRIPT_BLOCKS.sub(" ", html))).strip()
+    if has_scripts and len(visible) < SPA_MIN_VISIBLE_TEXT:
+        return "a página é quase toda montada por JavaScript"
+    if has_scripts and pages_found <= SPA_MAX_PAGES:
+        return "o spider tradicional quase não achou links"
+    return None
+
+
+async def _initial_html(client: httpx.AsyncClient, target_url: str) -> str:
+    # reaproveita a resposta que o accessUrl já trouxe: nada de requisição extra ao alvo
+    data = await _get(client, "/JSON/core/view/messages/", {"baseurl": target_url, "start": "0", "count": "10"})
+    for message in data.get("messages", []):
+        if "text/html" in message.get("responseHeader", "").lower() and message.get("responseBody"):
+            return message["responseBody"]
+    return ""
+
+
+async def _spider_pages(client: httpx.AsyncClient, spider_id: str) -> int:
+    data = await _get(client, "/JSON/spider/view/results/", {"scanId": spider_id})
+    return len(data.get("results", []))
+
+
+async def _tune_ajax_spider(client: httpx.AsyncClient) -> None:
+    # opções globais do ZAP; cada uma é melhor esforço (versões antigas podem não ter)
+    options = (
+        ("setOptionBrowserId", "String", AJAX_SPIDER_BROWSER),
+        ("setOptionNumberOfBrowsers", "Integer", str(AJAX_SPIDER_BROWSERS)),
+        ("setOptionMaxDuration", "Integer", str(max(1, AJAX_SPIDER_MAX_SECONDS // 60))),  # minutos
+        ("setOptionClickElemsOnce", "Boolean", "true"),
+        ("setOptionEventWait", "Integer", str(AJAX_SPIDER_EVENT_WAIT_MS)),
+        ("setOptionReloadWait", "Integer", str(AJAX_SPIDER_EVENT_WAIT_MS)),
+    )
+    for action, kind, value in options:
+        try:
+            await _get(client, f"/JSON/ajaxSpider/action/{action}/", {kind: value})
+        except ZapExecutionError:
+            if action == "setOptionBrowserId":
+                raise
 
 
 def should_run_active_scan(safe_mode: bool, active_scan: bool | None) -> bool:
@@ -262,6 +375,11 @@ async def _set_active_scan_throttling(client: httpx.AsyncClient, safe_mode: bool
     delay = PRODUCTION_DELAY_MS if safe_mode else 0
     await _get(client, "/JSON/ascan/action/setOptionThreadPerHost/", {"Integer": str(threads)})
     await _get(client, "/JSON/ascan/action/setOptionDelayInMs/", {"Integer": str(delay)})
+    # a regra de DOM XSS abre um navegador (padrão: Firefox); usa o mesmo do AJAX Spider
+    try:
+        await _get(client, "/JSON/ruleConfig/action/setRuleConfigValue/", {"key": "rules.domxss.browserid", "value": AJAX_SPIDER_BROWSER})
+    except ZapExecutionError:
+        pass
 
 
 async def run_zap_scan(
@@ -271,9 +389,11 @@ async def run_zap_scan(
     scanner_ids: list[str] | None = None,
     auth: ZapAuthConfig | None = None,
     use_ajax_spider: bool = False,
+    cancel: asyncio.Event | None = None,
 ) -> tuple[list[Finding], float, list[str]]:
     started_at = time.monotonic()
     warnings: list[str] = []
+    cancel = cancel or asyncio.Event()
     # nome único por varredura: o ZAP recusa criar dois contextos com o mesmo nome
     context_name = f"checkop-{uuid.uuid4().hex[:8]}" if auth is not None else None
 
@@ -286,20 +406,41 @@ async def run_zap_scan(
                 await _setup_authentication(client, target_url, auth, context_name)
 
             # 1) spider: mapeia a superfície de ataque (RF-33).
-            # AJAX spider para SPAs (Angular/React); spider tradicional, senão.
-            if use_ajax_spider:
-                await _run_ajax_spider(client, target_url, AJAX_SPIDER_MAX_SECONDS, context_name)
-            else:
-                spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
-                spider_id = spider_data.get("scan")
-                if spider_id is None:
-                    raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
-                if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS):
-                    await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
+            # O tradicional roda sempre: segue links e formulários do HTML.
+            spider_data = await _get(client, "/JSON/spider/action/scan/", {"url": target_url, "recurse": "true"})
+            spider_id = spider_data.get("scan")
+            if spider_id is None:
+                raise ZapExecutionError(f"O ZAP não iniciou o spider: {spider_data}")
+            if not await _wait_until(client, "/JSON/spider/view/status/", {"scanId": spider_id}, SPIDER_MAX_SECONDS, cancel):
+                await _get(client, "/JSON/spider/action/stop/", {"scanId": spider_id})
+
+            # SPA (Angular/React/Vue): o AJAX spider complementa, abrindo a página num
+            # navegador headless. É lento (minutos), então só roda quando o usuário
+            # força a opção ou quando a página parece SPA. Sem navegador ele termina
+            # "vazio" sem erro, e isso vira aviso em vez de uma varredura que parece limpa.
+            if not use_ajax_spider and not cancel.is_set():
+                try:
+                    spa_reason = detect_spa(await _initial_html(client, target_url), await _spider_pages(client, spider_id))
+                except ZapExecutionError:
+                    spa_reason = None
+                if spa_reason:
+                    use_ajax_spider = True
+                    warnings.append(f"Site identificado como SPA ({spa_reason}): o AJAX Spider foi acionado para mapear as telas.")
+            if use_ajax_spider and not cancel.is_set():
+                try:
+                    await _run_ajax_spider(client, target_url, AJAX_SPIDER_MAX_SECONDS, context_name, cancel)
+                    found = await _get(client, "/JSON/ajaxSpider/view/numberOfResults/", {})
+                    if int(found.get("numberOfResults", 0)) == 0:
+                        warnings.append(
+                            f"O AJAX Spider não encontrou páginas (navegador {AJAX_SPIDER_BROWSER} indisponível?). "
+                            "A varredura usou só o spider tradicional."
+                        )
+                except ZapExecutionError as exc:
+                    warnings.append(f"O AJAX Spider falhou e a varredura usou só o spider tradicional: {exc}")
 
             # 2) varredura passiva: espera a fila de análise esvaziar
             elapsed = 0.0
-            while elapsed < PASSIVE_MAX_SECONDS:
+            while elapsed < PASSIVE_MAX_SECONDS and not cancel.is_set():
                 pscan_data = await _get(client, "/JSON/pscan/view/recordsToScan/", {})
                 if int(pscan_data.get("recordsToScan", 0)) == 0:
                     break
@@ -309,7 +450,7 @@ async def run_zap_scan(
             # 3) varredura ativa: fora de produção, ou em produção verificada com
             # opt-in explícito (o Node só manda activeScan=True nesses casos)
             # scanner_ids == [] -> objetivo só passivo: nenhum ataque é enviado
-            if should_run_active_scan(safe_mode, active_scan) and scanner_ids != []:
+            if should_run_active_scan(safe_mode, active_scan) and scanner_ids != [] and not cancel.is_set():
                 await _set_active_scan_throttling(client, safe_mode)
                 missing = await _set_active_scanners(client, scanner_ids)
                 if missing:
@@ -318,7 +459,7 @@ async def run_zap_scan(
                 ascan_id = ascan_data.get("scan")
                 if ascan_id is None:
                     raise ZapExecutionError(f"O ZAP não iniciou a varredura ativa: {ascan_data}")
-                if not await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_id}, ACTIVE_MAX_SECONDS):
+                if not await _wait_until(client, "/JSON/ascan/view/status/", {"scanId": ascan_id}, ACTIVE_MAX_SECONDS, cancel):
                     await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
 
             alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
@@ -326,6 +467,8 @@ async def run_zap_scan(
             if context_name is not None:
                 await _cleanup_authentication(client, context_name)
 
+    if cancel.is_set():
+        warnings.append("Varredura cancelada pelo usuário: o resultado mostra só o que foi verificado até o cancelamento.")
     duration = time.monotonic() - started_at
-    findings = [_parse_alert(a) for a in alerts_data.get("alerts", [])]
+    findings = [_parse_alert(a) for a in alerts_data.get("alerts", []) if not is_false_positive(a)]
     return findings, duration, warnings

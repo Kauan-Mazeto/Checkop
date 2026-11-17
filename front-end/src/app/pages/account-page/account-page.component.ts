@@ -9,6 +9,7 @@ import { ROLE_VIEWS } from '../../shared/ui/role-views';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
 import { ROLE_LABEL, formatIp } from '../../shared/ui/labels';
+import { DEFAULT_LANGUAGE, LANGUAGES } from '../../shared/ui/languages';
 
 const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
 
@@ -51,7 +52,7 @@ export class AccountPageComponent implements OnInit {
     const previous = this.notifyScanEmail;
     this.notifyScanEmail = value;
     this.notifyMessage = null;
-    this.account.updatePreferences(value).subscribe({
+    this.account.updatePreferences({ notifyScanEmail: value }).subscribe({
       next: () => (this.notifyMessage = { ok: true, text: value ? 'Você vai receber um e-mail quando cada varredura terminar.' : 'Notificações por e-mail desligadas.' }),
       error: (error: ApiError) => {
         this.notifyScanEmail = previous;
@@ -60,6 +61,34 @@ export class AccountPageComponent implements OnInit {
     });
   }
   protected roleMessage: { ok: boolean; text: string } | null = null;
+
+  // idioma dos textos dos achados (título, descrição e "como corrigir")
+  protected readonly languages = LANGUAGES;
+  protected language = this.auth.getCachedUser()?.language ?? DEFAULT_LANGUAGE;
+  protected isSavingLanguage = false;
+  protected languageMessage: { ok: boolean; text: string } | null = null;
+
+  protected changeLanguage(code: string): void {
+    const previous = this.language;
+    if (code === previous || this.isSavingLanguage) return;
+    this.language = code;
+    this.isSavingLanguage = true;
+    this.languageMessage = null;
+    this.account.updatePreferences({ language: code }).subscribe({
+      next: () => {
+        this.isSavingLanguage = false;
+        this.languageMessage = {
+          ok: true,
+          text: 'Idioma salvo. Ao abrir uma varredura, os textos dos achados aparecem nele (a primeira abertura pode levar alguns segundos).',
+        };
+      },
+      error: (error: ApiError) => {
+        this.isSavingLanguage = false;
+        this.language = previous;
+        this.languageMessage = { ok: false, text: error.message };
+      },
+    });
+  }
 
   protected changeRole(role: Exclude<UserRole, 'ADM'>): void {
     if (!this.user || this.isChangingRole || this.user.role === role) return;

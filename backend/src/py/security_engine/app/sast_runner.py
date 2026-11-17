@@ -138,7 +138,7 @@ def _parse_result(result: dict, base_dir: str, contents: dict[str, str], transla
     )
 
 
-async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
+async def run_sast_scan(files: dict[str, str], language: str = "pt-BR") -> tuple[list[Finding], float]:
     """files: {"nome_do_arquivo.js": "conteúdo do código", ...}"""
     if not SEMGREP_BINARY:
         raise SastExecutionError("Binário 'semgrep' não encontrado no PATH do motor Python.")
@@ -200,7 +200,7 @@ async def run_sast_scan(files: dict[str, str]) -> tuple[list[Finding], float]:
         contents = {_safe_relative_path(name): code for name, code in files.items()}
         texts = {_rule_name(r.get("check_id", "")) for r in results}
         texts |= {r.get("extra", {}).get("message", "") for r in results}
-        translations = await translate_many(texts)
+        translations = await translate_many(texts, language)
 
         findings = [_parse_result(r, tmp_dir, contents, translations) for r in results]
         # segredos fixos (chaves, tokens) em qualquer linguagem; ainda dentro da pasta temporária

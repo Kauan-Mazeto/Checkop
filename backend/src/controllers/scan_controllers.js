@@ -1,7 +1,9 @@
 import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
-import { runNucleiScan, runZapScan, runSubdomainEnum, SecurityEngineError } from '../lib/py/security_engine_client.js';
+import { runNucleiScan, runZapScan, runSubdomainEnum, cancelEngineJob, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
+import { translateFindings, warmTranslations } from '../lib/finding_translation.js';
+import { groupFindings } from '../lib/finding_groups.js';
 import { getDomain } from 'tldts';
 import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
@@ -415,6 +417,11 @@ const getScanById = async (req, res) => {
     const findings = await prisma.finding.findMany({
       where: { scanId: req.resource.id },
     });
+    const localized = await translateFindings(findings, req.userLanguage);
+    // uma entrada por falha, com os locais onde ela aparece
+    const grouped = groupFindings(
+      serializeFindings(localized, { safeMode: req.resource.safeMode, plan: req.userPlan, role: req.userRole }),
+    );
 
     return res.status(200).json({
       scan: {
@@ -422,10 +429,11 @@ const getScanById = async (req, res) => {
         resolvedIps: deserializeIps(req.resource.resolvedIps),
         objectiveLabel: SCAN_OBJECTIVES[req.resource.objective]?.label ?? req.resource.objective,
         engineWarnings: req.resource.engineWarnings ? JSON.parse(req.resource.engineWarnings) : [],
-        summary: buildScanSummary(findings),
+        summary: buildScanSummary(grouped),
         plan: req.userPlan,
         role: req.userRole,
-        findings: serializeFindings(findings, { safeMode: req.resource.safeMode, plan: req.userPlan, role: req.userRole }),
+        language: req.userLanguage,
+        findings: grouped,
       },
     });
   } catch (error) {
@@ -497,6 +505,13 @@ const compareScans = async (req, res) => {
     ]);
     const diff = compareFindings(previousFindings, currentFindings);
 
+    // traduz depois de comparar: a identidade do achado usa o texto original
+    const persistentFindings = diff.persistent.map((item) => item.finding);
+    const localized = await translateFindings([...diff.added, ...diff.fixed, ...persistentFindings], req.userLanguage);
+    const added = localized.slice(0, diff.added.length);
+    const fixed = localized.slice(diff.added.length, diff.added.length + diff.fixed.length);
+    const persistent = localized.slice(diff.added.length + diff.fixed.length);
+
     // cada achado segue o Modo Seguro da varredura de onde veio (RF-08)
     const serializeFrom = (scan) => (list) => serializeFindings(list, { safeMode: scan.safeMode, plan: req.userPlan, role: req.userRole });
 
@@ -505,10 +520,10 @@ const compareScans = async (req, res) => {
       base: pick(base),
       candidates: candidates.map(pick),
       summary: diff.summary,
-      added: serializeFrom(current)(diff.added),
-      fixed: serializeFrom(base)(diff.fixed),
-      persistent: diff.persistent.map((item) => ({
-        ...serializeFrom(current)([item.finding])[0],
+      added: serializeFrom(current)(added),
+      fixed: serializeFrom(base)(fixed),
+      persistent: diff.persistent.map((item, index) => ({
+        ...serializeFrom(current)([persistent[index]])[0],
         previousSeverity: item.previousSeverity,
         trend: item.trend,
       })),
@@ -518,6 +533,9 @@ const compareScans = async (req, res) => {
     return res.status(500).json({ error: 'Erro interno ao comparar varreduras.' });
   }
 };
+
+// varreduras em execução cujo cancelamento foi pedido; ao terminar, viram CANCELED
+const cancelRequested = new Set();
 
 const executeScan = async (scan, runOptions = {}) => {
   try {
@@ -535,6 +553,7 @@ const executeScan = async (scan, runOptions = {}) => {
           safeMode: !runOptions.activeScan,
           rateLimit: 10,
           tags: [...config.nuclei.tags, ...extraTags],
+          jobId: scan.id,
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
       );
     }
@@ -548,6 +567,7 @@ const executeScan = async (scan, runOptions = {}) => {
           scannerIds: config.zap.activeScannerIds,
           auth: runOptions.auth,
           useAjaxSpider: runOptions.useAjaxSpider,
+          jobId: scan.id,
         }).then((r) => ({ tool: 'ZAP', ...r }))
       );
     }
@@ -555,9 +575,9 @@ const executeScan = async (scan, runOptions = {}) => {
     if (config.engines.includes('SUBFINDER')) {
       // subdomínios são do domínio registrável (www.loja.com.br -> loja.com.br)
       const domain = getDomain(new URL(scan.targetUrl).hostname);
-      if (domain) {
+      if (domain && !cancelRequested.has(scan.id)) {
         jobs.push(runSubdomainEnum({ domain }).then((r) => ({ tool: 'SUBFINDER', ...r })));
-      } else {
+      } else if (!domain) {
         warnings.push('Enumeração de subdomínios não se aplica a localhost ou endereço IP.');
       }
     }
@@ -582,7 +602,10 @@ const executeScan = async (scan, runOptions = {}) => {
       throw outcomes[0].reason;
     }
 
+    const canceled = cancelRequested.has(scan.id);
     const allFindings = dedupeFindings(filterFindingsByObjective(rawFindings, scan.objective));
+    // traduz já para o idioma do dono: a página abre com o texto pronto
+    await warmTranslations(allFindings, scan.userId);
 
     await prisma.$transaction([
       prisma.finding.createMany({
@@ -591,27 +614,60 @@ const executeScan = async (scan, runOptions = {}) => {
       prisma.scan.update({
         where: { id: scan.id },
         data: {
-          status: 'COMPLETED',
+          status: canceled ? 'CANCELED' : 'COMPLETED',
           finishedAt: new Date(),
           engineWarnings: warnings.length ? JSON.stringify([...new Set(warnings)]) : null,
         },
       }),
     ]);
 
-    console.log(`[scan ${scan.id}] concluída com ${allFindings.length} achado(s).`);
+    console.log(`[scan ${scan.id}] ${canceled ? 'cancelada' : 'concluída'} com ${allFindings.length} achado(s).`);
   } catch (error) {
-    console.error(`[scan ${scan.id}] falhou:`, error);
+    const canceled = cancelRequested.has(scan.id);
+    console.error(`[scan ${scan.id}] ${canceled ? 'cancelada sem resultado' : 'falhou'}:`, error);
     try {
       await prisma.scan.update({
         where: { id: scan.id },
-        data: { status: 'FAILED', finishedAt: new Date() },
+        data: { status: canceled ? 'CANCELED' : 'FAILED', finishedAt: new Date() },
       });
     } catch (updateError) {
       console.error(`[scan ${scan.id}] não foi possível marcar como FAILED:`, updateError);
     }
   }
+  cancelRequested.delete(scan.id);
   // RF-22: avisa o dono por e-mail (concluída ou com falha); nunca lança erro
   await notifyScanFinished(scan.id);
+};
+
+// Cancela a varredura: o motor para o Nuclei e o ZAP, que devolvem o que já
+// encontraram; executeScan grava esses achados com status CANCELED.
+const cancelScan = async (req, res) => {
+  try {
+    const scan = req.resource;
+
+    if (scan.status === 'PENDING') {
+      await prisma.scan.update({ where: { id: scan.id }, data: { status: 'CANCELED', finishedAt: new Date() } });
+      await logAudit(req, { action: AUDIT_ACTIONS.SCAN_CANCELED, resourceType: 'scan', resourceId: scan.id });
+      return res.status(200).json({ message: 'Varredura cancelada antes de começar.' });
+    }
+
+    if (scan.status !== 'RUNNING') {
+      return res.status(409).json({ error: 'Só é possível cancelar uma varredura que ainda está em andamento.' });
+    }
+
+    cancelRequested.add(scan.id);
+    try {
+      await cancelEngineJob(scan.id);
+    } catch (error) {
+      // sem o motor, a varredura termina sozinha e mesmo assim fica como cancelada
+      console.error(`[scan ${scan.id}] não foi possível avisar o motor do cancelamento:`, error.message);
+    }
+    await logAudit(req, { action: AUDIT_ACTIONS.SCAN_CANCELED, resourceType: 'scan', resourceId: scan.id });
+    return res.status(202).json({ message: 'Cancelando: as ferramentas estão parando e o que já foi verificado será salvo.' });
+  } catch (error) {
+    console.error('Erro ao cancelar varredura:', error);
+    return res.status(500).json({ error: 'Erro interno ao cancelar a varredura.' });
+  }
 };
 
 // Dispara a varredura (RF-10) e responde NA HORA com 202. O trabalho pesado
@@ -699,4 +755,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan, cancelScan };

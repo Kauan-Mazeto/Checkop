@@ -101,7 +101,7 @@ export class DashboardPageComponent implements OnInit {
   }
 
   private loadFindings(scans: Scan[]): void {
-    const completed = scans.filter((s) => s.status === 'COMPLETED' && s.findingsCount > 0).slice(0, FINDINGS_FROM_LAST);
+    const completed = scans.filter((s) => (s.status === 'COMPLETED' || s.status === 'CANCELED') && s.findingsCount > 0).slice(0, FINDINGS_FROM_LAST);
     if (completed.length === 0) return;
 
     // uma varredura que falhar ao carregar não derruba os painéis

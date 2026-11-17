@@ -8,12 +8,14 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .nuclei_runner import (NucleiExecutionError, NucleiNotInstalledError, run_nuclei_scan, update_templates)
 
-from .schemas import (NucleiScanRequest, NucleiScanResponse, ZapScanRequest, ZapScanResponse, SubdomainEnumRequest, SubdomainEnumResponse, SastScanRequest)
+from .schemas import (NucleiScanRequest, NucleiScanResponse, ZapScanRequest, ZapScanResponse, SubdomainEnumRequest, SubdomainEnumResponse, SastScanRequest, TranslateRequest)
 
 from .subfinder_runner import (SubfinderExecutionError, SubfinderNotInstalledError, run_subdomain_enum)
 
 from .zap_runner import ZapExecutionError, ZapNotAvailableError, run_zap_scan
 from .sast_runner import run_sast_scan, SastExecutionError
+from . import jobs
+from .translator import UnsupportedLanguageError, normalize_language, translate_many
 
 # B4: o motor dispara varreduras contra qualquer URL recebida, então só a API Node
 # (que já validou usuário, alvo e autorização) pode chamá-lo. Sem token configurado
@@ -40,22 +42,26 @@ def health():
 @app.post("/scans/nuclei", response_model=NucleiScanResponse, dependencies=protected)
 async def scan_with_nuclei(payload: NucleiScanRequest):
     try:
-        findings, duration = await run_nuclei_scan(
+        findings, duration, warnings = await run_nuclei_scan(
             target_url=payload.targetUrl,
             safe_mode=payload.safeMode,
             rate_limit=payload.rateLimit,
             tags=payload.tags,
-    )
-        
+            cancel=jobs.acquire(payload.jobId),
+        )
+
     except NucleiNotInstalledError as err:
         raise HTTPException(status_code=503, detail=str(err))
     except NucleiExecutionError as err:
         raise HTTPException(status_code=502, detail=str(err))
+    finally:
+        jobs.release(payload.jobId)
 
     return NucleiScanResponse(
         findings=findings,
         findingsCount=len(findings),
         durationSeconds=round(duration, 2),
+        warnings=warnings,
     )
 
 
@@ -69,11 +75,14 @@ async def scan_with_zap(payload: ZapScanRequest):
             scanner_ids=payload.scannerIds,
             auth=payload.auth,
             use_ajax_spider=payload.useAjaxSpider,
+            cancel=jobs.acquire(payload.jobId),
         )
     except ZapNotAvailableError as err:
         raise HTTPException(status_code=503, detail=str(err))
     except ZapExecutionError as err:
         raise HTTPException(status_code=502, detail=str(err))
+    finally:
+        jobs.release(payload.jobId)
 
     return ZapScanResponse(
         findings=findings,
@@ -101,7 +110,9 @@ async def scan_subdomains(payload: SubdomainEnumRequest):
 @app.post("/scans/sast", dependencies=protected)
 async def scan_with_sast(payload: SastScanRequest):
     try:
-        findings, duration = await run_sast_scan(payload.files)
+        findings, duration = await run_sast_scan(payload.files, payload.language)
+    except UnsupportedLanguageError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except SastExecutionError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -110,6 +121,23 @@ async def scan_with_sast(payload: SastScanRequest):
         "findingsCount": len(findings),
         "durationSeconds": round(duration, 2),
     }
+
+
+# textos das regras (ZAP/Nuclei) no idioma escolhido pelo usuário
+@app.post("/translate", dependencies=protected)
+async def translate_texts(payload: TranslateRequest):
+    try:
+        target = normalize_language(payload.target)
+    except UnsupportedLanguageError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    texts = {t for t in payload.texts if t and t.strip()}
+    return {"target": target, "translations": await translate_many(texts, target)}
+
+
+# cancela a varredura: Nuclei e ZAP param e devolvem o que já encontraram
+@app.post("/scans/{job_id}/cancel", dependencies=protected)
+async def cancel_scan(job_id: str):
+    return {"jobId": job_id, "running": jobs.cancel(job_id)}
 
 
 # RF-45

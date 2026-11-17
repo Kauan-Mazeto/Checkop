@@ -3,9 +3,9 @@ import json
 import os
 import time
 
+from .cvss import score_finding
 from .mapping import (
     INTRUSIVE_TAGS,
-    fallback_cvss_for_severity,
     map_to_owasp_category,
     resolve_cvss_score,
 )
@@ -47,8 +47,12 @@ def _build_command(target_url: str, safe_mode: bool, rate_limit: int, tags: list
         NUCLEI_BINARY,
         "-target", target_url,
         "-jsonl",
-        "-silent",
         "-nc",
+        "-duc",  # sem checagem de atualização a cada varredura (RF-45 cuida disso)
+        # DNS do sistema como fallback: sem isso o Nuclei não resolve "localhost"
+        # nem nomes do arquivo hosts/rede interna, descarta o alvo como "fora do ar"
+        # e termina sem achados e sem erro
+        "-sr",
         "-rate-limit", str(rate_limit),  # RF-51 / RNF-15
         "-timeout", "10",
         "-include-rr",  # RF-49
@@ -84,10 +88,6 @@ def _parse_line(raw_line: str) -> Finding | None:
     classification = info.get("classification") or {}
     severity = SEVERITY_MAP.get((info.get("severity") or "info").lower(), "INFO")
 
-    cvss_score = resolve_cvss_score(classification)
-    if cvss_score is None:
-        cvss_score = fallback_cvss_for_severity(info.get("severity"))
-
     cve_ids = _as_list(classification.get("cve-id"))
     cve_id = cve_ids[0] if cve_ids else None
 
@@ -95,6 +95,12 @@ def _parse_line(raw_line: str) -> Finding | None:
     tags = _as_list(info.get("tags"))
     cwe_ids = _as_list(classification.get("cwe-id"))
     references = _as_list(info.get("reference"))
+
+    # nota CVSS 3.1: vetor do template (NVD para CVEs) > vetor da classe (CWE) > severidade
+    cvss = score_finding(severity, classification.get("cvss-metrics"), cwe_ids)
+    if cvss["cvssSource"] == "SEVERITY" and resolve_cvss_score(classification) is not None:
+        # template com nota mas sem vetor: vale a nota publicada pelo autor
+        cvss = {**cvss, "cvssScore": resolve_cvss_score(classification), "cvssSource": "TEMPLATE"}
 
     # templates quase nunca trazem "remediation"; as referências ajudam a corrigir (RF-21)
     remediation = info.get("remediation")
@@ -104,21 +110,36 @@ def _parse_line(raw_line: str) -> Finding | None:
     return Finding(
         title=info.get("name") or entry.get("template-id") or "Achado do Nuclei",
         description=info.get("description"),
-        severity=severity,
+        severity=cvss["severity"],
         tool="NUCLEI",
         ruleId=entry.get("template-id"),
         affectedUrl=entry.get("matched-at") or entry.get("host"),
         cveId=cve_id,
-        cvssScore=cvss_score,
+        cvssScore=cvss["cvssScore"],
+        cvssVector=cvss["cvssVector"],
+        cvssSource=cvss["cvssSource"],
+        # o Nuclei só reporta quando o matcher do template bate na resposta
+        confidence="CONFIRMED" if severity != "INFO" else None,
         rawRequest=entry.get("request"),
         rawResponse=entry.get("response"),
         remediation=remediation,
         owaspUrl=map_to_owasp_category(tags, cwe_ids),  # RF-47
     )
 
+def unreachable_warning(stderr: str) -> str | None:
+    """O Nuclei descarta o alvo que não responde e sai com código 0: vira aviso."""
+    if "unresponsive" not in stderr and "no address found for host" not in stderr:
+        return None
+    return (
+        "O Nuclei não conseguiu acessar o alvo e foi interrompido; os achados dele podem estar faltando. "
+        "Confira se o site está no ar e acessível a partir do servidor do Checkop."
+    )
+
+
 async def run_nuclei_scan(
-    target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None
-) -> tuple[list[Finding], float]:
+    target_url: str, safe_mode: bool, rate_limit: int, tags: list[str] | None = None,
+    cancel: asyncio.Event | None = None,
+) -> tuple[list[Finding], float, list[str]]:
     command = _build_command(target_url, safe_mode, rate_limit, tags)
     started_at = time.monotonic()
 
@@ -142,16 +163,31 @@ async def run_nuclei_scan(
 
     stderr_task = asyncio.create_task(process.stderr.read())
     timed_out = False
+    canceled = False
 
-    try:
-        await asyncio.wait_for(_read_stdout(), timeout=NUCLEI_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        timed_out = True
+    # termina com o Nuclei, com o tempo limite ou com o cancelamento do usuário
+    read_task = asyncio.create_task(_read_stdout())
+    cancel_task = asyncio.create_task((cancel or asyncio.Event()).wait())
+    done, _ = await asyncio.wait({read_task, cancel_task}, timeout=NUCLEI_TIMEOUT_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+    cancel_task.cancel()
+    if read_task not in done:
+        canceled = cancel is not None and cancel.is_set()
+        timed_out = not canceled
         process.kill()
         await process.wait()
+        read_task.cancel()
+        try:
+            await read_task
+        except asyncio.CancelledError:
+            pass
 
     stderr = await stderr_task
     duration = time.monotonic() - started_at
+
+    if canceled:
+        # o que já foi lido vale; nada de erro mesmo sem achados
+        duration = time.monotonic() - started_at
+        return findings, duration, ["Varredura cancelada pelo usuário: o resultado mostra só o que foi verificado até o cancelamento."]
 
     if timed_out:
         if not findings:
@@ -166,7 +202,8 @@ async def run_nuclei_scan(
     elif process.returncode != 0 and not findings:
         raise NucleiExecutionError(stderr.decode(errors="replace") or "Falha ao executar o Nuclei.")
 
-    return findings, duration
+    warning = unreachable_warning(stderr.decode(errors="replace"))
+    return findings, duration, [warning] if warning else []
 
 TEMPLATE_UPDATE_TIMEOUT_SECONDS = int(os.getenv("NUCLEI_TEMPLATE_UPDATE_TIMEOUT_SECONDS", "600"))
 

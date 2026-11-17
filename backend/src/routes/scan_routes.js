@@ -19,5 +19,6 @@ router.get('/objectives', scanController.getObjectives);
 router.get('/:id', requireOwnership('scan'), scanController.getScanById);
 router.get('/:id/compare', requireOwnership('scan'), scanController.compareScans);
 router.post('/:id/run', scanCreationLimiter, requireOwnership('scan'), validate(runScanAuthSchema), scanController.runScan);
+router.post('/:id/cancel', requireOwnership('scan'), scanController.cancelScan);
 
 export default router;

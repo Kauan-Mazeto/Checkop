@@ -17,6 +17,8 @@ export interface AuthUser {
   plan?: UserPlan;
   /** RF-22: e-mail ao terminar cada varredura */
   notifyScanEmail?: boolean;
+  /** idioma dos textos dos achados (título, descrição, correção) */
+  language?: string;
 }
 
 // Espelha o corpo de resposta de POST /api/auth/login e /api/auth/register
@@ -53,6 +55,7 @@ export interface MeResponse {
   plan?: UserPlan;
   /** RF-22: e-mail ao terminar cada varredura */
   notifyScanEmail?: boolean;
+  language?: string;
 }
 
 // Espelha os formatos de erro do backend:

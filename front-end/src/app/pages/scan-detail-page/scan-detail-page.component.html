@@ -17,7 +17,7 @@
           <span class="hint">Criada em {{ s.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
         </div>
       </div>
-      <div class="actions no-print" *ngIf="s.status === 'COMPLETED'">
+      <div class="actions no-print" *ngIf="hasResults(s.status)">
         <ng-container *ngIf="isPremium; else exportLocked">
           <button class="button button-secondary" type="button" (click)="exportJson()">Exportar JSON</button>
           <button class="button button-secondary" type="button" (click)="exportPdf()">Exportar PDF</button>
@@ -39,7 +39,7 @@
     <section *ngIf="canRun && !s.suspiciousEnvironment" class="card no-print">
       <header class="card-header">
         <div>
-          <h2>{{ s.status === 'FAILED' ? 'A varredura falhou — tentar de novo' : 'Pronto para executar' }}</h2>
+          <h2>{{ s.status === 'FAILED' ? 'A varredura falhou, tentar de novo' : 'Pronto para executar' }}</h2>
           <p *ngIf="objective">{{ objective.description }}</p>
         </div>
       </header>
@@ -49,7 +49,7 @@
           <label class="switch">
             <input type="checkbox" [(ngModel)]="useAjaxSpider" name="ajax" />
             <span class="switch-track"></span>
-            É uma SPA (Angular, React, Vue): explorar com o AJAX Spider
+            Forçar o AJAX Spider (SPAs em Angular, React e Vue já são detectadas sozinhas)
           </label>
           <label class="switch">
             <input type="checkbox" [(ngModel)]="useAuth" name="useAuth" />
@@ -113,13 +113,24 @@
           <strong>Varredura em andamento</strong>
           <span class="mono hint">{{ elapsedTime }}</span>
         </div>
-        <p class="hint">Mapeando o site e testando as falhas escolhidas. Pode levar de alguns minutos a mais de 20 — você pode sair desta página.</p>
+        <p class="hint">Mapeando o site e testando as falhas escolhidas. Pode levar de alguns minutos. Você pode sair desta página.</p>
         <div class="progress"><div></div></div>
+        <div class="running-actions">
+          <span *ngIf="cancelMessage" class="hint" role="status">{{ cancelMessage }}</span>
+          <div *ngIf="cancelError" class="alert alert-error" role="alert">{{ cancelError }}</div>
+          <button type="button" class="button button-sm cancel-scan" (click)="cancel()" [disabled]="isCanceling">
+            <span *ngIf="isCanceling" class="spinner" aria-hidden="true"></span>
+            <span>{{ isCanceling ? 'Cancelando...' : 'Cancelar varredura' }}</span>
+          </button>
+        </div>
       </div>
     </section>
 
     <!-- ===== Resultado ===== -->
-    <ng-container *ngIf="s.status === 'COMPLETED'">
+    <ng-container *ngIf="hasResults(s.status)">
+      <div *ngIf="s.status === 'CANCELED'" class="alert alert-warning no-print" role="status">
+        <span><strong>Varredura cancelada.</strong> O resultado abaixo é parcial: mostra só o que foi verificado até o cancelamento.</span>
+      </div>
       <section class="grid verdict-grid">
         <!-- espec.txt 2.2: card de status rápido + veredito -->
         <article class="card verdict" [attr.data-severity]="worstSeverity">
@@ -203,6 +214,7 @@
           <button type="button" class="finding-head" (click)="toggle(f)" [attr.aria-expanded]="expanded.has(f.id)">
             <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
             <span class="finding-title">{{ f.title }}</span>
+            <span *ngIf="locationsOf(f).length > 1" class="badge">{{ locationsOf(f).length }} locais</span>
             <span class="hint">{{ toolLabel[f.tool] || f.tool }}</span>
             <span *ngIf="f.cvssScore !== null" class="hint">CVSS {{ f.cvssScore | number: '1.1-1' }}</span>
             <span class="chevron" aria-hidden="true">{{ expanded.has(f.id) ? '−' : '+' }}</span>
@@ -210,16 +222,37 @@
 
           <div *ngIf="expanded.has(f.id)" class="finding-body">
             <dl class="facts">
-              <div *ngIf="f.affectedUrl"><dt>Onde ocorre</dt><dd class="mono">{{ f.affectedUrl }}</dd></div>
-              <div *ngIf="f.parameter"><dt>Parâmetro</dt><dd class="mono">{{ f.parameter }}</dd></div>
+              <ng-container *ngIf="locationsOf(f).length === 1">
+                <div *ngIf="f.affectedUrl"><dt>Onde ocorre</dt><dd class="mono">{{ f.affectedUrl }}</dd></div>
+                <div *ngIf="f.parameter"><dt>Parâmetro</dt><dd class="mono">{{ f.parameter }}</dd></div>
+              </ng-container>
+              <div *ngIf="f.cvssScore !== null && f.severity !== 'INFO'">
+                <dt>Nota CVSS 3.1</dt>
+                <dd>
+                  <strong>{{ f.cvssScore | number: '1.1-1' }}</strong> ({{ severityLabel[f.severity] }})
+                  <span *ngIf="f.cvssSource" class="hint"> · {{ cvssSourceLabel[f.cvssSource] }}</span>
+                </dd>
+              </div>
+              <div *ngIf="f.confidence"><dt>Confiança</dt><dd>{{ confidenceLabel[f.confidence] }}</dd></div>
               <div *ngIf="f.owaspUrl"><dt>OWASP Top 10</dt><dd>{{ f.owaspUrl }}</dd></div>
               <div *ngIf="f.cveId"><dt>CVE</dt><dd class="mono">{{ f.cveId }}</dd></div>
               <ng-container *ngIf="view.technicalDetails">
                 <div><dt>Ferramenta</dt><dd>{{ toolLabel[f.tool] || f.tool }}</dd></div>
                 <div *ngIf="f.ruleId"><dt>Regra</dt><dd class="mono">{{ f.ruleId }}</dd></div>
-                <div *ngIf="f.cvssScore !== null"><dt>CVSS</dt><dd class="mono">{{ f.cvssScore | number: '1.1-1' }}</dd></div>
+                <div *ngIf="f.cvssVector"><dt>Vetor CVSS</dt><dd class="mono">{{ f.cvssVector }}</dd></div>
               </ng-container>
             </dl>
+
+            <div *ngIf="locationsOf(f).length > 1" class="locations">
+              <h3>Onde ocorre ({{ locationsOf(f).length }} locais)</h3>
+              <ul class="plain">
+                <li *ngFor="let l of locationsOf(f)">
+                  <span class="mono">{{ l.affectedUrl || '—' }}</span>
+                  <span *ngIf="l.parameter" class="hint"> · parâmetro: <span class="mono">{{ l.parameter }}</span></span>
+                  <span *ngIf="l.severity !== f.severity" class="badge sev" [attr.data-severity]="l.severity">{{ severityLabel[l.severity] }}</span>
+                </li>
+              </ul>
+            </div>
 
             <div *ngIf="f.description"><h3>Descrição</h3><p class="prose">{{ f.description }}</p></div>
 
@@ -385,7 +418,7 @@
             <tr *ngFor="let f of sortedFindings">
               <td>{{ severityLabel[f.severity] }}</td>
               <td>{{ f.title }}<br /><small>{{ f.owaspUrl }}</small></td>
-              <td class="mono">{{ f.affectedUrl }}</td>
+              <td class="mono"><ng-container *ngFor="let l of locationsOf(f); let last = last">{{ l.affectedUrl }}<br *ngIf="!last" /></ng-container></td>
               <td>{{ f.remediation || (f.premiumLocked ? 'Disponível no plano Premium' : '—') }}</td>
             </tr>
           </tbody>

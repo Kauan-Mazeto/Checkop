@@ -74,6 +74,8 @@ enum ScanStatus {
   RUNNING
   COMPLETED
   FAILED
+  // interrompida pelo usuário; guarda o que foi verificado até ali
+  CANCELED
 }
 
 enum FindingSeverity {
@@ -113,6 +115,8 @@ model User {
   plan                     Plan      @default(FREE)
   // RF-22: e-mail ao terminar cada varredura (o usuário desliga em Conta)
   notifyScanEmail          Boolean   @default(true)
+  // idioma dos textos dos achados (título, descrição, correção); código BCP 47
+  language                 String    @default("pt-BR")
   googleId                 String?   @unique
   resetPasswordToken       String?
   resetPasswordExpires     DateTime?
@@ -191,6 +195,11 @@ model Finding {
   parameter   String?        
   cveId       String?         
   cvssScore   Float?          
+  // CVSS 3.1: vetor do cálculo e origem (TEMPLATE | CWE | SEVERITY)
+  cvssVector  String?
+  cvssSource  String?
+  // confiança da ferramenta (LOW | MEDIUM | HIGH | CONFIRMED)
+  confidence  String?
   rawRequest  String?
   rawResponse String?
   remediation String?
@@ -246,4 +255,16 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// Traduções dos textos das regras (ZAP/Nuclei vêm em inglês). Guardadas por
+// idioma + hash do original: cada texto é traduzido uma única vez.
+model TranslationCache {
+  id         String   @id @default(uuid())
+  language   String
+  sourceHash String
+  text       String
+  createdAt  DateTime @default(now())
+
+  @@unique([language, sourceHash])
 }

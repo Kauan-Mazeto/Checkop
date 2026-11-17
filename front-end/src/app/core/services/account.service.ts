@@ -25,6 +25,11 @@ export interface TermsOfUse extends PrivacyPolicy {
 const withCredentials = { withCredentials: true };
 
 // Espelha backend/src/routes/auth_routes.js e privacy_routes.js.
+export interface UserPreferences {
+  notifyScanEmail: boolean;
+  language: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccountService {
   private readonly http = inject(HttpClient);
@@ -56,10 +61,10 @@ export class AccountService {
       );
   }
 
-  /** RF-22: liga ou desliga o e-mail ao terminar cada varredura. */
-  updatePreferences(notifyScanEmail: boolean): Observable<{ notifyScanEmail: boolean }> {
+  /** RF-22 (e-mail ao terminar cada varredura) e idioma dos achados; manda só o que mudou. */
+  updatePreferences(changes: Partial<UserPreferences>): Observable<UserPreferences> {
     return this.http
-      .patch<{ preferences: { notifyScanEmail: boolean } }>(`${API_BASE_URL}/auth/preferences`, { notifyScanEmail }, withCredentials)
+      .patch<{ preferences: UserPreferences }>(`${API_BASE_URL}/auth/preferences`, changes, withCredentials)
       .pipe(
         map((r) => r.preferences),
         tap((prefs) => this.auth.updateCachedUser(prefs)),

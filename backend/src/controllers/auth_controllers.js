@@ -503,11 +503,20 @@ const changeRole = async (req, res) => {
 // RF-22: liga ou desliga o e-mail ao terminar cada varredura
 const updatePreferences = async (req, res) => {
   try {
-    const { notifyScanEmail } = req.body;
-    const user = await prisma.user.update({ where: { id: req.userId }, data: { notifyScanEmail } });
+    const { notifyScanEmail, language } = req.body;
+    const data = {};
+    if (notifyScanEmail !== undefined) data.notifyScanEmail = notifyScanEmail;
+    if (language !== undefined) data.language = language;
+    const user = await prisma.user.update({ where: { id: req.userId }, data });
+
+    let message = 'Preferências salvas.';
+    if (language !== undefined) message = 'Idioma dos relatórios atualizado.';
+    else if (notifyScanEmail !== undefined) {
+      message = notifyScanEmail ? 'Você vai receber um e-mail quando cada varredura terminar.' : 'Notificações por e-mail desligadas.';
+    }
     return res.status(200).json({
-      message: notifyScanEmail ? 'Você vai receber um e-mail quando cada varredura terminar.' : 'Notificações por e-mail desligadas.',
-      preferences: { notifyScanEmail: user.notifyScanEmail },
+      message,
+      preferences: { notifyScanEmail: user.notifyScanEmail, language: user.language },
     });
   } catch (error) {
     console.error('Erro ao salvar preferências:', error);

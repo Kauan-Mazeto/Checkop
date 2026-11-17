@@ -30,7 +30,8 @@ class FakeZap:
         if path.endswith("/status/"):
             return {"status": "100"}
         if path == "/JSON/core/view/alerts/":
-            return {"alerts": [{"pluginId": "40018", "name": "SQL Injection", "riskcode": "3", "cweid": "89"}]}
+            # formato real da API 2.17: risco por extenso, sem "riskcode"
+            return {"alerts": [{"pluginId": "40018", "name": "SQL Injection", "risk": "High", "confidence": "Low", "cweid": "89"}]}
         return {}
 
     def paths(self):
@@ -98,7 +99,116 @@ class RunZapScanTest(unittest.TestCase):
             fake,
         )
         self.assertEqual(findings[0].ruleId, "40018")
+        # SQLi (CWE-89): vetor AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H = 9.8, crítico pela escala oficial
+        self.assertEqual(findings[0].severity, "CRITICAL")
+        self.assertEqual(findings[0].cvssScore, 9.8)
+        self.assertEqual(findings[0].cvssSource, "CWE")
+        self.assertEqual(findings[0].confidence, "LOW")
         self.assertTrue(any("90018" in w for w in warnings))
+
+
+class AlertSeverityTest(unittest.TestCase):
+    def test_risco_por_extenso_da_api(self):
+        # regressão: a API não manda "riskcode"; todo achado do ZAP virava INFO
+        for risk, expected in (("High", "HIGH"), ("Medium", "MEDIUM"), ("Low", "LOW"), ("Informational", "INFO")):
+            self.assertEqual(zap_runner._parse_alert({"pluginId": "1", "risk": risk}).severity, expected)
+
+    def test_riskcode_dos_relatorios_continua_aceito(self):
+        self.assertEqual(zap_runner._parse_alert({"pluginId": "1", "riskcode": "2"}).severity, "MEDIUM")
+
+
+class SpaDetectionTest(unittest.TestCase):
+    STATIC = "<html><body><h1>Loja</h1><nav><a href='/a'>A</a></nav><p>" + "Texto de verdade. " * 20 + "</p></body></html>"
+
+    def test_site_comum_nao_aciona_o_ajax(self):
+        self.assertIsNone(zap_runner.detect_spa(self.STATIC, pages_found=9))
+
+    def test_raiz_de_framework(self):
+        for html in ("<app-root></app-root>", '<div id="root"></div>', '<html ng-version="20.0.0">', "<div id='__next'></div>"):
+            self.assertIsNotNone(zap_runner.detect_spa(html, pages_found=9), html)
+
+    def test_pagina_montada_por_javascript(self):
+        html = "<html><body><div id='main'></div><script src='/bundle.js'></script></body></html>"
+        self.assertIn("JavaScript", zap_runner.detect_spa(html, pages_found=9))
+
+    def test_poucos_links_com_javascript(self):
+        html = self.STATIC.replace("</body>", "<script src='/app.js'></script></body>")
+        self.assertIsNotNone(zap_runner.detect_spa(html, pages_found=1))
+        self.assertIsNone(zap_runner.detect_spa(self.STATIC, pages_found=1))  # sem JS: é só um site pequeno
+
+
+class AutoAjaxTest(unittest.TestCase):
+    def setUp(self):
+        zap_runner._beta_addons_ready = True
+        patcher = mock.patch.object(zap_runner, "AJAX_SPIDER_START_POLL_SECONDS", 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_espera_o_ajax_comecar_antes_de_considerar_terminado(self):
+        # regressão: o 1º "stopped" (navegador ainda subindo) era lido como fim
+        statuses = iter(["stopped", "stopped", "running", "running", "stopped"])
+        fake = self._fake("<app-root></app-root>")
+        inner = fake.get
+
+        async def get(client, path, params):
+            if path == "/JSON/ajaxSpider/view/status/":
+                fake.calls.append((path, dict(params)))
+                return {"status": next(statuses, "stopped")}
+            return await inner(client, path, params)
+
+        fake.get = get
+        with mock.patch.object(zap_runner, "POLL_INTERVAL_SECONDS", 0):
+            _, _, warnings = run(lambda: zap_runner.run_zap_scan("http://localhost:3000", safe_mode=False, active_scan=True, scanner_ids=["40018"]), fake)
+        status_calls = [p for p in fake.paths() if p == "/JSON/ajaxSpider/view/status/"]
+        self.assertGreaterEqual(len(status_calls), 5)
+        self.assertFalse(any("não encontrou páginas" in w for w in warnings))
+
+    def _fake(self, html):
+        fake = FakeZap()
+        original = fake.get
+
+        async def get(client, path, params):
+            if path == "/JSON/core/view/messages/":
+                fake.calls.append((path, dict(params)))
+                return {"messages": [{"responseHeader": "HTTP/1.1 200 OK\r\nContent-Type: text/html", "responseBody": html}]}
+            if path == "/JSON/spider/view/results/":
+                fake.calls.append((path, dict(params)))
+                return {"results": ["http://localhost:3000/"]}
+            if path == "/JSON/ajaxSpider/view/status/":
+                fake.calls.append((path, dict(params)))
+                return {"status": "stopped"}
+            if path == "/JSON/ajaxSpider/view/numberOfResults/":
+                return {"numberOfResults": "5"}
+            return await original(client, path, params)
+
+        fake.get = get
+        return fake
+
+    def test_spa_detectada_aciona_o_ajax_e_avisa(self):
+        fake = self._fake("<app-root></app-root>")
+        _, _, warnings = run(lambda: zap_runner.run_zap_scan("http://localhost:3000", safe_mode=False, active_scan=True, scanner_ids=["40018"]), fake)
+        self.assertIn("/JSON/ajaxSpider/action/scan/", fake.paths())
+        self.assertIn(("/JSON/ajaxSpider/action/setOptionNumberOfBrowsers/", {"Integer": str(zap_runner.AJAX_SPIDER_BROWSERS)}), fake.calls)
+        self.assertTrue(any("SPA" in w for w in warnings))
+
+    def test_site_comum_nao_aciona_o_ajax(self):
+        fake = self._fake(SpaDetectionTest.STATIC)
+        run(lambda: zap_runner.run_zap_scan("http://localhost:3000", safe_mode=False, active_scan=True, scanner_ids=["40018"]), fake)
+        self.assertNotIn("/JSON/ajaxSpider/action/scan/", fake.paths())
+
+
+class NucleiReachabilityTest(unittest.TestCase):
+    def test_usa_o_dns_do_sistema(self):
+        # regressão: sem -sr o Nuclei não resolvia "localhost" e terminava calado
+        with mock.patch.object(nuclei_runner, "NUCLEI_BINARY", "nuclei"):
+            command = nuclei_runner._build_command("http://localhost:3000", False, 10)
+        self.assertIn("-sr", command)
+        self.assertNotIn("-silent", command)
+
+    def test_alvo_descartado_vira_aviso(self):
+        stderr = '[INF] Skipped localhost:3000 from target list as found unresponsive permanently: cause="no address found for host"'
+        self.assertIsNotNone(nuclei_runner.unreachable_warning(stderr))
+        self.assertIsNone(nuclei_runner.unreachable_warning("[INF] Scan completed in 2s. No results found."))
 
 
 class NucleiRuleIdTest(unittest.TestCase):

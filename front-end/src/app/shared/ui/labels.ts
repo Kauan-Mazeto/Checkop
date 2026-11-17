@@ -26,6 +26,7 @@ export const STATUS_LABEL: Record<ScanStatus, string> = {
   RUNNING: 'Em execução',
   COMPLETED: 'Concluído',
   FAILED: 'Falhou',
+  CANCELED: 'Cancelada',
 };
 
 export const ENVIRONMENT_LABEL: Record<ScanEnvironment, string> = {
@@ -84,4 +85,18 @@ export const formatIp = (ip: string | null | undefined): string => {
   if (!ip) return '—';
   const clean = ip.replace(/^::ffff:/i, '');
   return clean === '::1' || clean === '127.0.0.1' ? 'Este computador (local)' : clean;
+};
+// CVSS 3.1: de onde veio o vetor usado no cálculo da nota
+export const CVSS_SOURCE_LABEL: Record<string, string> = {
+  TEMPLATE: 'vetor oficial do template (NVD)',
+  CWE: 'vetor padrão da classe da falha (CWE)',
+  SEVERITY: 'estimada pela severidade (sem vetor disponível)',
+};
+
+// confiança da ferramenta no achado
+export const CONFIDENCE_LABEL: Record<string, string> = {
+  LOW: 'Baixa',
+  MEDIUM: 'Média',
+  HIGH: 'Alta',
+  CONFIRMED: 'Confirmada',
 };

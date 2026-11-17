@@ -5,20 +5,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService } from '../../core/services/auth.service';
-import { Finding, FindingSeverity, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions } from '../../core/services/scan.service';
+import { Finding, FindingSeverity, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions, hasResults } from '../../core/services/scan.service';
 import { RoleView, roleView } from '../../shared/ui/role-views';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
 import { BAR_OPTIONS, DOUGHNUT_OPTIONS, countBar, owaspBar, severityDoughnut } from '../../shared/ui/chart-data';
-import {
-  ENVIRONMENT_LABEL,
-  SEVERITY_LABEL,
-  SEVERITY_ORDER,
-  STATUS_LABEL,
-  TOOL_LABEL,
-  owaspExplanation,
-} from '../../shared/ui/labels';
+import { ENVIRONMENT_LABEL, SEVERITY_LABEL, SEVERITY_ORDER, STATUS_LABEL, TOOL_LABEL, owaspExplanation, CVSS_SOURCE_LABEL, CONFIDENCE_LABEL } from '../../shared/ui/labels';
 import {
   ComplianceGroup,
   countBy,
@@ -26,7 +19,10 @@ import {
   exportFileName,
   filterBySeverity,
   groupCompliance,
+  EvidenceItem,
+  evidenceItems,
   hasEvidence,
+  locationsOf,
   sortBySeverity,
 } from './scan-detail.logic';
 
@@ -53,6 +49,32 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected readonly toolLabel = TOOL_LABEL;
   protected readonly owaspExplanation = owaspExplanation;
   protected readonly hasEvidence = hasEvidence;
+  protected readonly locationsOf = locationsOf;
+  protected readonly hasResults = hasResults;
+
+  // cancelamento: as ferramentas param e o que já foi verificado vira resultado parcial
+  protected isCanceling = false;
+  protected cancelMessage: string | null = null;
+  protected cancelError: string | null = null;
+
+  protected cancel(): void {
+    if (!this.scan || this.isCanceling) return;
+    if (!window.confirm('Cancelar a varredura? As ferramentas param agora e o resultado mostra só o que já foi verificado.')) return;
+    this.isCanceling = true;
+    this.cancelError = null;
+    this.scanService.cancelScan(this.scan.id).subscribe({
+      next: (r) => {
+        this.cancelMessage = r.message;
+        this.load(); // o polling segue até a varredura ficar como cancelada
+      },
+      error: (error: ApiError) => {
+        this.isCanceling = false;
+        this.cancelError = error.message;
+      },
+    });
+  }
+  protected readonly cvssSourceLabel = CVSS_SOURCE_LABEL;
+  protected readonly confidenceLabel = CONFIDENCE_LABEL;
   protected readonly doughnutOptions = DOUGHNUT_OPTIONS as ChartOptions;
   protected readonly barOptions = BAR_OPTIONS as ChartOptions;
   // RF-11: formato do relatório pelo perfil (o servidor confirma o perfil em scan.role)
@@ -170,8 +192,8 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     return filterBySeverity(this.sortedFindings, this.severityFilter);
   }
 
-  protected get evidenceFindings(): Finding[] {
-    return this.sortedFindings.filter(hasEvidence);
+  protected get evidenceFindings(): EvidenceItem[] {
+    return evidenceItems(this.sortedFindings);
   }
 
   protected get elapsedTime(): string {
@@ -266,7 +288,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   /** Na primeira carga, abre a aba e os achados que o perfil prioriza (RF-11). */
   private applyRoleView(scan: ScanDetail): void {
     if (scan.role) this.view = roleView(scan.role);
-    if (this.viewApplied || scan.status !== 'COMPLETED') return;
+    if (this.viewApplied || !hasResults(scan.status)) return;
     this.viewApplied = true;
     const wantsEvidence = this.view.defaultTab === 'evidence';
     // evidência só faz sentido se o plano e o perfil a recebem e se ela existe

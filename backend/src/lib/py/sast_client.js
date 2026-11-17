@@ -3,14 +3,14 @@ import { engineHeaders } from './security_engine_client.js';
 const SECURITY_ENGINE_URL = process.env.SECURITY_ENGINE_URL || 'http://localhost:8010';
 const REQUEST_TIMEOUT_MS = 150000;
 
-export const runSastScan = async ({ files }) => {
+export const runSastScan = async ({ files, language }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
         const response = await fetch(`${SECURITY_ENGINE_URL}/scans/sast`, {
             method: 'POST',
             headers: engineHeaders(),
-            body: JSON.stringify({ files }),
+            body: JSON.stringify({ files, language }),
             signal: controller.signal,
         });
         if (!response.ok) {

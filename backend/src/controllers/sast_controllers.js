@@ -12,7 +12,7 @@ const analyzeCode = async (req, res) => {
             return res.status(400).json({ error: 'Envie ao menos um arquivo em "files".' });
         }
 
-        const result = await runSastScan({ files });
+        const result = await runSastScan({ files, language: req.userLanguage });
         return res.status(200).json(result);
     } catch (error) {
         console.error('Erro na análise SAST:', error);

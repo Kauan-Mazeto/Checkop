@@ -2,7 +2,7 @@ import { Finding } from '../../core/services/scan.service';
 import { groupObjectives } from '../new-scan-page/new-scan-page.component';
 import { buildCodeView, isAcceptedFile } from '../code-analysis-page/code-view';
 import { parseSastLocation } from '../../core/services/sast.service';
-import { elapsed, exportFileName, filterBySeverity, groupCompliance, hasEvidence, sortBySeverity } from './scan-detail.logic';
+import { elapsed, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
 
 const finding = (over: Partial<Finding>): Finding => ({
   id: over.id ?? Math.random().toString(36),
@@ -40,6 +40,24 @@ describe('detalhe da varredura: lógica', () => {
   it('evidência só existe com requisição ou resposta (em Modo Seguro o backend não as manda)', () => {
     expect(hasEvidence(finding({}))).toBeFalse();
     expect(hasEvidence(finding({ rawRequest: 'GET /?id=1' }))).toBeTrue();
+  });
+
+  it('falha em vários locais: evidência de cada local vira um cartão', () => {
+    const grouped = finding({
+      title: 'XSS',
+      locations: [
+        { id: 'a', affectedUrl: 'http://x/search', severity: 'HIGH', rawRequest: 'GET /search?q=<script>' },
+        { id: 'b', affectedUrl: 'http://x/item', severity: 'HIGH' },
+        { id: 'c', affectedUrl: 'http://x/busca', severity: 'MEDIUM', rawResponse: '<script>' },
+      ],
+    });
+    expect(hasEvidence(grouped)).toBeTrue();
+    expect(evidenceItems([grouped]).map((e) => e.affectedUrl)).toEqual(['http://x/search', 'http://x/busca']);
+    expect(evidenceItems([grouped])[0].title).toBe('XSS');
+  });
+
+  it('achado sem agrupamento conta como um local só', () => {
+    expect(locationsOf(finding({ id: 'z', affectedUrl: 'http://x/' })).map((l) => l.affectedUrl)).toEqual(['http://x/']);
   });
 
   it('agrupa compliance por lei + artigo, sem repetir achado', () => {

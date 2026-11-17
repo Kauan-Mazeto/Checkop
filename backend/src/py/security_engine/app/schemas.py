@@ -11,6 +11,11 @@ class Finding(BaseModel):
     affectedUrl: str | None = None
     cveId: str | None = None
     cvssScore: float | None = None
+    # CVSS 3.1: vetor usado no cálculo e de onde ele veio (TEMPLATE | CWE | SEVERITY)
+    cvssVector: str | None = None
+    cvssSource: str | None = None
+    # confiança da ferramenta no achado (LOW | MEDIUM | HIGH | CONFIRMED)
+    confidence: str | None = None
     rawRequest: str | None = None
     rawResponse: str | None = None
     remediation: str | None = None
@@ -28,6 +33,8 @@ class ZapAuthConfig(BaseModel):
 
 # ---------- Nuclei (RF-10) ----------
 class NucleiScanRequest(BaseModel):
+    # id da varredura no Checkop: permite cancelar (POST /scans/{jobId}/cancel)
+    jobId: str | None = None
     targetUrl: str
     safeMode: bool = True
     # limite de requisições/seg contra o alvo (RF-51)
@@ -39,10 +46,12 @@ class NucleiScanResponse(BaseModel):
     findings: list[Finding]
     findingsCount: int
     durationSeconds: float
+    warnings: list[str] = []
 
 
 # ---------- ZAP (RF-09) ----------
 class ZapScanRequest(BaseModel):
+    jobId: str | None = None
     targetUrl: str
     # safeMode = alvo de produção (mascaramento e cautela); activeScan = pode atacar.
     # Separados porque produção verificada + opt-in explícito pode rodar o ativo.
@@ -64,6 +73,12 @@ class ZapScanResponse(BaseModel):
 class SastScanRequest(BaseModel):
     # { "nome_arquivo.ext": "conteúdo" }
     files: dict[str, str]
+    # idioma das mensagens das regras (preferência do usuário)
+    language: str = "pt-BR"
+
+class TranslateRequest(BaseModel):
+    texts: list[str] = Field(default_factory=list, max_length=500)
+    target: str = "pt-BR"
 
 # ---------- Subfinder ----------
 class SubdomainEnumRequest(BaseModel):

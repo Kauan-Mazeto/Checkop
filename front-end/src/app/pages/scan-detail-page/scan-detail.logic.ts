@@ -1,4 +1,4 @@
-import { ComplianceNote, Finding, FindingSeverity } from '../../core/services/scan.service';
+import { ComplianceNote, Finding, FindingLocation, FindingSeverity } from '../../core/services/scan.service';
 import { SEVERITY_ORDER } from '../../shared/ui/labels';
 
 // Lógica pura da tela de detalhe (testável sem renderizar o componente).
@@ -14,7 +14,36 @@ export const sortBySeverity = (findings: Finding[]): Finding[] =>
 export const filterBySeverity = (findings: Finding[], severity: FindingSeverity | 'ALL'): Finding[] =>
   severity === 'ALL' ? findings : findings.filter((f) => f.severity === severity);
 
-export const hasEvidence = (finding: Finding): boolean => Boolean(finding.rawRequest || finding.rawResponse);
+const locationHasEvidence = (l: { rawRequest?: string | null; rawResponse?: string | null }): boolean =>
+  Boolean(l.rawRequest || l.rawResponse);
+
+/** Locais da falha; achado sem agrupamento (comparação) vale como um local só. */
+export const locationsOf = (finding: Finding): FindingLocation[] =>
+  finding.locations?.length
+    ? finding.locations
+    : [{ id: finding.id, affectedUrl: finding.affectedUrl, parameter: finding.parameter, severity: finding.severity,
+         rawRequest: finding.rawRequest, rawResponse: finding.rawResponse }];
+
+export const hasEvidence = (finding: Finding): boolean => locationsOf(finding).some(locationHasEvidence);
+
+/** Aba Evidências: um cartão por local que tem requisição/resposta. */
+export interface EvidenceItem {
+  id: string;
+  title: string;
+  severity: FindingSeverity;
+  affectedUrl: string | null;
+  parameter?: string | null;
+  rawRequest?: string | null;
+  rawResponse?: string | null;
+}
+
+export const evidenceItems = (findings: Finding[]): EvidenceItem[] =>
+  findings.flatMap((f) =>
+    locationsOf(f)
+      .filter(locationHasEvidence)
+      .map((l) => ({ id: l.id, title: f.title, severity: l.severity, affectedUrl: l.affectedUrl, parameter: l.parameter,
+                     rawRequest: l.rawRequest, rawResponse: l.rawResponse })),
+  );
 
 export interface ComplianceGroup {
   law: string;
