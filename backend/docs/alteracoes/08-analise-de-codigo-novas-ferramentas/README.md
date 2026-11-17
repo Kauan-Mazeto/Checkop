@@ -92,3 +92,13 @@ Integrar ao motor (`run_sast_scan`) analisadores especializados. Cada um roda **
 - Verificação de dependências vulneráveis (SCA), com CVE e a versão que corrige.
 - Achados de várias ferramentas unificados: a mesma falha aparece uma vez, com quem a confirmou.
 - Acerto medido em benchmarks públicos (OWASP Benchmark, Juliet), com cobertura e taxa de falso positivo.
+
+
+
+adicionar tambem:
+
+LGPD, "Baixar meus dados": o direito de portabilidade (art. 18). Hoje a tela só indica um e-mail. É simples e fecha o tema de privacidade, que o projeto já trata bem.
+Rodar com um comando (Docker Compose): ZAP, motor, backend e front sobem juntos. Facilita a demonstração e mostra maturidade de projeto.
+Gráfico de evolução no Painel, por alvo.
+Autenticação em dois fatores.
+Integração com CI/CD (GitHub Actions).
