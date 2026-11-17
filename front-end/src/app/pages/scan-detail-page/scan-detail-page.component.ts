@@ -192,9 +192,10 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     return filterBySeverity(this.sortedFindings, this.severityFilter);
   }
 
-  protected get evidenceFindings(): EvidenceItem[] {
-    return evidenceItems(this.sortedFindings);
-  }
+  // calculada uma vez por carga (em derive). Como getter, gerava objetos novos a
+  // cada verificação do Angular e o *ngFor recriava todos os cartões de PoC sem
+  // parar, travando a aba
+  protected evidenceFindings: EvidenceItem[] = [];
 
   protected get elapsedTime(): string {
     return elapsed(this.scan?.startedAt ?? null, this.now);
@@ -300,6 +301,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   private derive(scan: ScanDetail): void {
     this.sortedFindings = sortBySeverity(scan.findings);
+    this.evidenceFindings = evidenceItems(this.sortedFindings);
     this.complianceGroups = groupCompliance(scan.findings);
     this.severityChart = severityDoughnut(scan.summary.severityCounts) as ChartData;
     this.toolChart = countBar(countBy(scan.findings, (f) => f.tool)) as ChartData;

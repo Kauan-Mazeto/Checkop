@@ -37,12 +37,22 @@ export interface EvidenceItem {
   rawResponse?: string | null;
 }
 
+/** Tamanho máximo exibido de cada requisição/resposta (o JSON exportado leva tudo). */
+export const EVIDENCE_MAX_CHARS = 20000;
+
+export const clipEvidence = (text: string | null | undefined): string | null | undefined =>
+  text && text.length > EVIDENCE_MAX_CHARS
+    ? `${text.slice(0, EVIDENCE_MAX_CHARS)}
+
+[... ${text.length - EVIDENCE_MAX_CHARS} caracteres omitidos; o JSON exportado traz o conteúdo completo]`
+    : text;
+
 export const evidenceItems = (findings: Finding[]): EvidenceItem[] =>
   findings.flatMap((f) =>
     locationsOf(f)
       .filter(locationHasEvidence)
       .map((l) => ({ id: l.id, title: f.title, severity: l.severity, affectedUrl: l.affectedUrl, parameter: l.parameter,
-                     rawRequest: l.rawRequest, rawResponse: l.rawResponse })),
+                     rawRequest: clipEvidence(l.rawRequest), rawResponse: clipEvidence(l.rawResponse) })),
   );
 
 export interface ComplianceGroup {

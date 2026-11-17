@@ -7,6 +7,8 @@ import type { UserRole } from './auth.service';
 
 // Espelham os enums do backend (backend/prisma/schema.prisma).
 export type ScanEnvironment = 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
+export type ExportFormat = 'findings-csv' | 'scans-csv' | 'json';
+
 export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELED';
 
 /** Concluída ou cancelada: as duas têm resultado (a cancelada, parcial). */
@@ -195,6 +197,25 @@ export class ScanService {
     return this.http
       .get<ScanComparison>(`${API_BASE_URL}/scans/${encodeURIComponent(id)}/compare${query}`, withCredentials)
       .pipe(catchError(this.fail));
+  }
+
+  /** Painel > Exportar: todas as varreduras (Premium). Devolve o arquivo pronto para baixar. */
+  exportAll(format: ExportFormat): Observable<Blob> {
+    return this.http
+      .get(`${API_BASE_URL}/scans/export`, { ...withCredentials, params: { format }, responseType: 'blob' })
+      .pipe(
+        catchError((error: HttpErrorResponse) =>
+          // erro chega como Blob; a mensagem do backend fica legível só pelo status
+          throwError(() =>
+            toApiError(
+              new HttpErrorResponse({
+                status: error.status,
+                error: { error: error.status === 403 ? 'Exportar relatórios é um recurso Premium.' : 'Não foi possível exportar agora.' },
+              })
+            )
+          )
+        )
+      );
   }
 
   getStats(): Observable<ScanStats> {

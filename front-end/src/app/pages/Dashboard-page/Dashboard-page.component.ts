@@ -5,7 +5,7 @@ import { ChartData, ChartOptions } from 'chart.js';
 import { catchError, forkJoin, of } from 'rxjs';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService, AuthUser, UserRole } from '../../core/services/auth.service';
-import { Finding, Scan, ScanService, ScanStats } from '../../core/services/scan.service';
+import { ExportFormat, Finding, Scan, ScanService, ScanStats } from '../../core/services/scan.service';
 import { TargetService } from '../../core/services/target.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
@@ -108,6 +108,34 @@ export class DashboardPageComponent implements OnInit {
     forkJoin(completed.map((s) => this.scanService.getScan(s.id).pipe(catchError(() => of(null))))).subscribe(
       (details) => (this.findings = details.flatMap((d) => d?.findings ?? []))
     );
+  }
+
+  // exportação consolidada (Premium)
+  protected isExporting = false;
+  protected exportError: string | null = null;
+
+  protected exportAll(format: ExportFormat, menu: HTMLDetailsElement): void {
+    if (this.isExporting) return;
+    menu.open = false;
+    this.isExporting = true;
+    this.exportError = null;
+    this.scanService.exportAll(format).subscribe({
+      next: (blob) => {
+        this.isExporting = false;
+        const extension = format === 'json' ? 'json' : 'csv';
+        const name = { 'findings-csv': 'achados', 'scans-csv': 'varreduras', json: 'relatorio-completo' }[format];
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `checkop-${name}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (error: ApiError) => {
+        this.isExporting = false;
+        this.exportError = error.message;
+      },
+    });
   }
 
   protected get firstName(): string {

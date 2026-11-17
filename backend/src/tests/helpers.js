@@ -13,6 +13,15 @@ export const fakeRes = () => {
     res.cookies[name] = value;
     return res;
   };
+  res.headers = {};
+  res.setHeader = (name, value) => {
+    res.headers[name.toLowerCase()] = value;
+    return res;
+  };
+  res.send = (body) => {
+    res.body = body;
+    return res;
+  };
   res.clearCookie = (name) => {
     delete res.cookies[name];
     return res;

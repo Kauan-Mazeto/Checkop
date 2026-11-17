@@ -4,6 +4,7 @@ import { runNucleiScan, runZapScan, runSubdomainEnum, cancelEngineJob, SecurityE
 import { serializeFindings } from '../lib/py/finding_serializer.js';
 import { translateFindings, warmTranslations } from '../lib/finding_translation.js';
 import { groupFindings } from '../lib/finding_groups.js';
+import { EXPORT_FORMATS, exportFileName, exportJson, findingsCsv, scansCsv } from '../lib/scan_export.js';
 import { getDomain } from 'tldts';
 import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
@@ -639,6 +640,57 @@ const executeScan = async (scan, runOptions = {}) => {
   await notifyScanFinished(scan.id);
 };
 
+// Painel > Exportar: todas as varreduras da conta em CSV (achados ou varreduras)
+// ou JSON. Premium. Achados seguem as mesmas regras da tela: Modo Seguro de
+// cada varredura, plano, perfil e idioma do usuário.
+const EXPORT_MAX_SCANS = 500;
+
+const exportScans = async (req, res) => {
+  try {
+    if (!planRules(req.userPlan).canExportReports) {
+      return res.status(403).json({ error: 'Exportar relatórios é um recurso Premium.', code: PREMIUM_REQUIRED_CODE });
+    }
+
+    const format = typeof req.query.format === 'string' ? req.query.format : 'json';
+    if (!EXPORT_FORMATS[format]) {
+      return res.status(400).json({ error: `Formato inválido. Use: ${Object.keys(EXPORT_FORMATS).join(', ')}.` });
+    }
+
+    const scans = await prisma.scan.findMany({
+      where: { userId: req.userId },
+      orderBy: { createdAt: 'desc' },
+      take: EXPORT_MAX_SCANS,
+      include: { findings: true },
+    });
+
+    // traduz tudo de uma vez (uma chamada ao motor) e devolve cada achado à sua varredura
+    const localized = await translateFindings(scans.flatMap((scan) => scan.findings), req.userLanguage);
+    let offset = 0;
+    const prepared = scans.map((scan) => {
+      const own = localized.slice(offset, offset + scan.findings.length);
+      offset += scan.findings.length;
+      const serialized = serializeFindings(own, { safeMode: scan.safeMode, plan: req.userPlan, role: req.userRole });
+      // CSV: uma linha por local; JSON: uma entrada por falha com os locais dentro
+      return { ...scan, findings: format === 'json' ? groupFindings(serialized) : serialized };
+    });
+
+    await logAudit(req, { action: AUDIT_ACTIONS.REPORT_EXPORTED, resourceType: 'scan', details: { format, scans: scans.length } });
+
+    const { type } = EXPORT_FORMATS[format];
+    const body =
+      format === 'findings-csv' ? findingsCsv(prepared)
+        : format === 'scans-csv' ? scansCsv(prepared)
+          : JSON.stringify(exportJson(prepared, { language: req.userLanguage }), null, 2);
+
+    res.setHeader('Content-Type', type);
+    res.setHeader('Content-Disposition', `attachment; filename="${exportFileName(format)}"`);
+    return res.status(200).send(body);
+  } catch (error) {
+    console.error('Erro ao exportar varreduras:', error);
+    return res.status(500).json({ error: 'Erro interno ao exportar as varreduras.' });
+  }
+};
+
 // Cancela a varredura: o motor para o Nuclei e o ZAP, que devolvem o que já
 // encontraram; executeScan grava esses achados com status CANCELED.
 const cancelScan = async (req, res) => {
@@ -755,4 +807,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan, cancelScan };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan, cancelScan, exportScans };

@@ -15,12 +15,15 @@ export const PLAN_RULES = Object.freeze({
     defaultObjective: 'BASIC_SCAN',
     // quantas varreduras (as mais recentes) o usuário enxerga; null = todas
     visibleScans: 1,
+    // relatórios em PDF/JSON/CSV (individual e consolidado)
+    canExportReports: false,
   }),
   PREMIUM: Object.freeze({
     dailyScanLimit: null,
     allowedObjectives: null, // null = todos
     defaultObjective: 'FULL_SCAN',
     visibleScans: null,
+    canExportReports: true,
   }),
 });
 

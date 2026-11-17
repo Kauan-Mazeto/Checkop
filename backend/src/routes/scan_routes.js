@@ -15,6 +15,7 @@ router.post('/', scanCreationLimiter, validate(createScanSchema), scanController
 router.get('/', scanController.listScans);
 router.get('/suspicious', scanController.listSuspiciousScans);
 router.get('/stats', scanController.getScanStats);
+router.get('/export', scanController.exportScans);
 router.get('/objectives', scanController.getObjectives);
 router.get('/:id', requireOwnership('scan'), scanController.getScanById);
 router.get('/:id/compare', requireOwnership('scan'), scanController.compareScans);

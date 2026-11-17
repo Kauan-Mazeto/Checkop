@@ -2,7 +2,7 @@ import { Finding } from '../../core/services/scan.service';
 import { groupObjectives } from '../new-scan-page/new-scan-page.component';
 import { buildCodeView, isAcceptedFile } from '../code-analysis-page/code-view';
 import { parseSastLocation } from '../../core/services/sast.service';
-import { elapsed, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
+import { EVIDENCE_MAX_CHARS, elapsed, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
 
 const finding = (over: Partial<Finding>): Finding => ({
   id: over.id ?? Math.random().toString(36),
@@ -54,6 +54,13 @@ describe('detalhe da varredura: lógica', () => {
     expect(hasEvidence(grouped)).toBeTrue();
     expect(evidenceItems([grouped]).map((e) => e.affectedUrl)).toEqual(['http://x/search', 'http://x/busca']);
     expect(evidenceItems([grouped])[0].title).toBe('XSS');
+  });
+
+  it('evidência enorme é cortada na tela, com aviso', () => {
+    const big = 'x'.repeat(EVIDENCE_MAX_CHARS + 500);
+    const [item] = evidenceItems([finding({ rawResponse: big })]);
+    expect(item.rawResponse!.length).toBeLessThan(big.length);
+    expect(item.rawResponse).toContain('500 caracteres omitidos');
   });
 
   it('achado sem agrupamento conta como um local só', () => {

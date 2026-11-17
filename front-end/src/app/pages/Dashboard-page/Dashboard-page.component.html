@@ -5,6 +5,24 @@
       <p>Olá, {{ firstName }}. Segurança simples para decisões mais claras.</p>
     </div>
     <div class="actions">
+      <!-- exportação consolidada de todas as varreduras -->
+      <details *ngIf="plan.canExportReports; else exportLocked" class="export-menu" #exportMenu>
+        <summary class="button button-outline">{{ isExporting ? 'Exportando...' : 'Exportar' }}</summary>
+        <div class="export-options" role="menu">
+          <button type="button" role="menuitem" (click)="exportAll('findings-csv', exportMenu)" [disabled]="isExporting">
+            <strong>Achados (CSV)</strong><span>Uma linha por falha e local. Abre no Excel e no Google Sheets.</span>
+          </button>
+          <button type="button" role="menuitem" (click)="exportAll('scans-csv', exportMenu)" [disabled]="isExporting">
+            <strong>Varreduras (CSV)</strong><span>Uma linha por varredura, com a contagem por severidade.</span>
+          </button>
+          <button type="button" role="menuitem" (click)="exportAll('json', exportMenu)" [disabled]="isExporting">
+            <strong>Relatório completo (JSON)</strong><span>Tudo estruturado, para integrar com outras ferramentas.</span>
+          </button>
+        </div>
+      </details>
+      <ng-template #exportLocked>
+        <a class="button button-outline" routerLink="/plans">Exportar <span class="badge badge-pro">PRO</span></a>
+      </ng-template>
       <a class="button button-outline" routerLink="/targets">Verificar domínio</a>
       <a class="button button-primary" routerLink="/scans/new">+ Nova varredura</a>
     </div>
@@ -13,6 +31,7 @@
   <div class="hint-bar">Seu perfil ({{ roleLabel[user?.role ?? 'STUDENT'] }}) define o painel. Seu plano ({{ plan.name }}) define os recursos liberados.</div>
 
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
+  <div *ngIf="exportError" class="alert alert-error" role="alert">{{ exportError }}</div>
 
   <!-- Indicadores -->
   <section class="grid grid-4" aria-label="Indicadores">
