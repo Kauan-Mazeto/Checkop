@@ -36,6 +36,37 @@ export interface AiFixRequest {
   remediation?: string | null;
 }
 
+/** Pacote de créditos de IA (compra demonstrativa, sem cobrança no TCC). */
+export interface AiCreditPack {
+  id: string;
+  credits: number;
+  priceLabel: string;
+}
+
+export interface AiConfig {
+  enabled: boolean;
+  /** saldo de créditos para a correção do arquivo inteiro (paga à parte do plano) */
+  credits: number;
+  fullFixCost: number;
+  packs: AiCreditPack[];
+}
+
+export interface FullFixRequest {
+  filename: string;
+  language: string;
+  code: string;
+  findings: { title: string; startLine: number; endLine?: number | null; description?: string | null; remediation?: string | null }[];
+}
+
+export interface FullFixResult {
+  fixedCode: string;
+  summary: string;
+  changes: { line: number; description: string }[];
+  model: string;
+  /** saldo depois do débito */
+  credits: number;
+}
+
 export interface AiFixResult {
   fixedCode: string;
   explanation: string;
@@ -50,9 +81,23 @@ export class SastService {
   private readonly http = inject(HttpClient);
 
   /** O servidor tem credencial da Anthropic para a correção com IA? */
-  aiConfig(): Observable<{ enabled: boolean }> {
+  aiConfig(): Observable<AiConfig> {
     return this.http
-      .get<{ enabled: boolean }>(`${API_BASE_URL}/sast/ai-config`, { withCredentials: true })
+      .get<AiConfig>(`${API_BASE_URL}/sast/ai-config`, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** POST /api/sast/fix-file — corrige o arquivo inteiro com IA; consome créditos (pagos à parte). */
+  fixFullFile(request: FullFixRequest): Observable<FullFixResult> {
+    return this.http
+      .post<FullFixResult>(`${API_BASE_URL}/sast/fix-file`, request, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** POST /api/sast/credits/purchase — compra demonstrativa de um pacote de créditos. */
+  purchaseCredits(packId: string): Observable<{ message: string; credits: number }> {
+    return this.http
+      .post<{ message: string; credits: number }>(`${API_BASE_URL}/sast/credits/purchase`, { packId }, { withCredentials: true })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
   }
 

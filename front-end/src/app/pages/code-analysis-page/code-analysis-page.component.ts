@@ -6,12 +6,12 @@ import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService } from '../../core/services/auth.service';
 import { DraftService } from '../../core/services/draft.service';
-import { AiFixResult, SAST_MAX_TOTAL_BYTES, SastFinding, SastResult, SastService, parseSastLocation } from '../../core/services/sast.service';
+import { AiFixResult, SAST_MAX_TOTAL_BYTES, SastFinding, SastResult, SastService, parseSastLocation, AiCreditPack, FullFixResult } from '../../core/services/sast.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { DOUGHNUT_OPTIONS, severityCountsFrom, severityDoughnut } from '../../shared/ui/chart-data';
 import { SEVERITY_LABEL, SEVERITY_ORDER } from '../../shared/ui/labels';
-import { CodeLanguage, CodeLine, DiffRow, LANGUAGES, buildCodeView, codeWindow, isAcceptedFile, sideBySideDiff } from './code-view';
+import { CodeLanguage, CodeLine, DiffRow, LANGUAGES, LANGUAGE_GROUPS, buildCodeView, codeWindow, isAcceptedFile, sideBySideDiff } from './code-view';
 
 type InputMode = 'paste' | 'upload';
 
@@ -46,6 +46,8 @@ export class CodeAnalysisPageComponent implements OnInit {
   private readonly drafts = inject(DraftService);
 
   protected readonly languages = LANGUAGES;
+  /** seletor agrupado por categoria (Web, JVM/.NET, sistemas, infraestrutura) */
+  protected readonly languageGroups = LANGUAGE_GROUPS.map((name) => ({ name, items: LANGUAGES.filter((l) => l.group === name) }));
   protected readonly severityLabel = SEVERITY_LABEL;
   protected readonly doughnutOptions = DOUGHNUT_OPTIONS as ChartOptions;
   protected readonly isPremium = this.auth.getCachedUser()?.plan === 'PREMIUM';
@@ -66,12 +68,32 @@ export class CodeAnalysisPageComponent implements OnInit {
   /** correção com IA disponível neste servidor (há credencial da Anthropic) */
   protected aiEnabled = false;
 
+  // correção do arquivo inteiro: paga à parte, com créditos de IA
+  protected aiCredits = 0;
+  protected fullFixCost = 1;
+  protected creditPacks: AiCreditPack[] = [];
+  protected showPacks = false;
+  protected buyingPackId: string | null = null;
+  protected creditMessage: string | null = null;
+  protected fullFix: { loading: boolean; error: string | null; result: FullFixResult | null; rows: DiffRow[]; file: string | null } = {
+    loading: false, error: null, result: null, rows: [], file: null,
+  };
+  protected copied = false;
+
   ngOnInit(): void {
     const draft = this.drafts.load<CodeDraft>(DRAFT_KEY);
     if (draft.filename && LANGUAGES.some((l) => l.filename === draft.filename)) this.filename = draft.filename;
     this.code = draft.code ?? '';
     if (this.isPremium) {
-      this.sastService.aiConfig().subscribe({ next: ({ enabled }) => (this.aiEnabled = enabled), error: () => (this.aiEnabled = false) });
+      this.sastService.aiConfig().subscribe({
+        next: (config) => {
+          this.aiEnabled = config.enabled;
+          this.aiCredits = config.credits;
+          this.fullFixCost = config.fullFixCost;
+          this.creditPacks = config.packs;
+        },
+        error: () => (this.aiEnabled = false),
+      });
     }
   }
 
@@ -132,6 +154,7 @@ export class CodeAnalysisPageComponent implements OnInit {
     this.needsPremium = false;
     this.result = null;
     this.analyzedFiles = files;
+    this.fullFix = { loading: false, error: null, result: null, rows: [], file: null };
 
     this.sastService.analyze(files).subscribe({
       next: (result) => {
@@ -172,6 +195,78 @@ export class CodeAnalysisPageComponent implements OnInit {
         return { finding, file, start, end, code, source, ai: { loading: false, error: null, result: null, rows: [] } };
       });
   }
+  /** Arquivo que a correção completa vai corrigir: o código colado (um arquivo só). */
+  protected get fullFixFile(): string | null {
+    const files = Object.keys(this.analyzedFiles);
+    return files.length === 1 ? files[0] : null;
+  }
+
+  /** Corrige o arquivo inteiro com IA (consome créditos, pagos à parte do plano). */
+  protected fixFullFile(): void {
+    const file = this.fullFixFile;
+    if (!file || this.fullFix.loading) return;
+    if (this.aiCredits < this.fullFixCost) {
+      this.showPacks = true;
+      return;
+    }
+    const code = this.analyzedFiles[file];
+    this.fullFix = { loading: true, error: null, result: null, rows: [], file };
+    this.sastService
+      .fixFullFile({
+        filename: file,
+        language: languageOf(file),
+        code,
+        findings: this.views
+          .filter((v) => v.file === file)
+          .map((v) => ({
+            title: v.finding.title,
+            startLine: v.start,
+            endLine: v.end,
+            description: v.finding.description,
+            remediation: v.finding.remediation,
+          })),
+      })
+      .subscribe({
+        next: (result) => {
+          this.aiCredits = result.credits;
+          this.fullFix = { loading: false, error: null, result, rows: sideBySideDiff(code, result.fixedCode, 1), file };
+        },
+        error: (error: ApiError) => {
+          if (error.code === 'AI_CREDITS_REQUIRED') this.showPacks = true;
+          this.fullFix = { loading: false, error: error.message, result: null, rows: [], file };
+        },
+      });
+  }
+
+  /** Compra demonstrativa de créditos (sem cobrança no TCC). */
+  protected buyCredits(pack: AiCreditPack): void {
+    if (this.buyingPackId) return;
+    this.buyingPackId = pack.id;
+    this.creditMessage = null;
+    this.sastService.purchaseCredits(pack.id).subscribe({
+      next: (r) => {
+        this.buyingPackId = null;
+        this.aiCredits = r.credits;
+        this.creditMessage = r.message;
+        this.showPacks = false;
+      },
+      error: (error: ApiError) => {
+        this.buyingPackId = null;
+        this.creditMessage = error.message;
+      },
+    });
+  }
+
+  /** Copia o arquivo corrigido inteiro. */
+  protected copyFixed(): void {
+    const code = this.fullFix.result?.fixedCode;
+    if (!code) return;
+    navigator.clipboard?.writeText(code).then(() => {
+      this.copied = true;
+      setTimeout(() => (this.copied = false), 1500);
+    });
+  }
+
   /** espec.txt 3.2: pede à IA o trecho corrigido e monta o diff lado a lado. */
   protected suggestFix(view: FindingView): void {
     if (view.ai.loading || !view.source.code.trim()) return;
@@ -198,7 +293,17 @@ export class CodeAnalysisPageComponent implements OnInit {
 
 /** Nome da linguagem pela extensão do arquivo, para orientar a IA. */
 export const languageOf = (file: string): string => {
-  const ext = file.split('.').pop()?.toLowerCase() ?? '';
-  const map: Record<string, string> = { js: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript', jsx: 'JavaScript (React)', ts: 'TypeScript', tsx: 'TypeScript (React)', py: 'Python', php: 'PHP', java: 'Java', go: 'Go', rb: 'Ruby', cs: 'C#', kt: 'Kotlin', html: 'HTML', sql: 'SQL', yml: 'YAML', yaml: 'YAML', json: 'JSON' };
+  const base = file.split(/[\/]/).pop()?.toLowerCase() ?? '';
+  if (base === 'dockerfile' || base === 'containerfile' || base.startsWith('dockerfile.')) return 'Dockerfile';
+  // sem extensão (Makefile...): o próprio nome descreve o arquivo
+  const ext = base.includes('.') ? base.split('.').pop()! : base;
+  const map: Record<string, string> = {
+    js: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript', jsx: 'JavaScript (React)', ts: 'TypeScript', tsx: 'TypeScript (React)',
+    vue: 'Vue', html: 'HTML', htm: 'HTML', py: 'Python', php: 'PHP', rb: 'Ruby', go: 'Go',
+    java: 'Java', kt: 'Kotlin', kts: 'Kotlin', scala: 'Scala', cs: 'C#',
+    c: 'C', h: 'C', cpp: 'C++', cc: 'C++', cxx: 'C++', hpp: 'C++', hh: 'C++', rs: 'Rust', swift: 'Swift',
+    sh: 'Shell (Bash)', bash: 'Shell (Bash)', zsh: 'Shell (Zsh)', tf: 'Terraform', hcl: 'HCL', dockerfile: 'Dockerfile',
+    yml: 'YAML', yaml: 'YAML', json: 'JSON', sql: 'SQL', cls: 'Apex', ml: 'OCaml', sol: 'Solidity',
+  };
   return map[ext] ?? (ext || 'desconhecida');
 };

@@ -8,8 +8,8 @@
 // Formato: markdown simples lido por front-end/src/app/shared/ui/markdown.ts
 // (#, ##, ###, listas com "-", destaque com "> " e negrito com **texto**).
 export const TERMS_OF_USE = {
-  version: '2.0',
-  lastUpdated: '2026-11-16',
+  version: '2.1',
+  lastUpdated: '2026-11-17',
   content: `
 # Termos de Uso
 
@@ -48,6 +48,8 @@ Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Lei
 
 4.3. Nesta versão acadêmica, **os valores exibidos são demonstrativos e não há cobrança**: a troca entre os planos Free e Premium é gratuita e pode ser feita a qualquer momento na própria Plataforma. Caso venha a existir cobrança, as condições comerciais serão apresentadas previamente e dependerão de novo aceite.
 
+4.4. A **correção do arquivo inteiro com IA** não está incluída em nenhum plano: ela é paga à parte, com **créditos de IA** comprados em pacotes. Cada correção completa de um arquivo consome 1 (um) crédito, debitado no momento do pedido e devolvido automaticamente se a correção não for gerada. Nesta versão acadêmica a compra de créditos também é demonstrativa, sem cobrança.
+
 ## 5. Uso autorizado: somente alvos seus ou autorizados
 5.1. O Usuário somente pode indicar como Alvo sistemas dos quais seja o responsável ou para os quais possua **autorização expressa e prévia** de quem é o responsável.
 
@@ -71,7 +73,7 @@ Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Lei
 
 7.2. O código enviado é processado apenas para gerar a análise e não é armazenado no banco de dados da Plataforma após a resposta. Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
 
-7.3. A **correção com IA** é opcional e acionada pelo Usuário achado por achado: apenas as linhas em volta do achado são enviadas à Anthropic (modelo Claude) para gerar a sugestão. A sugestão é automática e pode conter erros; o Usuário deve revisá-la e testá-la antes de aplicá-la.
+7.3. A **correção com IA** é opcional e só acontece quando o Usuário pede: achado por achado, apenas as linhas em volta do achado são enviadas à Anthropic (modelo Claude); na correção do arquivo inteiro (item 4.4), o arquivo analisado inteiro e a lista de achados dele. A sugestão é automática e pode conter erros; o Usuário deve revisá-la e testá-la antes de aplicá-la.
 
 ## 8. Condutas proibidas
 É vedado ao Usuário:

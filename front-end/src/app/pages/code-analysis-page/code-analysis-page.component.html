@@ -28,7 +28,9 @@
             <label class="field">
               <span>Linguagem</span>
               <select class="select" name="language" [(ngModel)]="filename" (ngModelChange)="saveDraft()">
-                <option *ngFor="let lang of languages" [value]="lang.filename">{{ lang.label }}</option>
+                <optgroup *ngFor="let group of languageGroups" [label]="group.name">
+                  <option *ngFor="let lang of group.items" [value]="lang.filename">{{ lang.label }}</option>
+                </optgroup>
               </select>
             </label>
             <div class="field example-field">
@@ -84,6 +86,60 @@
               [empty]="views.length === 0" emptyText="Nenhum padrão inseguro encontrado." ariaLabel="Problemas por severidade" />
           </div>
         </article>
+      </section>
+
+      <!-- Correção do arquivo inteiro com IA: paga à parte (créditos de IA) -->
+      <section *ngIf="aiEnabled && views.length > 0 && fullFixFile" class="card full-fix">
+        <header class="card-header">
+          <div>
+            <h2>Corrigir o arquivo inteiro com IA <span class="badge badge-pro">EXTRA</span></h2>
+            <p>O Claude (Anthropic) recebe o arquivo e os {{ views.length }} achado(s) e devolve o código completo já corrigido. Pago à parte do plano: {{ fullFixCost }} crédito por arquivo.</p>
+          </div>
+          <span class="credits" [class.empty]="aiCredits < fullFixCost">{{ aiCredits }} crédito(s)</span>
+        </header>
+        <div class="card-body">
+          <div *ngIf="!fullFix.result" class="full-fix-cta">
+            <button type="button" class="button button-primary" (click)="fixFullFile()" [disabled]="fullFix.loading">
+              <span *ngIf="fullFix.loading" class="spinner" aria-hidden="true"></span>
+              {{ fullFix.loading ? 'Corrigindo o arquivo...' : (aiCredits >= fullFixCost ? 'Corrigir ' + fullFixFile + ' com IA' : 'Comprar créditos para corrigir') }}
+            </button>
+            <span class="hint">Envia o código colado só quando você clica. Arquivos grandes podem levar alguns minutos.</span>
+          </div>
+
+          <div *ngIf="fullFix.error" class="alert alert-error" role="alert">{{ fullFix.error }}</div>
+          <div *ngIf="creditMessage" class="alert alert-success" role="status">{{ creditMessage }}</div>
+
+          <!-- pacotes de créditos (compra demonstrativa, sem cobrança) -->
+          <div *ngIf="showPacks" class="packs">
+            <p class="hint">Créditos de IA são vendidos à parte do plano. Valores demonstrativos: o TCC não cobra.</p>
+            <div class="pack-list">
+              <button *ngFor="let pack of creditPacks" type="button" class="pack" (click)="buyCredits(pack)" [disabled]="buyingPackId !== null">
+                <strong>{{ pack.credits }} créditos</strong>
+                <span>{{ pack.priceLabel }}</span>
+                <small>{{ buyingPackId === pack.id ? 'Adicionando...' : 'Comprar' }}</small>
+              </button>
+            </div>
+            <button type="button" class="link" (click)="showPacks = false">Agora não</button>
+          </div>
+
+          <ng-container *ngIf="fullFix.result as fix">
+            <p class="ai-explanation"><strong>O que mudou:</strong> {{ fix.summary }}</p>
+            <ul class="change-list">
+              <li *ngFor="let c of fix.changes"><span class="mono">linha {{ c.line }}</span> {{ c.description }}</li>
+            </ul>
+            <div class="diff" role="table" aria-label="Arquivo original e arquivo corrigido">
+              <div class="diff-head" role="row"><span role="columnheader">{{ fullFix.file }} (original)</span><span role="columnheader">Corrigido pela IA</span></div>
+              <div *ngFor="let row of fullFix.rows" class="diff-row" role="row">
+                <span class="diff-cell" role="cell" [class.removed]="row.left?.changed" [class.empty]="!row.left"><span class="ln">{{ row.left?.number }}</span>{{ row.left?.text }}</span>
+                <span class="diff-cell" role="cell" [class.added]="row.right?.changed" [class.empty]="!row.right"><span class="ln">{{ row.right?.number }}</span>{{ row.right?.text }}</span>
+              </div>
+            </div>
+            <div class="actions top-gap">
+              <button type="button" class="button button-secondary button-sm" (click)="copyFixed()">{{ copied ? 'Copiado' : 'Copiar código corrigido' }}</button>
+              <span class="hint">Gerado por IA: revise e rode os testes antes de aplicar. Saldo: {{ aiCredits }} crédito(s).</span>
+            </div>
+          </ng-container>
+        </div>
       </section>
 
       <article *ngFor="let v of views" class="card">

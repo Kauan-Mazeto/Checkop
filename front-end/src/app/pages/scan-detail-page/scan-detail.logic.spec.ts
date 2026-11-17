@@ -1,6 +1,6 @@
 import { Finding } from '../../core/services/scan.service';
 import { groupObjectives } from '../new-scan-page/new-scan-page.component';
-import { buildCodeView, isAcceptedFile } from '../code-analysis-page/code-view';
+import { LANGUAGES, buildCodeView, isAcceptedFile } from '../code-analysis-page/code-view';
 import { parseSastLocation } from '../../core/services/sast.service';
 import { EVIDENCE_MAX_CHARS, elapsed, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
 
@@ -136,5 +136,18 @@ describe('análise de código: visualizador', () => {
   it('aceita só extensões de código', () => {
     expect(isAcceptedFile('app.TS')).toBeTrue();
     expect(isAcceptedFile('foto.png')).toBeFalse();
+    // arquivos reconhecidos pelo nome e linguagens novas
+    expect(isAcceptedFile('Dockerfile')).toBeTrue();
+    expect(isAcceptedFile('infra/Dockerfile.prod')).toBeTrue();
+    expect(isAcceptedFile('main.rs')).toBeTrue();
+    expect(isAcceptedFile('build.gradle.kts')).toBeTrue();
+    expect(isAcceptedFile('main.tf')).toBeTrue();
+  });
+
+  it('toda linguagem da lista tem exemplo e um arquivo aceito na análise', () => {
+    for (const lang of LANGUAGES) {
+      expect(lang.example.length).withContext(lang.label).toBeGreaterThan(0);
+      expect(isAcceptedFile(lang.filename)).withContext(lang.filename).toBeTrue();
+    }
   });
 });

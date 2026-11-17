@@ -45,6 +45,19 @@ CWE_INFO: dict[str, tuple[str, str]] = {
     "284": ("Controle de acesso inadequado", "Verifique a permissão do usuário no servidor em toda operação."),
     "639": ("Acesso direto inseguro a objeto (IDOR)", "Confirme que o recurso pertence ao usuário autenticado antes de retornar ou alterar."),
     "915": ("Atribuição em massa (mass assignment)", "Aceite apenas os campos permitidos (allowlist) ao criar ou atualizar objetos."),
+    # classes cobertas pelas regras próprias do Checkop (rules/checkop) e por C/C++
+    "98": ("Inclusão de arquivo controlada pelo usuário (LFI/RFI)", "Não use entrada do usuário em include/require; mapeie o valor para uma lista fixa de arquivos permitidos."),
+    "312": ("Dado sensível guardado em texto puro", "Guarde senhas e tokens em armazenamento seguro (Keychain, Keystore, cofre de segredos), nunca em preferências ou arquivos comuns."),
+    "494": ("Código baixado sem verificação de integridade", "Baixe, confira hash ou assinatura e só então execute; nunca use curl | sh."),
+    "732": ("Permissão de arquivo excessiva", "Conceda só a permissão necessária (ex.: 755 para executáveis, 644 para arquivos); evite 777/666."),
+    "829": ("Dependência de fonte não fixada", "Fixe a versão da imagem ou dependência (de preferência por digest/hash) para o build ser reproduzível e auditável."),
+    "1022": ("Link externo sem rel=noopener (tabnabbing)", "Adicione rel=\"noopener noreferrer\" aos links com target=\"_blank\"."),
+    "250": ("Execução com privilégios desnecessários", "Rode o processo/contêiner com um usuário sem privilégios (USER não-root)."),
+    "120": ("Buffer overflow", "Use funções com limite de tamanho (strncpy, snprintf, fgets) e valide o tamanho da entrada."),
+    "121": ("Buffer overflow na pilha", "Use funções com limite de tamanho (strncpy, snprintf, fgets) e valide o tamanho da entrada."),
+    "134": ("Format string controlada pelo usuário", "Nunca passe entrada do usuário como formato; use printf(\"%s\", valor)."),
+    "676": ("Função perigosa", "Troque por uma alternativa segura (gets -> fgets, strcpy -> strncpy/strlcpy, sprintf -> snprintf)."),
+    "242": ("Função inerentemente perigosa", "Não use gets(); leia a entrada com fgets() informando o tamanho do buffer."),
 }
 
 _CWE_NUMBER = re.compile(r"CWE-(\d+)", re.IGNORECASE)

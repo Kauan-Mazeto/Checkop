@@ -1,0 +1,76 @@
+# Regras do Checkop para C# (.NET): lacunas do registro gratuito.
+rules:
+  - id: checkop-csharp-command-injection
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Processo iniciado com comando/argumentos montados em tempo de execução. Um valor do usuário
+      pode encadear outros comandos (cmd /c, sh -c); use argumentos fixos e valide a entrada.
+    patterns:
+      - pattern-either:
+          - pattern: Process.Start($A, $B)
+          - pattern: Process.Start($A)
+          - pattern: new ProcessStartInfo($A, $B)
+          - pattern: new ProcessStartInfo($A)
+      - pattern-not: Process.Start("...")
+      - pattern-not: Process.Start("...", "...")
+      - pattern-not: new ProcessStartInfo("...")
+      - pattern-not: new ProcessStartInfo("...", "...")
+      - pattern-not: Process.Start((ProcessStartInfo $PSI))
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-csharp-weak-crypto
+    languages: [csharp]
+    severity: WARNING
+    message: Algoritmo quebrado (MD5, SHA-1, DES, 3DES, RC2). Use SHA-256, AES-GCM e, para senhas, PBKDF2/Argon2.
+    pattern-either:
+      - pattern: MD5.Create(...)
+      - pattern: SHA1.Create(...)
+      - pattern: DES.Create(...)
+      - pattern: TripleDES.Create(...)
+      - pattern: RC2.Create(...)
+      - pattern: new MD5CryptoServiceProvider(...)
+      - pattern: new SHA1CryptoServiceProvider(...)
+      - pattern: new SHA1Managed(...)
+      - pattern: new DESCryptoServiceProvider(...)
+      - pattern: new TripleDESCryptoServiceProvider(...)
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-csharp-raw-html-output
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      HTML montado com valores e devolvido sem escape (Content/HtmlString/Response.Write).
+      Se o valor vier do usuário, é XSS; use as views Razor (que escapam) ou HtmlEncoder.
+    patterns:
+      - pattern-either:
+          - pattern: Content($X + $Y, "text/html", ...)
+          - pattern: Content($"...", "text/html", ...)
+          - pattern: new HtmlString($X + $Y)
+          - pattern: new HtmlString($"...")
+          - pattern: Response.Write($X + $Y)
+          - pattern: Response.Write($"...")
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-csharp-connection-string-password
+    languages: [csharp]
+    severity: ERROR
+    message: Senha escrita na connection string. Leia a connection string da configuração (User Secrets, Key Vault, variável de ambiente).
+    pattern-regex: (?i)"[^"\n]*\b(password|pwd)\s*=\s*[^;"\s{]{3,}[^"\n]*"
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH

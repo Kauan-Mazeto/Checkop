@@ -1,0 +1,141 @@
+# Regras do Checkop para shell, Dockerfile, Terraform e HTML (scripts e infraestrutura).
+rules:
+  - id: checkop-pipe-download-to-shell
+    languages: [bash, dockerfile]
+    severity: ERROR
+    message: >-
+      Script baixado da internet e executado direto (curl | sh). Quem controlar o servidor ou a rede
+      executa o que quiser aqui; baixe, confira o hash/assinatura e só então execute.
+    pattern-regex: (curl|wget)\b[^|\n]*\|\s*(sudo\s+)?(ba|z|da)?sh\b
+    metadata:
+      cwe: ["CWE-494: Download of Code Without Integrity Check"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-tls-verification-disabled-cli
+    languages: [bash, dockerfile]
+    severity: ERROR
+    message: Download com a verificação do certificado TLS desligada (curl -k / wget --no-check-certificate).
+    pattern-regex: (curl\b[^\n]*\s(-k|--insecure)\b)|(wget\b[^\n]*--no-check-certificate)
+    metadata:
+      cwe: ["CWE-295: Improper Certificate Validation"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-shell-eval-variable
+    languages: [bash]
+    severity: ERROR
+    message: eval executa o conteúdo de uma variável/argumento como comando; quem controla o valor executa comandos.
+    pattern-regex: \beval\s+["']?\$
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-world-writable-permissions
+    languages: [bash, dockerfile]
+    severity: WARNING
+    message: Permissão 777/666 deixa qualquer usuário do sistema alterar os arquivos. Dê só a permissão necessária.
+    pattern-regex: \bchmod\s+(-[a-zA-Z]+\s+)*0?(777|666)\b
+    metadata:
+      cwe: ["CWE-732: Incorrect Permission Assignment for Critical Resource"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-dockerfile-secret-in-env
+    languages: [dockerfile]
+    severity: ERROR
+    message: >-
+      Segredo gravado na imagem (ENV/ARG). Ele fica visível no histórico das camadas para quem tiver a imagem;
+      passe em tempo de execução ou use secrets do build.
+    pattern-regex: (?im)^\s*(ENV|ARG)\s+[A-Z0-9_]*(PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)[A-Z0-9_]*\s*[= ]\s*\S+
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-dockerfile-unpinned-image
+    languages: [dockerfile]
+    severity: WARNING
+    message: >-
+      Imagem base sem versão fixa (sem tag ou :latest). Cada build pode puxar uma imagem diferente,
+      inclusive comprometida; fixe a versão (de preferência pelo digest @sha256).
+    pattern-regex: (?im)^\s*FROM\s+(--platform=\S+\s+)?(?!scratch\b)[^\s:@]+(:latest)?(\s+AS\s+\S+)?\s*$
+    metadata:
+      cwe: ["CWE-829: Inclusion of Functionality from Untrusted Control Sphere"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-dockerfile-add-remote-url
+    languages: [dockerfile]
+    severity: WARNING
+    message: ADD com URL baixa arquivos sem conferir integridade. Use curl/wget com verificação de hash, ou COPY.
+    pattern-regex: (?im)^\s*ADD\s+(--\S+\s+)*https?://
+    metadata:
+      cwe: ["CWE-494: Download of Code Without Integrity Check"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-terraform-open-ingress
+    languages: [hcl]
+    severity: ERROR
+    message: >-
+      Regra de entrada aberta para a internet inteira (0.0.0.0/0 ou ::/0). Restrinja aos IPs que
+      realmente precisam acessar (principalmente portas de administração como 22 e 3389).
+    pattern-either:
+      - pattern: |
+          ingress {
+            ...
+            cidr_blocks = [..., "0.0.0.0/0", ...]
+            ...
+          }
+      - pattern: |
+          ingress {
+            ...
+            ipv6_cidr_blocks = [..., "::/0", ...]
+            ...
+          }
+      - pattern: |
+          resource "aws_security_group_rule" $NAME {
+            ...
+            type = "ingress"
+            ...
+            cidr_blocks = [..., "0.0.0.0/0", ...]
+            ...
+          }
+    metadata:
+      cwe: ["CWE-284: Improper Access Control"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-html-dom-xss
+    languages: [html]
+    severity: ERROR
+    message: >-
+      innerHTML/outerHTML/document.write recebendo dados da URL (location, document.URL, referrer).
+      Um link malicioso injeta HTML/JS na página (DOM XSS); use textContent.
+    pattern-regex: (\.(inner|outer)HTML\s*=|document\.write(ln)?\s*\(|insertAdjacentHTML\s*\()[^;\n]*(location\b|document\.URL|document\.documentURI|document\.referrer|window\.name)
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-html-target-blank-noopener
+    languages: [html]
+    severity: INFO
+    message: Link com target="_blank" sem rel="noopener"; a página aberta consegue redirecionar a sua (tabnabbing).
+    pattern-regex: <a\b(?=[^>]*target\s*=\s*["']_blank["'])(?![^>]*rel\s*=\s*["'][^"']*noopener)[^>]*>
+    metadata:
+      cwe: ["CWE-1022: Use of Web Link to Untrusted Target with window.opener Access"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      category: security
+      confidence: HIGH

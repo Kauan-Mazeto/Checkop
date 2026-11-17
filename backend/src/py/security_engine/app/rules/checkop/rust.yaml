@@ -1,0 +1,73 @@
+# Regras do Checkop para Rust: o registro gratuito do Semgrep quase não cobre a linguagem.
+rules:
+  - id: checkop-rust-command-injection
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Comando executado por um shell (sh -c / cmd /C) com um argumento montado em tempo de execução.
+      Se esse valor vier do usuário, ele pode encadear outros comandos no servidor.
+    patterns:
+      - pattern-either:
+          - pattern: Command::new($SHELL).arg($FLAG).arg($CMD)
+          - pattern: Command::new($SHELL).args([$FLAG, $CMD])
+          - pattern: Command::new($SHELL).args(&[$FLAG, $CMD])
+      - metavariable-regex:
+          metavariable: $SHELL
+          regex: ^"(sh|bash|zsh|dash|cmd|cmd\.exe|powershell|pwsh)"$
+      - metavariable-regex:
+          metavariable: $FLAG
+          regex: ^"(-c|/C|/c|-Command)"$
+      - pattern-not: Command::new($SHELL).arg($FLAG).arg("...")
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-rust-sql-format
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Consulta SQL montada com format!(). Valores interpolados na string viram parte da SQL
+      (SQL Injection); use parâmetros ($1, ?) com bind.
+    pattern-either:
+      - pattern: $DB.execute(&format!(...), ...)
+      - pattern: $DB.query(&format!(...), ...)
+      - pattern: $DB.prepare(&format!(...))
+      - pattern: sqlx::query(&format!(...))
+      - pattern: sqlx::query_as(&format!(...))
+      - pattern: diesel::sql_query(format!(...))
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-rust-weak-hash
+    languages: [rust]
+    severity: WARNING
+    message: MD5 e SHA-1 são quebrados para segurança (colisões). Use SHA-256 ou, para senhas, Argon2/bcrypt.
+    pattern-either:
+      - pattern: md5::compute(...)
+      - pattern: Md5::new()
+      - pattern: Md5::digest(...)
+      - pattern: Sha1::new()
+      - pattern: Sha1::digest(...)
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-rust-tls-verification-disabled
+    languages: [rust]
+    severity: ERROR
+    message: A verificação do certificado TLS foi desligada; qualquer um no caminho pode interceptar a conexão.
+    pattern-either:
+      - pattern: $B.danger_accept_invalid_certs(true)
+      - pattern: $B.danger_accept_invalid_hostnames(true)
+    metadata:
+      cwe: ["CWE-295: Improper Certificate Validation"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH

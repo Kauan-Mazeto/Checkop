@@ -1,0 +1,57 @@
+# Regras do Checkop para Swift e para hash fraco em JavaScript/TypeScript.
+rules:
+  - id: checkop-swift-sensitive-userdefaults
+    languages: [swift]
+    severity: ERROR
+    message: >-
+      Senha/token salvo no UserDefaults, que fica em texto puro no aparelho (e em backups).
+      Guarde segredos no Keychain.
+    pattern-regex: UserDefaults(\.standard)?\.set\([^)]*forKey:\s*"[^"]*(?i:pass|senha|token|secret|segredo|credential|api.?key|pin)[^"]*"
+    metadata:
+      cwe: ["CWE-312: Cleartext Storage of Sensitive Information"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-swift-shell-command
+    languages: [swift]
+    severity: ERROR
+    message: Comando executado por shell (-c) com texto montado em tempo de execução; um valor externo pode encadear comandos.
+    patterns:
+      - pattern: $TASK.arguments = ["-c", $CMD]
+      - pattern-not: $TASK.arguments = ["-c", "..."]
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-swift-weak-hash
+    languages: [swift]
+    severity: WARNING
+    message: MD5/SHA-1 são quebrados para segurança. Use SHA256 do CryptoKit.
+    pattern-either:
+      - pattern: CC_MD5(...)
+      - pattern: CC_SHA1(...)
+      - pattern: Insecure.MD5.hash(...)
+      - pattern: Insecure.SHA1.hash(...)
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-js-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: MD5/SHA-1 são quebrados para segurança. Use SHA-256 e, para senhas, bcrypt/Argon2/scrypt.
+    patterns:
+      - pattern: $CRYPTO.createHash($ALG)
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: (?i)^["'`](md5|md4|sha1|sha-1|ripemd160)["'`]$
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: HIGH

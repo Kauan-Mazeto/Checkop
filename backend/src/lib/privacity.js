@@ -7,8 +7,8 @@
 //
 // Formato: markdown simples lido por front-end/src/app/shared/ui/markdown.ts.
 export const PRIVACY_POLICY = {
-  version: '2.0',
-  lastUpdated: '2026-11-16',
+  version: '2.1',
+  lastUpdated: '2026-11-17',
   content: `
 # Política de Privacidade
 
@@ -40,7 +40,9 @@ O controlador dos dados pessoais é a equipe responsável pelo Checkop, projeto 
 ### 2.4. Código enviado para análise
 O código-fonte enviado para análise é processado nos servidores do Checkop apenas para gerar o resultado e **não é armazenado** no banco de dados após a resposta.
 
-Se você clicar em **"Gerar correção com IA"** em um achado, somente as linhas em volta daquele achado (não o arquivo inteiro) são enviadas à Anthropic, provedora do modelo de IA Claude, para gerar a sugestão de correção. Esse envio acontece apenas quando você pede, achado por achado.
+A correção com IA envia código à Anthropic, provedora do modelo de IA Claude, sempre e somente quando você pede:
+- **"Gerar correção com IA"** (em um achado): envia só as linhas em volta daquele achado, não o arquivo inteiro.
+- **"Corrigir o arquivo inteiro com IA"** (recurso pago com créditos de IA): envia o arquivo analisado inteiro e a lista de achados dele, para devolver o arquivo completo corrigido.
 
 ### 2.5. Dados sobre terceiros nos resultados
 As varreduras podem revelar informações presentes nos sistemas analisados. Esses dados são de responsabilidade do Usuário, que declara ter autorização sobre o Alvo, e são tratados apenas para compor o relatório solicitado.
@@ -60,7 +62,7 @@ Os dados pessoais não são vendidos nem cedidos. Eles são compartilhados apena
 - **Google:** quando você escolhe entrar com Google, para autenticar a sua identidade.
 - **Provedor de e-mail:** o seu endereço de e-mail é enviado ao serviço de envio de mensagens para entregar o código de redefinição de senha e, se a opção estiver ligada em "Conta e privacidade", o aviso de varredura concluída (só com a contagem de falhas por severidade).
 - **Serviços de tradução automática (DeepL ou MyMemory):** apenas os textos padronizados que descrevem as regras de segurança são enviados para tradução ao português. Nenhum dado da sua conta, endereço analisado ou código é enviado.
-- **Anthropic (IA Claude):** somente quando você pede uma correção com IA na análise de código, as linhas em volta do achado são enviadas para gerar a sugestão. Pelos termos comerciais da Anthropic, dados recebidos pela API não são usados, por padrão, para treinar os modelos dela.
+- **Anthropic (IA Claude):** somente quando você pede uma correção com IA na análise de código: as linhas em volta do achado ou, na correção completa, o arquivo analisado inteiro. Pelos termos comerciais da Anthropic, dados recebidos pela API não são usados, por padrão, para treinar os modelos dela.
 - **Infraestrutura de hospedagem:** onde a plataforma e o banco de dados são executados.
 - **Autoridades:** mediante ordem judicial ou requisição legal, nos limites da lei.
 
@@ -72,7 +74,7 @@ Alguns fornecedores, como o Google, a Anthropic e os serviços de tradução, po
 ## 6. Por quanto tempo guardamos
 - **Dados da conta, alvos, varreduras e relatórios:** enquanto a conta existir. Ao excluir a conta, eles são removidos definitivamente.
 - **Registros de acesso, tentativas de login e auditoria:** 6 (seis) meses, por obrigação legal (Marco Civil da Internet, art. 15), inclusive após a exclusão da conta. Após a exclusão, esses registros deixam de estar associados ao seu e-mail e à sua conta. Ao fim do prazo, são eliminados automaticamente.
-- **Código enviado para análise:** não é armazenado pelo Checkop. Trechos enviados à Anthropic para a correção com IA seguem a política de retenção da Anthropic para uso da API.
+- **Código enviado para análise:** não é armazenado pelo Checkop. O código enviado à Anthropic para a correção com IA (trecho ou arquivo inteiro) segue a política de retenção da Anthropic para uso da API. No registro de auditoria do Checkop fica só o nome do arquivo e a quantidade de achados, nunca o código.
 
 ## 7. Cookies e armazenamento no navegador
 - **Cookie de sessão (token):** essencial para manter você conectado. É protegido contra acesso por scripts (httpOnly), enviado apenas ao próprio Checkop (SameSite estrito) e expira em até 24 horas.

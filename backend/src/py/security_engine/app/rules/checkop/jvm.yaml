@@ -1,0 +1,77 @@
+# Regras do Checkop para Kotlin e Scala (o registro gratuito cobre bem Java, mas pouco as duas).
+rules:
+  - id: checkop-kotlin-sql-concat
+    languages: [kotlin]
+    severity: ERROR
+    message: >-
+      Consulta SQL montada concatenando valores. Se algum vier do usuário, é SQL Injection;
+      use PreparedStatement com "?" (ou os parâmetros do ORM).
+    patterns:
+      - pattern-either:
+          - pattern: $S.$EXEC("..." + $X, ...)
+          - pattern: $S.$EXEC($X + "...", ...)
+          - pattern: $S.$EXEC("...${$X}...", ...)
+          - pattern: $S.$EXEC("...$X...", ...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(executeQuery|executeUpdate|execute|executeLargeUpdate|addBatch|prepareStatement|prepareCall|rawQuery|execSQL|createNativeQuery|createQuery|nativeQuery|queryForList|queryForObject|update)$
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-kotlin-command-injection
+    languages: [kotlin]
+    severity: ERROR
+    message: Comando do sistema montado em tempo de execução; um valor do usuário pode encadear outros comandos.
+    patterns:
+      - pattern-either:
+          - pattern: Runtime.getRuntime().exec($CMD)
+          - pattern: ProcessBuilder($SH, $FLAG, $CMD)
+      - pattern-not: Runtime.getRuntime().exec("...")
+      - pattern-not: ProcessBuilder($SH, $FLAG, "...")
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-scala-command-injection
+    languages: [scala]
+    severity: ERROR
+    message: >-
+      Comando do sistema executado (scala.sys.process) a partir de texto montado em tempo de execução;
+      passe os argumentos como Seq(...) fixos e valide a entrada.
+    patterns:
+      - pattern-either:
+          - pattern: $CMD.!
+          - pattern: $CMD.!!
+          - pattern: $CMD.lazyLines
+          - pattern: Process($CMD)
+          - pattern: Process($CMD, ...)
+      - pattern-not: '"...".!'
+      - pattern-not: '"...".!!'
+      - pattern-not: Process("...")
+      - pattern-not: Seq(...).!
+      - pattern-not: Seq(...).!!
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-jvm-hardcoded-db-password
+    languages: [java, kotlin, scala]
+    severity: ERROR
+    message: Senha do banco escrita no código. Quem tiver acesso ao código (ou ao binário) acessa o banco.
+    patterns:
+      - pattern: DriverManager.getConnection($URL, $USER, "$PASS")
+      - metavariable-regex:
+          metavariable: $PASS
+          regex: .+
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH

@@ -19,26 +19,47 @@ export const buildCodeView = (content: string, start: number, end: number, conte
   return view;
 };
 
-// Extensões aceitas: as linguagens que o Semgrep (--config=auto) analisa com regras de segurança.
+// Extensões aceitas: tudo que o Semgrep analisa com regras de segurança
+// (pacotes oficiais + regras próprias do Checkop em rules/checkop).
 export const ACCEPTED_EXTENSIONS = [
-  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.php', '.java', '.go', '.rb', '.cs',
-  '.kt', '.scala', '.c', '.cpp', '.h', '.rs', '.swift', '.html', '.vue', '.json', '.yaml', '.yml', '.tf', '.sh',
+  // web e back-end
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.html', '.htm', '.py', '.php', '.rb', '.go',
+  // JVM e .NET
+  '.java', '.kt', '.kts', '.scala', '.cs',
+  // sistemas e mobile
+  '.c', '.h', '.cpp', '.cc', '.cxx', '.hpp', '.hh', '.rs', '.swift',
+  // scripts, infraestrutura e configuração
+  '.sh', '.bash', '.zsh', '.tf', '.hcl', '.yaml', '.yml', '.json', '.dockerfile',
+  // outras com regras no registro
+  '.cls', '.ml', '.sol',
 ];
 
-export const isAcceptedFile = (name: string): boolean =>
-  ACCEPTED_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext));
+/** Arquivos reconhecidos pelo nome (sem extensão). */
+export const ACCEPTED_FILENAMES = ['dockerfile', 'containerfile'];
+
+export const isAcceptedFile = (name: string): boolean => {
+  const lower = name.toLowerCase();
+  const base = lower.split(/[\\/]/).pop() ?? lower;
+  return ACCEPTED_FILENAMES.includes(base) || base.startsWith('dockerfile.') || ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+};
+
+export type LanguageGroup = 'Web e back-end' | 'JVM e .NET' | 'Sistemas e mobile' | 'Infraestrutura e scripts';
 
 export interface CodeLanguage {
   label: string;
-  /** a extensão orienta quais regras o Semgrep aplica */
+  group: LanguageGroup;
+  /** a extensão (ou o nome, no Dockerfile) orienta quais regras o Semgrep aplica */
   filename: string;
-  /** exemplo didático com SQL Injection, conferido contra o Semgrep (--config=auto) */
+  /** exemplo didático vulnerável, conferido contra a análise do Checkop */
   example: string;
 }
+
+export const LANGUAGE_GROUPS: LanguageGroup[] = ['Web e back-end', 'JVM e .NET', 'Sistemas e mobile', 'Infraestrutura e scripts'];
 
 export const LANGUAGES: CodeLanguage[] = [
   {
     label: 'JavaScript (Node.js + Sequelize)',
+    group: 'Web e back-end',
     filename: 'app.js',
     example: [
       "const express = require('express');",
@@ -54,7 +75,28 @@ export const LANGUAGES: CodeLanguage[] = [
     ].join('\n'),
   },
   {
+    label: 'TypeScript (Express)',
+    group: 'Web e back-end',
+    filename: 'app.ts',
+    example: [
+      "import express from 'express';",
+      "import { exec } from 'child_process';",
+      '',
+      'const app = express();',
+      '',
+      "app.get('/listar', (req, res) => {",
+      '  // o parâmetro vira parte de um comando de shell',
+      '  exec(`ls ${req.query.pasta}`, (err, saida) => res.send(saida));',
+      '});',
+      '',
+      "app.get('/sair', (req, res) => {",
+      '  res.redirect(req.query.voltar as string);',
+      '});',
+    ].join('\n'),
+  },
+  {
     label: 'Python (Flask + sqlite3)',
+    group: 'Web e back-end',
     filename: 'app.py',
     example: [
       'import sqlite3',
@@ -73,17 +115,76 @@ export const LANGUAGES: CodeLanguage[] = [
   },
   {
     label: 'PHP (mysqli)',
+    group: 'Web e back-end',
     filename: 'login.php',
     example: [
       '<?php',
       '$conn = mysqli_connect("localhost", "root", "", "loja");',
       "$usuario = $_GET['usuario'];",
       "$resultado = mysqli_query($conn, \"SELECT * FROM usuarios WHERE nome = '\" . $usuario . \"'\");",
-      'echo mysqli_num_rows($resultado);',
+      "include($_GET['pagina']);",
+      "$hash = md5($_POST['senha']);",
+    ].join('\n'),
+  },
+  {
+    label: 'Ruby (Sinatra)',
+    group: 'Web e back-end',
+    filename: 'app.rb',
+    example: [
+      "require 'sinatra'",
+      '',
+      "get '/ping' do",
+      '  # o host vira parte de um comando de shell',
+      '  `ping -c 1 #{params[:host]}`',
+      'end',
+      '',
+      "get '/busca' do",
+      "  User.where(\"nome = '#{params[:nome]}'\")",
+      'end',
+    ].join('\n'),
+  },
+  {
+    label: 'Go (net/http)',
+    group: 'Web e back-end',
+    filename: 'main.go',
+    example: [
+      'package main',
+      '',
+      'import (',
+      '\t"database/sql"',
+      '\t"net/http"',
+      '\t"os/exec"',
+      ')',
+      '',
+      'var db *sql.DB',
+      '',
+      'func handler(w http.ResponseWriter, r *http.Request) {',
+      '\tnome := r.URL.Query().Get("nome")',
+      '\tdb.Query("SELECT * FROM usuarios WHERE nome = \'" + nome + "\'")',
+      '\texec.Command("sh", "-c", "ping "+r.URL.Query().Get("host")).Run()',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'HTML (JavaScript no navegador)',
+    group: 'Web e back-end',
+    filename: 'index.html',
+    example: [
+      '<html>',
+      '<body>',
+      '  <div id="saudacao"></div>',
+      '  <a href="https://parceiro.com" target="_blank">Parceiro</a>',
+      '  <script>',
+      '    // o trecho depois do # na URL vira HTML na página',
+      "    document.getElementById('saudacao').innerHTML = decodeURIComponent(location.hash.substring(1));",
+      '  </script>',
+      '</body>',
+      '</html>',
     ].join('\n'),
   },
   {
     label: 'Java (Servlet + JDBC)',
+    group: 'JVM e .NET',
     filename: 'Busca.java',
     example: [
       'import java.sql.*;',
@@ -99,10 +200,187 @@ export const LANGUAGES: CodeLanguage[] = [
       '}',
     ].join('\n'),
   },
-  { label: 'TypeScript', filename: 'app.ts', example: '' },
-  { label: 'Go', filename: 'main.go', example: '' },
-  { label: 'C#', filename: 'Program.cs', example: '' },
-  { label: 'Ruby', filename: 'app.rb', example: '' },
+  {
+    label: 'Kotlin (JDBC)',
+    group: 'JVM e .NET',
+    filename: 'Busca.kt',
+    example: [
+      'import java.sql.DriverManager',
+      'import javax.servlet.http.HttpServletRequest',
+      '',
+      'fun busca(req: HttpServletRequest) {',
+      '    val nome = req.getParameter("nome")',
+      '    val conn = DriverManager.getConnection("jdbc:mysql://localhost/loja")',
+      '    conn.createStatement().executeQuery("SELECT * FROM clientes WHERE nome = \'" + nome + "\'")',
+      '    Runtime.getRuntime().exec("ping " + req.getParameter("host"))',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'Scala',
+    group: 'JVM e .NET',
+    filename: 'Ping.scala',
+    example: [
+      'import scala.sys.process._',
+      '',
+      'object Ping {',
+      '  // o host vira parte do comando executado',
+      '  def ping(host: String): String = s"ping -c 1 $host".!!',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'C# (ASP.NET)',
+    group: 'JVM e .NET',
+    filename: 'HomeController.cs',
+    example: [
+      'using System.Data.SqlClient;',
+      'using System.Diagnostics;',
+      'using Microsoft.AspNetCore.Mvc;',
+      '',
+      'public class HomeController : Controller',
+      '{',
+      '    public IActionResult Busca(string nome)',
+      '    {',
+      '        var conn = new SqlConnection("Server=.;Database=loja;User Id=sa;Password=senha123;");',
+      '        var cmd = new SqlCommand("SELECT * FROM clientes WHERE nome = \'" + nome + "\'", conn);',
+      '        Process.Start("cmd.exe", "/c ping " + nome);',
+      '        return Content("<p>Olá " + nome + "</p>", "text/html");',
+      '    }',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'C',
+    group: 'Sistemas e mobile',
+    filename: 'main.c',
+    example: [
+      '#include <stdio.h>',
+      '#include <string.h>',
+      '#include <stdlib.h>',
+      '',
+      'int main(int argc, char **argv) {',
+      '    char nome[16];',
+      '    strcpy(nome, argv[1]);      /* sem limite de tamanho */',
+      '    printf(argv[1]);            /* entrada usada como formato */',
+      '    char cmd[64];',
+      '    sprintf(cmd, "ping %s", argv[1]);',
+      '    system(cmd);',
+      '    return 0;',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'Rust',
+    group: 'Sistemas e mobile',
+    filename: 'main.rs',
+    example: [
+      'use std::process::Command;',
+      '',
+      'fn ping(host: &str) {',
+      '    // o host vira parte de um comando de shell',
+      '    Command::new("sh")',
+      '        .arg("-c")',
+      '        .arg(format!("ping -c 1 {}", host))',
+      '        .output()',
+      '        .unwrap();',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'Swift (iOS)',
+    group: 'Sistemas e mobile',
+    filename: 'Sessao.swift',
+    example: [
+      'import Foundation',
+      '',
+      'func salvarSessao(token: String) {',
+      '    // UserDefaults fica em texto puro no aparelho',
+      '    UserDefaults.standard.set(token, forKey: "authToken")',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'Shell (Bash)',
+    group: 'Infraestrutura e scripts',
+    filename: 'deploy.sh',
+    example: [
+      '#!/bin/bash',
+      '# instala a ferramenta direto da internet',
+      'curl -k https://exemplo.com/install.sh | bash',
+      'eval "$1"',
+      'chmod 777 /var/www',
+    ].join('\n'),
+  },
+  {
+    label: 'Dockerfile',
+    group: 'Infraestrutura e scripts',
+    filename: 'Dockerfile',
+    example: [
+      'FROM node:latest',
+      'USER root',
+      'ADD https://exemplo.com/app.tar.gz /app',
+      'ENV DB_PASSWORD=senha123',
+      'RUN curl http://exemplo.com/setup.sh | sh',
+      'CMD ["node", "/app/server.js"]',
+    ].join('\n'),
+  },
+  {
+    label: 'Terraform (AWS)',
+    group: 'Infraestrutura e scripts',
+    filename: 'main.tf',
+    example: [
+      'resource "aws_s3_bucket" "dados" {',
+      '  bucket = "dados-clientes"',
+      '  acl    = "public-read"',
+      '}',
+      '',
+      'resource "aws_security_group" "web" {',
+      '  ingress {',
+      '    from_port   = 22',
+      '    to_port     = 22',
+      '    protocol    = "tcp"',
+      '    cidr_blocks = ["0.0.0.0/0"]',
+      '  }',
+      '}',
+    ].join('\n'),
+  },
+  {
+    label: 'Kubernetes (YAML)',
+    group: 'Infraestrutura e scripts',
+    filename: 'deployment.yaml',
+    example: [
+      'apiVersion: apps/v1',
+      'kind: Deployment',
+      'metadata:',
+      '  name: app',
+      'spec:',
+      '  template:',
+      '    spec:',
+      '      containers:',
+      '        - name: app',
+      '          image: app:latest',
+      '          securityContext:',
+      '            privileged: true',
+      '            allowPrivilegeEscalation: true',
+    ].join('\n'),
+  },
+  {
+    label: 'GitHub Actions',
+    group: 'Infraestrutura e scripts',
+    filename: '.github/workflows/ci.yml',
+    example: [
+      'on: pull_request_target',
+      'jobs:',
+      '  build:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - uses: actions/checkout@v4',
+      '        with:',
+      '          ref: ${{ github.event.pull_request.head.sha }}',
+      '      - run: echo "${{ github.event.pull_request.title }}"',
+    ].join('\n'),
+  },
 ];
 
 // ---------- diff lado a lado (correção com IA, espec.txt 3.2) ----------

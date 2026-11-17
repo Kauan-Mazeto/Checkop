@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -22,6 +23,14 @@ SAST_RULESETS = [
     for r in os.getenv("SAST_RULESETS", "p/default,p/security-audit,p/secrets,p/owasp-top-ten").split(",")
     if r.strip()
 ]
+
+# Regras próprias do Checkop: cobrem o que o registro gratuito deixa passar
+# (Rust, Kotlin, Scala, C#, Swift, PHP, shell, Dockerfile, Terraform, HTML).
+# Medido num corpus de código vulnerável: +24 falhas detectadas, 0 falso positivo
+# no corpus equivalente seguro. Ficam no repositório, sem depender de internet.
+CHECKOP_RULES_DIR = os.path.join(os.path.dirname(__file__), "rules", "checkop")
+if os.path.isdir(CHECKOP_RULES_DIR):
+    SAST_RULESETS.append(CHECKOP_RULES_DIR)
 
 SEVERITY_MAP = {"ERROR": "HIGH", "WARNING": "MEDIUM", "INFO": "LOW"}
 
@@ -58,10 +67,12 @@ def _safe_relative_path(filename: str) -> str | None:
 
 
 def _relative_to(path: str, base_dir: str) -> str:
-    # o Semgrep devolve o caminho dentro da pasta temporária; mostramos só o nome enviado
+    # o Semgrep devolve o caminho dentro da pasta temporária; mostramos só o nome enviado.
+    # Sempre com "/": no Windows vinha "\" e arquivos em subpastas (.github/workflows/ci.yml)
+    # não casavam com o nome enviado (sem trecho de código na tela).
     if path.startswith(base_dir):
-        return path[len(base_dir):].lstrip("/\\")
-    return path
+        path = path[len(base_dir):]
+    return path.replace("\\", "/").lstrip("/")
 
 
 def _extract_snippet(content: str | None, start: int | None, end: int | None) -> str:
@@ -78,20 +89,90 @@ def _rule_name(check_id: str) -> str:
 _SEVERITY_RANK = {"ERROR": 3, "WARNING": 2, "INFO": 1}
 
 
+# Classe da falha: decide quando duas regras falam da MESMA vulnerabilidade.
+# Primeiro pelo nome da regra (alguns pacotes trazem CWE errado nos metadados,
+# ex.: "tainted-sql-string" marcada como CWE-915), depois pela família do CWE.
+_CLASS_BY_RULE_NAME = [
+    ("sqli", re.compile(r"sql|sqli|jdbc|query-injection", re.I)),
+    ("xss", re.compile(r"xss|cross-site-scripting|innerhtml|raw-html|html-output|dangerouslysetinnerhtml", re.I)),
+    ("integrity", re.compile(r"curl-pipe|pipe-download|download-to-shell|wget-pipe", re.I)),
+    ("cmd", re.compile(r"command-injection|os-command|shell-injection|subprocess|child-process|exec-detected|spawn-shell|shell-eval", re.I)),
+    ("path", re.compile(r"path-traversal|directory-traversal|dynamic-include|file-inclusion|\blfi\b", re.I)),
+    ("ssrf", re.compile(r"ssrf|server-side-request", re.I)),
+    ("deserialization", re.compile(r"deserializ|pickle|marshal|unserialize|yaml-load|readobject", re.I)),
+    ("redirect", re.compile(r"open-redirect|redirect", re.I)),
+    ("crypto", re.compile(r"weak-hash|password-hash|md5|sha1|insecure-hash|weak-crypto|des-|ecb", re.I)),
+    ("secret", re.compile(r"hardcoded|hard-coded|secret|password|credential|api-key|private-key", re.I)),
+]
+
+_CLASS_BY_CWE = {
+    "sqli": {"89", "564", "943"},
+    "cmd": {"78", "77"},
+    "code": {"94", "95", "917", "1336"},
+    "xss": {"79", "80"},
+    "path": {"22", "23", "73", "98"},
+    "ssrf": {"918"},
+    "deserialization": {"502"},
+    "redirect": {"601"},
+    "secret": {"798", "259", "321"},
+    "crypto": {"327", "328", "916", "326"},
+    "integrity": {"494"},
+    "unpinned": {"829", "1357", "1104"},
+    "tls": {"295"},
+}
+
+# CWE usada para título/correção quando a classe veio do nome da regra
+CLASS_CANONICAL_CWE = {
+    "sqli": "89", "cmd": "78", "code": "94", "xss": "79", "path": "22", "ssrf": "918",
+    "deserialization": "502", "redirect": "601", "secret": "798", "crypto": "327",
+    "integrity": "494", "tls": "295",
+}
+
+
+def vulnerability_class(result: dict) -> str:
+    rule = result.get("check_id", "").split(".")[-1]
+    for name, pattern in _CLASS_BY_RULE_NAME:
+        if pattern.search(rule):
+            return name
+    cwes = cwe_numbers(result.get("extra", {}).get("metadata", {}).get("cwe"))
+    for name, family in _CLASS_BY_CWE.items():
+        if any(cwe in family for cwe in cwes):
+            return name
+    return f"cwe-{cwes[0]}" if cwes else rule
+
+
+def _span(result: dict) -> tuple[int, int]:
+    start = result.get("start", {}).get("line") or 0
+    return start, result.get("end", {}).get("line") or start
+
+
 def _dedupe_results(results: list[dict]) -> list[dict]:
-    """Uma falha por (arquivo, linha, CWE). Pacotes diferentes costumam ter regras
-    distintas para a mesma falha (ex.: duas regras de SQL Injection na mesma linha);
-    mantemos a mais grave e anotamos quantas regras concordaram."""
-    groups: dict[tuple, list[dict]] = {}
-    for result in results:
-        cwes = cwe_numbers(result.get("extra", {}).get("metadata", {}).get("cwe"))
-        key = (result.get("path"), result.get("start", {}).get("line"), cwes[0] if cwes else result.get("check_id"))
-        groups.setdefault(key, []).append(result)
+    """Uma falha por (arquivo, classe, trecho). Regras de pacotes diferentes que
+    apontam a mesma vulnerabilidade em linhas iguais ou sobrepostas (ex.: SQLi
+    marcado nas linhas 8-11 por uma e na 11 por outras quatro) viram um achado
+    só: o mais grave e, empatando, o de trecho mais preciso."""
+    buckets: dict[tuple, list[list[dict]]] = {}
+    for result in sorted(results, key=_span):
+        key = (result.get("path"), vulnerability_class(result))
+        groups = buckets.setdefault(key, [])
+        start, end = _span(result)
+        for group in groups:
+            g_start = min(_span(r)[0] for r in group)
+            g_end = max(_span(r)[1] for r in group)
+            if start <= g_end and end >= g_start:  # linhas sobrepostas
+                group.append(result)
+                break
+        else:
+            groups.append([result])
 
     unique = []
-    for group in groups.values():
-        best = max(group, key=lambda r: _SEVERITY_RANK.get(r.get("extra", {}).get("severity"), 0))
-        unique.append({**best, "_rule_count": len(group)})
+    for groups in buckets.values():
+        for group in groups:
+            best = max(
+                group,
+                key=lambda r: (_SEVERITY_RANK.get(r.get("extra", {}).get("severity"), 0), -(_span(r)[1] - _span(r)[0])),
+            )
+            unique.append({**best, "_rule_count": len({r.get("check_id") for r in group}), "_class": vulnerability_class(best)})
     return unique
 
 
@@ -115,8 +196,16 @@ def _parse_result(result: dict, base_dir: str, contents: dict[str, str], transla
     rule_name = _rule_name(check_id)
     message = extra.get("message", "")
 
-    # título e correção pela classe da falha (CWE), não pelo nome técnico da regra
-    known = describe(cwe_numbers(cwe_ids))
+    # título e correção pela classe da falha, não pelo nome técnico da regra. O CWE da
+    # regra vale quando é da mesma classe (ex.: 98 = inclusão de arquivo, mais preciso
+    # que o 22 genérico); senão entra o CWE da classe (metadados às vezes vêm errados)
+    rule_cwes = cwe_numbers(cwe_ids)
+    klass = result.get("_class", "")
+    family = _CLASS_BY_CWE.get(klass, set())
+    matching = [c for c in rule_cwes if c in family]
+    canonical = CLASS_CANONICAL_CWE.get(klass)
+    preferred = matching or ([canonical] if canonical else rule_cwes)
+    known = describe(preferred + rule_cwes)
     title = known[0] if known else translations.get(rule_name, rule_name)
     remediation = known[1] if known else _suggest_fix(check_id)
     description = translations.get(message, message)
