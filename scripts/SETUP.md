@@ -2,6 +2,77 @@
 
 Passo a passo para deixar o projeto funcionando como no ambiente de desenvolvimento: varredura web (ZAP + Nuclei), análise de código (Semgrep + Gitleaks), painel, relatórios e o laboratório de testes.
 
+Há dois caminhos:
+
+- **Opção 1: Docker (recomendado).** Um comando sobe tudo. Não precisa instalar Node, Python, Java nem as ferramentas.
+- **Opção 2: instalação manual** (seções 0 a 14). Útil para desenvolver com recarga automática do front.
+
+---
+
+## Opção 1: Docker (um comando)
+
+### O que precisa
+- **Docker Desktop** (https://www.docker.com/products/docker-desktop/), com o WSL 2 ativado, que o próprio instalador oferece.
+- Cerca de **8 GB de disco livre** (só a imagem do ZAP tem ~1,5 GB) e **8 GB de RAM**.
+- **Git**, para baixar o projeto.
+
+### Passo a passo
+
+```powershell
+git clone https://github.com/Kauan-Mazeto/Checkop.git
+cd Checkop
+
+# 1) configuração: copie o modelo e preencha os 4 segredos (veja a tabela da seção 5.2)
+notepad backend\.env
+
+# 2) sobe tudo (a primeira vez baixa e monta as imagens: 10 a 20 min)
+docker compose up -d --build
+```
+
+Para gerar os segredos sem ter o Node instalado:
+
+```powershell
+-join ((1..48) | ForEach-Object { [char](Get-Random -InputObject ([char[]]'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')) })
+```
+
+Depois abra **http://localhost:4200**, crie a conta e siga as seções [8](#8-primeiro-acesso) e [9](#9-teste-rápido-está-tudo-funcionando).
+
+### O que sobe
+
+| Container | O que é | Porta no seu computador |
+|---|---|---|
+| `front` | Angular, servido pelo nginx | **4200** |
+| `backend` | API + banco SQLite (volume `checkop-data`) | interna |
+| `engine` | motor + Nuclei, Subfinder, Semgrep, Gitleaks | interna |
+| `zap` | OWASP ZAP 2.17.0 | interna |
+| `lab` | laboratório vulnerável | 3000 (só neste computador) |
+
+### Qual endereço varrer no Docker
+- **Laboratório:** `http://localhost:3000`, igual ao modo manual. O motor, o ZAP e o laboratório dividem a mesma rede interna.
+- **Um app rodando no seu computador, fora do Docker** (ex.: o seu projeto na porta 5000): `http://host.docker.internal:5000`. Dentro do Docker, `localhost` é o próprio container, não o seu PC.
+- **Sites públicos:** normal, com a verificação de domínio.
+
+### Comandos do dia a dia
+
+| Para | Comando |
+|---|---|
+| Ver se está tudo no ar | `docker compose ps` |
+| Ver os logs (ex.: do motor) | `docker compose logs -f engine` |
+| Parar tudo (o banco continua salvo) | `docker compose down` |
+| Subir de novo | `docker compose up -d` |
+| Depois de um `git pull` | `docker compose up -d --build` (as migrações do banco rodam sozinhas) |
+| Rodar sem o laboratório | `docker compose stop lab` |
+| Mudou o `backend\.env` | `docker compose up -d` (recria os containers com o valor novo) |
+| Apagar **tudo**, inclusive o banco | `docker compose down -v` |
+
+> Espere de 30 a 60 s depois do `up` antes da primeira varredura: o ZAP demora a subir. `docker compose logs zap` mostra `ZAP is now listening` quando está pronto.
+>
+> Os recursos opcionais (Google, e-mail, tradução, IA) funcionam igual: preencha no `backend\.env` (seção 10) e rode `docker compose up -d`.
+
+---
+
+## Opção 2: instalação manual
+
 Tempo estimado: **40 a 60 minutos** na primeira vez, a maior parte esperando downloads (~600 MB entre ferramentas e dependências).
 
 ---
@@ -114,7 +185,6 @@ npm install
 ### 5.2 Configuração (`.env`)
 
 ```powershell
-copy .env.example .env
 notepad .env
 ```
 
@@ -337,12 +407,12 @@ Já estão no `.gitignore`. Mantenha assim:
 
 ```
 Checkop/
-├─ SETUP.md                     ← este guia
+├─ docker-compose.yml           ← sobe tudo no Docker (Opção 1)
 ├─ scripts/
+│  ├─ SETUP.md                  ← este guia
 │  ├─ baixar-ferramentas.ps1    ← baixa ZAP, Nuclei, Subfinder, Gitleaks
 │  └─ iniciar-tudo.ps1          ← sobe os 5 serviços
 ├─ backend/
-│  ├─ .env.example              ← modelo do .env
 │  ├─ prisma/                   ← schema e migrações do banco
 │  ├─ src/                      ← API Node (controllers, rotas, regras de plano...)
 │  │  └─ py/security_engine/    ← motor Python (FastAPI) e regras do Checkop

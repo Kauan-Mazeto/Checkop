@@ -1,0 +1,13 @@
+# nunca entram na imagem: segredos, banco local e binários do Windows
+.env
+*.db
+*.db-journal
+tools/
+node_modules/
+# o motor Python e o laboratório têm imagens/serviços próprios
+src/py/
+lab/
+src/tests/
+docs/
+Dockerfile
+.dockerignore

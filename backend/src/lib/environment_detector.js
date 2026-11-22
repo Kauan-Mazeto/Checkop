@@ -37,6 +37,18 @@ const resolveAllAddresses = async (hostname) => {
   }
 };
 
+// Nomes que o operador do servidor declara como "esta máquina", além de localhost.
+// No Docker, host.docker.internal aponta para o computador de quem roda o Checkop
+// (IP interno); sem esta lista ele cairia na regra de domínio que resolve para
+// rede interna e seria bloqueado. Vazio por padrão: nada muda fora do Docker.
+const localTargetHosts = () =>
+  new Set(
+    (process.env.LOCAL_TARGET_HOSTS ?? '')
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
 const classifyAsStaging = (hostname) => {
   const parsed = parse(hostname);
   const subdomainParts = (parsed.subdomain || '').split('.').filter(Boolean);
@@ -67,7 +79,7 @@ export const detectEnvironment = async (targetUrl) => {
     );
   }
 
-  if (normalizedHostname === 'localhost' || privateIp(normalizedHostname)) {
+  if (normalizedHostname === 'localhost' || privateIp(normalizedHostname) || localTargetHosts().has(normalizedHostname)) {
     return {
       environment: 'DEVELOPMENT',
       resolvedIps: [normalizedHostname],

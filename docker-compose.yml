@@ -1,0 +1,88 @@
+# Checkop completo no Docker.
+#
+#   1) --
+#   2) docker compose up -d --build
+#   3) abra http://localhost:4200
+#
+# Rede: o motor, o ZAP e o laboratório compartilham a MESMA rede (network_mode
+# "service:engine"). Para os três, http://localhost:3000 é o laboratório e
+# http://localhost:8091 é o ZAP, igual ao ambiente sem Docker. Assim a proteção
+# contra SSRF do backend (que bloqueia domínio apontando para rede interna)
+# continua valendo sem exceção para os nomes internos do Docker.
+
+name: checkop
+
+services:
+  # ---------- motor: Nuclei, Subfinder, Semgrep, Gitleaks ----------
+  engine:
+    build: ./backend/src/py/security_engine
+    env_file: ./backend/.env
+    environment:
+      ZAP_API_URL: http://localhost:8091
+      # dentro do Linux o ZAP usa o Firefox que vem na imagem dele
+      ZAP_AJAX_SPIDER_BROWSER: firefox-headless
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # para varrer apps rodando no seu computador
+    ports:
+      # o laboratório (que usa a rede do motor) fica visível só neste computador
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+  # ---------- OWASP ZAP (varredura web) ----------
+  zap:
+    image: zaproxy/zap-stable:2.17.0
+    network_mode: "service:engine"
+    depends_on:
+      - engine
+    env_file: ./backend/.env
+    # $$ = a variável é lida dentro do container (vem do backend/.env)
+    command: >
+      sh -c "zap.sh -daemon -host 127.0.0.1 -port 8091 -config api.key=$$ZAP_API_KEY"
+    restart: unless-stopped
+
+  # ---------- laboratório propositalmente vulnerável (alvo de teste) ----------
+  lab:
+    image: node:22-alpine
+    network_mode: "service:engine"
+    depends_on:
+      - engine
+    environment:
+      LAB_HOST: 0.0.0.0   # porta publicada só em 127.0.0.1 (ver serviço engine)
+    volumes:
+      - ./backend/lab:/lab:ro
+    command: ["node", "/lab/lab-vulneravel.mjs"]
+    restart: unless-stopped
+
+  # ---------- backend (API + banco SQLite) ----------
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: file:/data/database.db
+      SECURITY_ENGINE_URL: http://engine:8010
+      CLIENT_URL: http://localhost:4200
+      APP_URL: http://localhost:4200
+      # o nginx do front é o único proxy na frente do backend
+      TRUST_PROXY: "1"
+      # alvos tratados como "este computador" (apps rodando fora do Docker)
+      LOCAL_TARGET_HOSTS: host.docker.internal
+    volumes:
+      - checkop-data:/data
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- front-end (Angular servido pelo nginx) ----------
+  front:
+    build: ./front-end
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  # banco de dados (contas, varreduras). Persiste entre "down" e "up";
+  # só some com "docker compose down -v".
+  checkop-data:

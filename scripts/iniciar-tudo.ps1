@@ -11,8 +11,6 @@ $root    = Split-Path $PSScriptRoot -Parent
 $backend = Join-Path $root 'backend'
 $envFile = Join-Path $backend '.env'
 
-if (-not (Test-Path $envFile)) { throw "Falta backend\.env. Copie backend\.env.example e preencha (veja o SETUP.md)." }
-
 $keyLine = Select-String $envFile -Pattern '^\s*ZAP_API_KEY\s*=\s*(.*)$' | Select-Object -First 1
 $key = if ($keyLine) { $keyLine.Matches[0].Groups[1].Value.Trim().Trim('"') } else { '' }
 if (-not $key) { throw "ZAP_API_KEY está vazio no backend\.env." }

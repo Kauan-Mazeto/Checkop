@@ -61,3 +61,19 @@ test('domínio público comum é PRODUCTION', async () => {
   assert.equal(result.environment, 'PRODUCTION');
   assert.equal(result.suspicious, false);
 });
+
+test('LOCAL_TARGET_HOSTS: nome declarado como esta máquina (Docker) é local, sem virar suspeito', async () => {
+  // host.docker.internal resolve para IP interno; sem a lista seria bloqueado como rebinding
+  mock.method(dns, 'lookup', async () => dnsAnswer('192.168.65.254'));
+  process.env.LOCAL_TARGET_HOSTS = 'host.docker.internal';
+  try {
+    const result = await detectEnvironment('http://host.docker.internal:5000');
+    assert.equal(result.environment, 'DEVELOPMENT');
+    assert.equal(result.suspicious, false);
+  } finally {
+    delete process.env.LOCAL_TARGET_HOSTS;
+  }
+  // sem a variável, o mesmo nome continua suspeito (comportamento padrão)
+  const blocked = await detectEnvironment('http://host.docker.internal:5000');
+  assert.equal(blocked.suspicious, true);
+});
