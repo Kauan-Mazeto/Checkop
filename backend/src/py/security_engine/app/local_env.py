@@ -10,7 +10,24 @@ import os
 import shutil
 from pathlib import Path
 
-BACKEND_DIR = Path(__file__).resolve().parents[4]  # app -> security_engine -> py -> src -> backend
+_HERE = Path(__file__).resolve()
+
+
+def _find_backend_dir() -> Path:
+    """Pasta backend/ (a que tem package.json e src/py) subindo a partir deste arquivo.
+
+    No Docker o motor fica sozinho em /app/app, sem a árvore do backend: aí não há
+    .env nem tools/ para procurar (as variáveis vêm do compose e as ferramentas
+    estão no PATH da imagem). Antes era parents[4] fixo, que não existe nesse
+    layout e derrubava o motor na largada com IndexError.
+    """
+    for folder in _HERE.parents:
+        if (folder / "package.json").is_file() and (folder / "src" / "py").is_dir():
+            return folder
+    return _HERE.parent
+
+
+BACKEND_DIR = _find_backend_dir()
 TOOLS_DIR = BACKEND_DIR / "tools"
 
 

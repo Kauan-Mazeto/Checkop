@@ -33,11 +33,19 @@ services:
     image: zaproxy/zap-stable:2.17.0
     network_mode: "service:engine"
     depends_on:
-      - engine
+      engine:
+        condition: service_healthy
     env_file: ./backend/.env
     # $$ = a variável é lida dentro do container (vem do backend/.env)
     command: >
       sh -c "zap.sh -daemon -host 127.0.0.1 -port 8091 -config api.key=$$ZAP_API_KEY"
+    # a verificação da imagem oficial olha a porta padrão (8080); aqui o ZAP roda na 8091
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs \"http://127.0.0.1:8091/JSON/core/view/version/?apikey=$$ZAP_API_KEY\" > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     restart: unless-stopped
 
   # ---------- laboratório propositalmente vulnerável (alvo de teste) ----------
@@ -45,7 +53,8 @@ services:
     image: node:22-alpine
     network_mode: "service:engine"
     depends_on:
-      - engine
+      engine:
+        condition: service_healthy
     environment:
       LAB_HOST: 0.0.0.0   # porta publicada só em 127.0.0.1 (ver serviço engine)
     volumes:

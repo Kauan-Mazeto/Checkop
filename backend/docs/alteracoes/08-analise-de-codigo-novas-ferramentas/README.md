@@ -97,8 +97,50 @@ Integrar ao motor (`run_sast_scan`) analisadores especializados. Cada um roda **
 
 adicionar tambem:
 
-LGPD, "Baixar meus dados": o direito de portabilidade (art. 18). Hoje a tela só indica um e-mail. É simples e fecha o tema de privacidade, que o projeto já trata bem.
-Rodar com um comando (Docker Compose): ZAP, motor, backend e front sobem juntos. Facilita a demonstração e mostra maturidade de projeto.
-Gráfico de evolução no Painel, por alvo.
+LGPD, "Baixar meus dados": o direito de portabilidade (art. 18). Hoje a tela só indica um e-mail. É simples e fecha o tema de privacidade, que o projeto já trata bem.Gráfico de evolução no Painel, por alvo.
 Autenticação em dois fatores.
 Integração com CI/CD (GitHub Actions).
+
+
+1. O que falta: prioridade alta (pode dar resultado errado na apresentação)
+1.1 Alertas antigos do ZAP aparecendo em varreduras novas (suspeita, ainda não confirmada)
+O ZAP guarda os alertas da sessão inteira. Se uma falha for corrigida e o site for varrido de novo, o alerta antigo pode voltar. Isso deixaria a aba Comparação errada, mostrando como "persistente" algo já corrigido.
+O que fazer: confirmar com o laboratório e, se for o caso, limpar os alertas do alvo (ou abrir uma sessão nova no ZAP) antes de cada varredura.
+
+1.2 Varreduras simultâneas e reinício do backend
+
+O ZAP tem configurações globais (regras ligadas, velocidade, usuário autenticado). Duas varreduras ao mesmo tempo podem uma alterar a configuração da outra.
+Se o backend reiniciar no meio de uma varredura, ela fica "Em execução" para sempre.
+O que fazer: uma fila (uma varredura do ZAP por vez) e, ao iniciar o backend, marcar como falha as varreduras que ficaram presas.
+
+1.3 Verificação de saúde do ZAP no Docker
+Foi ajustada para a porta 8091. Falta confirmar que o container aparece como healthy.
+
+2. O que falta para fechar o que já existe
+Documentação das mudanças: criar as pastas 09 em diante em backend/docs/alteracoes/ (idioma, CVSS, agrupamento, cancelamento, exportação, análise de código, créditos de IA, Docker). Elas viram material dos slides.
+Teste completo pelo app do que foi feito por último: tradução, exportação, cancelamento, correção com IA (com chave da Anthropic) e as regras novas da análise de código.
+E-mails de contato reais nos Termos e na Política de Privacidade (hoje são placeholders).
+Velocidade do Nuclei em alvo local: o limite está fixo em 10 requisições/s, e a varredura completa pode bater o tempo limite de 15 min. Subir o limite fora de produção e manter 10 em produção.
+Novo aceite dos Termos quando a versão mudar (hoje a versão é registrada, mas o usuário não é avisado).
+3. Para o TCC e a banca
+Medição de acerto da análise de código: rodar benchmarks públicos (OWASP Benchmark, Juliet/NIST) e o conjunto interno para obter cobertura e taxa de falso positivo. Dá números concretos ao trabalho. O plano está no documento 08.
+Testes de ponta a ponta (Playwright) do fluxo principal: login → nova varredura → resultado → exportação.
+"Baixar meus dados" (LGPD, art. 18): exportação dos dados pessoais da conta direto na tela (hoje há só um e-mail de contato).
+4. O que pode ser adicionado
+Análise de código (detalhado no documento 08)
+Dependências vulneráveis (SCA) com OSV-Scanner: bibliotecas com CVE e a versão que corrige.
+Analisadores especializados: Bandit/Ruff (Python), ESLint (JS/TS), gosec (Go), Flawfinder/cppcheck (C/C++), ShellCheck (shell), Hadolint (Dockerfile), Checkov (Terraform/Kubernetes).
+Regras do Checkop em modo taint (segue a entrada do usuário entre variáveis).
+CodeQL, opcional: o mais poderoso, porém pesado e com restrição de licença.
+Funcionalidades para o usuário
+Status por achado: Corrigido, Falso positivo, Risco aceito. Falsos positivos saem das contagens e das comparações.
+"Verificar correção": testa de novo só aquela falha, em segundos.
+Varredura agendada (semanal/mensal), com e-mail só quando surgir falha nova.
+Gráfico de evolução no Painel: falhas por severidade ao longo do tempo, por alvo.
+Segurança da plataforma
+Autenticação em dois fatores (2FA) e senha forte obrigatória.
+Tela de saúde das ferramentas (admin): versões do ZAP e do Nuclei, data dos templates e botão de atualizar. O backend já tem a parte de atualização.
+Integração
+CI/CD: token de API e exemplo de GitHub Actions que roda a varredura e reprova o build se houver falha crítica.
+Exportação SARIF da análise de código, que aparece direto na aba Security do GitHub.
+Imagens Docker publicadas (Docker Hub/GHCR), para subir sem precisar montar na máquina.
