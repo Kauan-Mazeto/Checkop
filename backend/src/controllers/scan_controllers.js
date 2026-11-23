@@ -768,8 +768,14 @@ const runScan = async (req, res) => {
 
     // "reserva" a varredura de forma atômica: só uma requisição consegue virar
     // RUNNING (evita duplo clique / duas execuções em paralelo da mesma varredura).
+    // Uma varredura em execução por usuário: a condição vai no mesmo UPDATE para
+    // que dois cliques em varreduras diferentes não passem juntos.
     const claimed = await prisma.scan.updateMany({
-      where: { id: scan.id, status: { in: ['PENDING', 'FAILED'] } },
+      where: {
+        id: scan.id,
+        status: { in: ['PENDING', 'FAILED'] },
+        user: { scans: { none: { status: 'RUNNING' } } },
+      },
       data: {
         status: 'RUNNING',
         startedAt: new Date(),
@@ -781,10 +787,12 @@ const runScan = async (req, res) => {
 
     if (claimed.count === 0) {
       const current = await prisma.scan.findUnique({ where: { id: scan.id } });
-      const message =
-        current?.status === 'COMPLETED'
-          ? 'Esta varredura já foi concluída.'
-          : 'Esta varredura já está em execução.';
+      let message = 'Esta varredura já está em execução.';
+      if (current?.status === 'COMPLETED') message = 'Esta varredura já foi concluída.';
+      else if (['PENDING', 'FAILED'].includes(current?.status)) {
+        // esta podia rodar: quem barrou foi outra varredura do mesmo usuário
+        message = 'Você já tem uma varredura em execução. Aguarde ela terminar (ou cancele) para iniciar outra.';
+      }
       return res.status(409).json({ error: message });
     }
 

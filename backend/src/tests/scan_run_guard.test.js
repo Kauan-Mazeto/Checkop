@@ -253,3 +253,32 @@ test('criar varredura em localhost não exige alvo', async () => {
   assert.equal(res.statusCode, 201);
   assert.equal(prismaMock.target.findMany.mock.callCount(), 0);
 });
+
+// ---------- uma varredura em execução por usuário ----------
+
+test('a reserva só passa se o usuário não tiver outra varredura em execução', async () => {
+  const res = await run(localScan);
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(lastClaim().where.user, { scans: { none: { status: 'RUNNING' } } });
+});
+
+test('com outra varredura do usuário rodando: 409 com mensagem explicando o limite', async () => {
+  prismaMock.scan.updateMany.mock.mockImplementationOnce(async () => ({ count: 0 }));
+  prismaMock.scan.findUnique.mock.mockImplementationOnce(async () => ({ status: 'PENDING' }));
+
+  const res = await run(localScan);
+
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.error, /já tem uma varredura em execução/);
+  assert.equal(engineCalls.length, 0);
+});
+
+test('a mesma varredura já rodando continua com a mensagem de duplo clique', async () => {
+  prismaMock.scan.updateMany.mock.mockImplementationOnce(async () => ({ count: 0 }));
+  prismaMock.scan.findUnique.mock.mockImplementationOnce(async () => ({ status: 'RUNNING' }));
+
+  const res = await run(localScan);
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'Esta varredura já está em execução.');
+});

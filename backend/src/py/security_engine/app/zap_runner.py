@@ -51,6 +51,28 @@ class ZapExecutionError(Exception):
     pass
 
 
+# deleteAlerts do ZAP 2.17 apaga em lotes: repete até o alvo ficar sem alertas
+CLEAR_ALERTS_MAX_ROUNDS = 10
+
+
+async def _clear_target_alerts(client: httpx.AsyncClient, target_url: str) -> list[str]:
+    """Apaga os alertas antigos DESTE alvo antes de varrer (os de outros alvos ficam).
+
+    Sem isso, /core/view/alerts devolvia também os alertas das varreduras anteriores
+    do mesmo alvo: falha já corrigida voltava como "persistente". Não usa newSession
+    porque ela apagaria também a varredura em andamento de outro usuário.
+    """
+    try:
+        for _ in range(CLEAR_ALERTS_MAX_ROUNDS):
+            data = await _get(client, "/JSON/core/view/numberOfAlerts/", {"baseurl": target_url})
+            if int(data.get("numberOfAlerts", 0)) == 0:
+                return []
+            await _get(client, "/JSON/alert/action/deleteAlerts/", {"baseurl": target_url})
+    except ZapExecutionError as err:
+        return [f"Não foi possível limpar os alertas antigos do ZAP ({err}); alertas de varreduras anteriores podem aparecer."]
+    return ["Não foi possível limpar todos os alertas antigos do ZAP; alertas de varreduras anteriores podem aparecer."]
+
+
 def _params(extra: dict) -> dict:
     return {"apikey": ZAP_API_KEY, **extra}
 
@@ -399,6 +421,8 @@ async def run_zap_scan(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            # o resultado traz só o que ESTA varredura encontrou neste alvo
+            warnings += await _clear_target_alerts(client, target_url)
             warnings += await ensure_beta_addons(client)
             await _get(client, "/JSON/core/action/accessUrl/", {"url": target_url})
 

@@ -19,6 +19,7 @@ import adminRoutes from './routes/admin_routes.js';
 import { scheduleTemplateUpdates } from './lib/template_updates.js';
 import prisma from './lib/prisma.js';
 import { scheduleRetentionPurge } from './lib/retention.js';
+import { cancelEngineJob } from './lib/py/security_engine_client.js';
 
 const app = express();
 const PORT = process.env.PORT;
@@ -90,6 +91,10 @@ const server = app.listen(PORT, async () => {
   // ou reiniciou no meio de uma, ela ficou presa em RUNNING. Aqui marcamos como
   // FAILED para o usuário poder executar de novo.
   try {
+    // o motor é outro processo e pode continuar varrendo para ninguém (ocupando a
+    // fila do ZAP por até ~30 min): pede para ele parar essas varreduras
+    const orphans = await prisma.scan.findMany({ where: { status: 'RUNNING' }, select: { id: true } });
+    await Promise.allSettled(orphans.map(({ id }) => cancelEngineJob(id)));
     const { count } = await prisma.scan.updateMany({
       where: { status: 'RUNNING' },
       data: { status: 'FAILED', finishedAt: new Date() },

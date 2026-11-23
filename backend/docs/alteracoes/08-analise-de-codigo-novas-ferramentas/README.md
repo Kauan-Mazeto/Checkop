@@ -103,17 +103,17 @@ Integração com CI/CD (GitHub Actions).
 
 
 1. O que falta: prioridade alta (pode dar resultado errado na apresentação)
-1.1 Alertas antigos do ZAP aparecendo em varreduras novas (suspeita, ainda não confirmada)
+1.1 Alertas antigos do ZAP aparecendo em varreduras novas — RESOLVIDO (confirmado e corrigido no documento 09)
 O ZAP guarda os alertas da sessão inteira. Se uma falha for corrigida e o site for varrido de novo, o alerta antigo pode voltar. Isso deixaria a aba Comparação errada, mostrando como "persistente" algo já corrigido.
 O que fazer: confirmar com o laboratório e, se for o caso, limpar os alertas do alvo (ou abrir uma sessão nova no ZAP) antes de cada varredura.
 
-1.2 Varreduras simultâneas e reinício do backend
+1.2 Varreduras simultâneas e reinício do backend — RESOLVIDO (uma varredura por usuário no documento 09; a limpeza no reinício já existia). Ainda há um só ZAP para todos: ver limitações do documento 09
 
 O ZAP tem configurações globais (regras ligadas, velocidade, usuário autenticado). Duas varreduras ao mesmo tempo podem uma alterar a configuração da outra.
 Se o backend reiniciar no meio de uma varredura, ela fica "Em execução" para sempre.
 O que fazer: uma fila (uma varredura do ZAP por vez) e, ao iniciar o backend, marcar como falha as varreduras que ficaram presas.
 
-1.3 Verificação de saúde do ZAP no Docker
+1.3 Verificação de saúde do ZAP no Docker — OK (container aparece como healthy em 2026-11-22)
 Foi ajustada para a porta 8091. Falta confirmar que o container aparece como healthy.
 
 2. O que falta para fechar o que já existe

@@ -21,6 +21,7 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 | 06 | [Visual da equipe nas telas logadas e regras Free/Premium](06-visual-da-equipe-e-planos/README.md) | Implementado e testado | 2026-11-16 |
 | 07 | [Login com Google](07-login-com-google/README.md) | Implementado e testado | 2026-11-16 |
 | 08 | [Análise de código: novas ferramentas e medição de acerto](08-analise-de-codigo-novas-ferramentas/README.md) | Proposto (não iniciado) | 2026-11-17 |
+| 09 | [Alertas antigos do ZAP e uma varredura por usuário](09-alertas-do-zap-e-limite-por-usuario/README.md) | Implementado e testado | 2026-11-22 |
 
 ## Como rodar os testes
 
