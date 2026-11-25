@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
 import { detectEnvironment, ScanValidationError } from '../lib/environment_detector.js';
 import { runNucleiScan, runZapScan, runSubdomainEnum, cancelEngineJob, SecurityEngineError } from '../lib/py/security_engine_client.js';
@@ -538,6 +539,16 @@ const compareScans = async (req, res) => {
 // varreduras em execução cujo cancelamento foi pedido; ao terminar, viram CANCELED
 const cancelRequested = new Set();
 
+// Colunas da tabela Finding (geradas pelo Prisma a partir do schema). O motor pode mandar
+// campos a mais (ex.: fixedCode/related, que são da análise de código); gravar um campo que
+// não existe na tabela derruba o createMany e a varredura inteira perdia o resultado.
+const FINDING_COLUMNS = new Set(Object.keys(Prisma.FindingScalarFieldEnum));
+FINDING_COLUMNS.delete('id');
+FINDING_COLUMNS.delete('createdAt');
+
+const toFindingRow = (finding, scanId) =>
+  Object.fromEntries(Object.entries({ ...finding, scanId }).filter(([key]) => FINDING_COLUMNS.has(key)));
+
 const executeScan = async (scan, runOptions = {}) => {
   try {
     const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
@@ -552,7 +563,9 @@ const executeScan = async (scan, runOptions = {}) => {
           targetUrl: scan.targetUrl,
           // sem opt-in de ataque, os templates intrusivos ficam de fora (RF-52)
           safeMode: !runOptions.activeScan,
-          rateLimit: 10,
+          // alvo público: 10 req/s para não sobrecarregar o site de alguém. Local (localhost,
+          // lab): o padrão do Nuclei; a 10 req/s os ~14 mil templates passavam de meia hora
+          rateLimit: requiresVerifiedTarget(scan.environment) ? 10 : 150,
           tags: [...config.nuclei.tags, ...extraTags],
           jobId: scan.id,
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
@@ -610,7 +623,7 @@ const executeScan = async (scan, runOptions = {}) => {
 
     await prisma.$transaction([
       prisma.finding.createMany({
-        data: allFindings.map((finding) => ({ ...finding, scanId: scan.id })),
+        data: allFindings.map((finding) => toFindingRow(finding, scan.id)),
       }),
       prisma.scan.update({
         where: { id: scan.id },
@@ -629,7 +642,12 @@ const executeScan = async (scan, runOptions = {}) => {
     try {
       await prisma.scan.update({
         where: { id: scan.id },
-        data: { status: canceled ? 'CANCELED' : 'FAILED', finishedAt: new Date() },
+        data: {
+          status: canceled ? 'CANCELED' : 'FAILED',
+          finishedAt: new Date(),
+          // sem isso a tela mostrava "nenhuma vulnerabilidade", como se a varredura tivesse dado certo
+          engineWarnings: JSON.stringify(['A varredura não conseguiu processar o resultado das ferramentas; nada foi salvo. Tente de novo (o detalhe técnico está no log do servidor).']),
+        },
       });
     } catch (updateError) {
       console.error(`[scan ${scan.id}] não foi possível marcar como FAILED:`, updateError);
