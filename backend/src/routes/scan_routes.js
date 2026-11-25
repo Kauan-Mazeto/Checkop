@@ -4,7 +4,7 @@ import validate from '../middlewares/auth_validate.js';
 import authMiddleware from '../middlewares/auth_middleware.js';
 import { requireOwnership } from '../middlewares/ownership_middleware.js';
 import { scanCreationLimiter } from '../middlewares/rate_limit_middleware.js';
-import { createScanSchema, runScanAuthSchema} from '../validators/scan_validator.js';
+import { createScanSchema, runScanAuthSchema, updateFindingStatusSchema } from '../validators/scan_validator.js';
 
 
 const router = express.Router();
@@ -21,5 +21,7 @@ router.get('/:id', requireOwnership('scan'), scanController.getScanById);
 router.get('/:id/compare', requireOwnership('scan'), scanController.compareScans);
 router.post('/:id/run', scanCreationLimiter, requireOwnership('scan'), validate(runScanAuthSchema), scanController.runScan);
 router.post('/:id/cancel', requireOwnership('scan'), scanController.cancelScan);
+// triagem: corrigido, falso positivo, ignorado ou de volta a aberto
+router.patch('/:id/findings/status', requireOwnership('scan'), validate(updateFindingStatusSchema), scanController.updateFindingStatus);
 
 export default router;

@@ -57,3 +57,13 @@ export const runScanAuthSchema = z.preprocess((value) => value ?? {}, z.object({
   message: 'Para a varredura ativa, confirme também que os termos do seu provedor de hospedagem permitem testes de segurança.',
   path: ['hostingTermsConfirmed'],
 }));
+// Triagem dos achados: "corrigido", "falso positivo", "ignorado" ou de volta a "aberto".
+// Na tela um achado agrupa vários locais (um registro por URL); a mudança vale para todos.
+export const FINDING_STATUSES = ['OPEN', 'FIXED', 'FALSE_POSITIVE', 'IGNORED'];
+
+export const updateFindingStatusSchema = z.object({
+  findingIds: z.array(z.string().uuid('Id de achado inválido.')).min(1, 'Informe ao menos um achado.').max(500),
+  status: z.enum(FINDING_STATUSES, {
+    errorMap: () => ({ message: `status deve ser um dos valores: ${FINDING_STATUSES.join(', ')}` }),
+  }),
+});

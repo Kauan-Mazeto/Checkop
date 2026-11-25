@@ -1,4 +1,4 @@
-import { ComplianceNote, Finding, FindingLocation, FindingSeverity } from '../../core/services/scan.service';
+import { ComplianceNote, Finding, FindingLocation, FindingSeverity, FindingStatus } from '../../core/services/scan.service';
 import { SEVERITY_ORDER } from '../../shared/ui/labels';
 
 // Lógica pura da tela de detalhe (testável sem renderizar o componente).
@@ -21,7 +21,7 @@ const locationHasEvidence = (l: { rawRequest?: string | null; rawResponse?: stri
 export const locationsOf = (finding: Finding): FindingLocation[] =>
   finding.locations?.length
     ? finding.locations
-    : [{ id: finding.id, affectedUrl: finding.affectedUrl, parameter: finding.parameter, severity: finding.severity,
+    : [{ id: finding.id, affectedUrl: finding.affectedUrl, parameter: finding.parameter, severity: finding.severity, status: finding.status,
          attack: finding.attack, reproduction: finding.reproduction,
          rawRequest: finding.rawRequest, rawResponse: finding.rawResponse }];
 
@@ -122,3 +122,81 @@ export const evidenceGroups = (findings: Finding[]): EvidenceGroup[] =>
   findings
     .map((f) => ({ id: f.id, title: f.title, severity: f.severity, items: evidenceItems([f]) }))
     .filter((group) => group.items.length > 0);
+
+// ---------- painel de achados (lista | detalhe | metadados) ----------
+
+/**
+ * Status de um achado agrupado: o dos seus locais. Se ainda houver algum local aberto,
+ * o achado está aberto (só sai da fila quando todos foram tratados).
+ */
+export const findingStatusOf = (finding: Finding): FindingStatus => {
+  const statuses = locationsOf(finding).map((l) => l.status ?? finding.status ?? 'OPEN');
+  if (statuses.includes('OPEN')) return 'OPEN';
+  return statuses.every((s) => s === statuses[0]) ? statuses[0] : 'OPEN';
+};
+
+/** Filtro da lista por triagem: 'ALL' mostra todos. */
+export const filterByStatus = (findings: Finding[], status: FindingStatus | 'ALL'): Finding[] =>
+  status === 'ALL' ? findings : findings.filter((f) => findingStatusOf(f) === status);
+
+/** Aplica o status a um achado e a todos os seus locais (atualização local, sem recarregar). */
+export const withStatus = (finding: Finding, status: FindingStatus): Finding => ({
+  ...finding,
+  status,
+  locations: finding.locations?.map((l) => ({ ...l, status })),
+});
+
+const normalize = (text: string | null | undefined): string =>
+  (text ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Busca da lista de achados: título, URL, parâmetro, OWASP, CVE ou regra (sem acento e sem caixa). */
+export const filterFindings = (findings: Finding[], query: string): Finding[] => {
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return findings;
+  return findings.filter((f) => {
+    const haystack = normalize(
+      [f.title, f.owaspUrl, f.cveId, f.ruleId, ...locationsOf(f).flatMap((l) => [l.affectedUrl, l.parameter])].join(' '),
+    );
+    return terms.every((term) => haystack.includes(term));
+  });
+};
+
+/** Caminho curto da URL para a lista ("http://site/busca?q=1" → "/busca?q=1"). */
+export const pathOf = (url: string | null | undefined): string => {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}` || '/';
+  } catch {
+    return url;
+  }
+};
+
+/** Linha do visor de requisição/resposta; `hit` = a linha que prova a falha. */
+export interface ViewerLine {
+  number: number;
+  text: string;
+  hit: boolean;
+}
+
+/** Acima disso o visor mostra só o começo (o JSON exportado leva tudo). */
+export const VIEWER_MAX_LINES = 400;
+
+/**
+ * Numera o texto e marca as linhas que provam a falha: as que contêm o payload usado
+ * no ataque e, em falha de cabeçalho, a linha do cabeçalho citado entre aspas no título
+ * (“X-Powered-By” → "X-Powered-By: Express 4.16.0").
+ */
+export const highlightedLines = (text: string, title: string, attack: string | null | undefined): ViewerLine[] => {
+  if (!text) return [];
+  const headers = [...title.matchAll(/[“"'‘]([A-Za-z][\w-]{2,})[”"'’]/g)].map((m) => m[1].toLowerCase());
+  const payload = attack && attack.trim().length >= 3 ? attack.trim() : null;
+  return text
+    .split('\n')
+    .slice(0, VIEWER_MAX_LINES)
+    .map((line, index) => {
+      const lower = line.toLowerCase();
+      const header = headers.some((h) => lower.startsWith(`${h}:`));
+      return { number: index + 1, text: line, hit: header || Boolean(payload && line.includes(payload)) };
+    });
+};

@@ -5,13 +5,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
 import { AuthService } from '../../core/services/auth.service';
-import { Finding, FindingSeverity, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions, hasResults } from '../../core/services/scan.service';
+import { Finding, FindingSeverity, FindingStatus, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions, hasResults } from '../../core/services/scan.service';
 import { RoleView, roleView } from '../../shared/ui/role-views';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
 import { BAR_OPTIONS, DOUGHNUT_OPTIONS, countBar, owaspBar, severityDoughnut } from '../../shared/ui/chart-data';
-import { ENVIRONMENT_LABEL, SEVERITY_LABEL, SEVERITY_ORDER, STATUS_LABEL, TOOL_LABEL, owaspExplanation, CVSS_SOURCE_LABEL, CONFIDENCE_LABEL } from '../../shared/ui/labels';
+import { ENVIRONMENT_LABEL, FINDING_STATUS_LABEL, SEVERITY_LABEL, SEVERITY_ORDER, STATUS_LABEL, TOOL_LABEL, owaspExplanation, CVSS_SOURCE_LABEL, CONFIDENCE_LABEL } from '../../shared/ui/labels';
 import {
   ComplianceGroup,
   countBy,
@@ -20,13 +20,27 @@ import {
   filterBySeverity,
   groupCompliance,
   EvidenceGroup,
+  EvidenceItem,
   evidenceGroups,
+  evidenceItems,
+  filterByStatus,
+  filterFindings,
+  findingStatusOf,
   hasEvidence,
+  withStatus,
+  highlightedLines,
   locationsOf,
+  pathOf,
   sortBySeverity,
+  ViewerLine,
 } from './scan-detail.logic';
 
+// 'evidence' some quando a tela nova (painéis) entrar: a evidência passa a ficar no detalhe do achado
 type Tab = 'overview' | 'findings' | 'evidence' | 'compliance' | 'compare';
+/** sub-abas do detalhe do achado (painel central) */
+export type DetailTab = 'fix' | 'evidence' | 'locations' | 'compliance';
+/** abas do visor de evidência */
+export type ViewerTab = 'response' | 'request' | 'curl';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -51,6 +65,9 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected readonly hasEvidence = hasEvidence;
   protected readonly locationsOf = locationsOf;
   protected readonly hasResults = hasResults;
+  protected readonly pathOf = pathOf;
+  protected readonly findingStatusOf = findingStatusOf;
+  protected readonly findingStatusLabel = FINDING_STATUS_LABEL;
 
   /** botão "Copiar comando" da PoC */
   protected copiedKey: string | null = null;
@@ -112,6 +129,24 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected tab: Tab = 'overview';
   protected severityFilter: FindingSeverity | 'ALL' = 'ALL';
   protected expanded = new Set<string>();
+
+  // ---------- painel de achados: lista | detalhe | metadados ----------
+  protected query = '';
+  /** triagem: Abertos, Corrigidos, Falso positivo, Ignorados ou todos */
+  protected statusFilter: FindingStatus | 'ALL' = 'ALL';
+  /** ação de triagem em andamento (desabilita os botões) */
+  protected statusSaving: FindingStatus | null = null;
+  protected statusError: string | null = null;
+  /** lista filtrada por severidade e busca (campo, não getter: o *ngFor não recria as linhas) */
+  protected filteredFindings: Finding[] = [];
+  protected selected: Finding | null = null;
+  protected detailTab: DetailTab = 'fix';
+  protected viewerTab: ViewerTab = 'response';
+  /** ocorrências do achado selecionado que têm requisição/resposta */
+  protected selectedEvidence: EvidenceItem[] = [];
+  protected occurrenceIndex = 0;
+  /** linhas do visor (recalculadas só quando muda o achado, a ocorrência ou a aba) */
+  protected viewerLines: ViewerLine[] = [];
 
   protected sortedFindings: Finding[] = [];
   protected complianceGroups: ComplianceGroup[] = [];
@@ -205,6 +240,157 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     return filterBySeverity(this.sortedFindings, this.severityFilter);
   }
 
+  // ---------- painel de achados ----------
+
+  protected trackById(_: number, item: { id: string }): string {
+    return item.id;
+  }
+
+  protected get currentEvidence(): EvidenceItem | null {
+    return this.selectedEvidence[this.occurrenceIndex] ?? null;
+  }
+
+  /** Texto cru da aba aberta no visor (botão "Copiar"). */
+  protected get viewerText(): string {
+    const e = this.currentEvidence;
+    if (!e) return '';
+    if (this.viewerTab === 'response') return e.rawResponse ?? '';
+    if (this.viewerTab === 'request') return e.rawRequest ?? '';
+    return e.reproduction ?? '';
+  }
+
+  /** Ferramentas que apontaram a falha ("OWASP ZAP, Nuclei"). */
+  protected toolsOf(finding: Finding): string {
+    const tools = finding.tools?.length ? finding.tools : [finding.tool];
+    return tools.map((t) => this.toolLabel[t] || t).join(', ');
+  }
+
+  protected setSeverityFilter(severity: FindingSeverity | 'ALL'): void {
+    this.severityFilter = severity;
+    this.applyFilter();
+  }
+
+  protected setQuery(query: string): void {
+    this.query = query;
+    this.applyFilter();
+  }
+
+  protected setStatusFilter(status: FindingStatus | 'ALL'): void {
+    this.statusFilter = status;
+    this.applyFilter();
+  }
+
+  /** Quantos achados há em cada triagem (contadores do filtro). */
+  protected countByStatus(status: FindingStatus): number {
+    return this.sortedFindings.filter((f) => findingStatusOf(f) === status).length;
+  }
+
+  /**
+   * Triagem do achado aberto: corrigido, falso positivo, ignorado ou de volta a aberto.
+   * Vale para todos os locais do grupo; a tela atualiza sem recarregar a varredura.
+   */
+  protected setFindingStatus(status: FindingStatus): void {
+    const finding = this.selected;
+    if (!this.scan || !finding || this.statusSaving) return;
+    const ids = locationsOf(finding).map((l) => l.id);
+    this.statusSaving = status;
+    this.statusError = null;
+    this.scanService.updateFindingsStatus(this.scan.id, ids, status).subscribe({
+      next: () => {
+        this.statusSaving = null;
+        const updated = withStatus(finding, status);
+        const swap = (list: Finding[]) => list.map((f) => (f.id === finding.id ? updated : f));
+        this.scan = this.scan ? { ...this.scan, findings: swap(this.scan.findings) } : this.scan;
+        this.sortedFindings = swap(this.sortedFindings);
+        this.selected = updated;
+        // some da lista se o filtro de status atual não o inclui mais (abre o próximo)
+        this.applyFilter();
+      },
+      error: (error: ApiError) => {
+        this.statusSaving = null;
+        this.statusError = error.message;
+      },
+    });
+  }
+
+  /** Abre o achado no painel central. keepTab: mantém a sub-aba aberta, se ela existir para ele. */
+  protected select(finding: Finding | null, keepTab = true): void {
+    this.selected = finding;
+    this.selectedEvidence = finding ? evidenceItems([finding]) : [];
+    this.occurrenceIndex = 0;
+    const tabMissing =
+      (this.detailTab === 'evidence' && this.selectedEvidence.length === 0) ||
+      (this.detailTab === 'compliance' && !finding?.compliance.length);
+    if (!keepTab || tabMissing) this.detailTab = this.preferredDetailTab();
+    this.viewerTab = this.firstViewerTab(this.currentEvidence);
+    this.buildViewer();
+  }
+
+  protected setDetailTab(tab: DetailTab): void {
+    this.detailTab = tab;
+  }
+
+  protected setViewerTab(tab: ViewerTab): void {
+    this.viewerTab = tab;
+    this.buildViewer();
+  }
+
+  /** Anterior/próxima ocorrência da mesma falha (dá a volta no fim da lista). */
+  protected stepOccurrence(delta: number): void {
+    const total = this.selectedEvidence.length;
+    if (total === 0) return;
+    this.occurrenceIndex = (this.occurrenceIndex + delta + total) % total;
+    this.viewerTab = this.availableViewerTab(this.currentEvidence, this.viewerTab);
+    this.buildViewer();
+  }
+
+  /** Abre a evidência de um local específico (sub-aba Ocorrências). */
+  protected openOccurrence(locationId: string): void {
+    const index = this.selectedEvidence.findIndex((e) => e.id === locationId);
+    if (index < 0) return;
+    this.occurrenceIndex = index;
+    this.detailTab = 'evidence';
+    this.viewerTab = this.availableViewerTab(this.currentEvidence, this.viewerTab);
+    this.buildViewer();
+  }
+
+  protected hasEvidenceFor(locationId: string): boolean {
+    return this.selectedEvidence.some((e) => e.id === locationId);
+  }
+
+  /** Severidade + triagem + busca, nessa ordem. */
+  private filterList(): Finding[] {
+    return filterFindings(filterByStatus(filterBySeverity(this.sortedFindings, this.severityFilter), this.statusFilter), this.query);
+  }
+
+  private applyFilter(): void {
+    this.filteredFindings = this.filterList();
+    // o selecionado saiu do filtro: abre o primeiro que sobrou
+    if (!this.selected || !this.filteredFindings.includes(this.selected)) this.select(this.filteredFindings[0] ?? null, false);
+  }
+
+  /** Sub-aba que o perfil vê primeiro (RF-11): Pentester a evidência, os demais a correção. */
+  private preferredDetailTab(): DetailTab {
+    return this.view.defaultTab === 'evidence' && this.selectedEvidence.length ? 'evidence' : 'fix';
+  }
+
+  private firstViewerTab(e: EvidenceItem | null): ViewerTab {
+    if (e?.rawResponse) return 'response';
+    if (e?.rawRequest) return 'request';
+    return 'curl';
+  }
+
+  /** Mantém a aba do visor se a nova ocorrência tem esse conteúdo; senão, a primeira que tiver. */
+  private availableViewerTab(e: EvidenceItem | null, wanted: ViewerTab): ViewerTab {
+    const has = { response: Boolean(e?.rawResponse), request: Boolean(e?.rawRequest), curl: Boolean(e?.reproduction) };
+    return has[wanted] ? wanted : this.firstViewerTab(e);
+  }
+
+  /** Linhas numeradas do visor, com a linha que prova a falha marcada. */
+  private buildViewer(): void {
+    this.viewerLines = highlightedLines(this.viewerText, this.selected?.title ?? '', this.currentEvidence?.attack);
+  }
+
   // calculada uma vez por carga (em derive). Como getter, gerava objetos novos a
   // cada verificação do Angular e o *ngFor recriava todos os cartões de PoC sem
   // parar, travando a aba
@@ -284,9 +470,10 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
       next: (scan) => {
         this.scan = scan;
         this.isLoading = false;
-        this.applyRoleView(scan);
         this.loadError = null;
+        // derive antes: a visão do perfil abre o primeiro achado da lista já montada
         this.derive(scan);
+        this.applyRoleView(scan);
         scan.status === 'RUNNING' ? this.startPolling() : this.stopPolling();
       },
       error: (error: ApiError) => {
@@ -310,10 +497,18 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     if (this.view.expandHighRisk) {
       this.expanded = new Set(scan.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').map((f) => f.id));
     }
+    // painel: abre o achado mais grave, na sub-aba que o perfil prioriza
+    this.select(this.filteredFindings[0] ?? null, false);
   }
 
   private derive(scan: ScanDetail): void {
     this.sortedFindings = sortBySeverity(scan.findings);
+    // recarga (polling): mantém o mesmo achado aberto, agora com os dados novos
+    const selectedId = this.selected?.id;
+    this.filteredFindings = this.filterList();
+    const again = this.filteredFindings.find((f) => f.id === selectedId);
+    if (again) this.select(again);
+    else if (this.viewApplied) this.select(this.filteredFindings[0] ?? null, false);
     this.evidenceFindings = evidenceGroups(this.sortedFindings);
     this.complianceGroups = groupCompliance(scan.findings);
     this.severityChart = severityDoughnut(scan.summary.severityCounts) as ChartData;

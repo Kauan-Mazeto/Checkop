@@ -740,6 +740,38 @@ const cancelScan = async (req, res) => {
   }
 };
 
+// Triagem: marca achados desta varredura como corrigido, falso positivo, ignorado
+// ou aberto. Só mexe em registros da varredura do dono (requireOwnership + scanId).
+const updateFindingStatus = async (req, res) => {
+  try {
+    const scan = req.resource;
+    const { findingIds, status } = req.body;
+
+    if (!['COMPLETED', 'CANCELED'].includes(scan.status)) {
+      return res.status(409).json({ error: 'Só dá para classificar achados de uma varredura concluída ou cancelada.' });
+    }
+
+    const { count } = await prisma.finding.updateMany({
+      where: { id: { in: findingIds }, scanId: scan.id },
+      data: { status },
+    });
+    if (count === 0) {
+      return res.status(404).json({ error: 'Nenhum desses achados pertence a esta varredura.' });
+    }
+
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.FINDING_STATUS_CHANGED,
+      resourceType: 'scan',
+      resourceId: scan.id,
+      details: { status, count },
+    });
+    return res.status(200).json({ status, updated: count });
+  } catch (error) {
+    console.error('Erro ao classificar achados:', error);
+    return res.status(500).json({ error: 'Erro interno ao classificar os achados.' });
+  }
+};
+
 // Dispara a varredura (RF-10) e responde NA HORA com 202. O trabalho pesado
 // roda em segundo plano; o front acompanha pelo GET /api/scans/:id.
 const runScan = async (req, res) => {
@@ -833,4 +865,4 @@ const runScan = async (req, res) => {
   }
 };
 
-export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan, cancelScan, exportScans };
+export default { getObjectives, createScan, listScans, listSuspiciousScans, getScanStats, getScanById, compareScans, runScan, cancelScan, exportScans, updateFindingStatus };

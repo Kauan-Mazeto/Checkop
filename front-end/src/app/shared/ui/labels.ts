@@ -1,5 +1,13 @@
 import { UserRole } from '../../core/services/auth.service';
-import { FindingSeverity, ScanEnvironment, ScanStatus } from '../../core/services/scan.service';
+import { FindingSeverity, FindingStatus, ScanEnvironment, ScanStatus } from '../../core/services/scan.service';
+
+/** triagem do achado */
+export const FINDING_STATUS_LABEL: Record<FindingStatus, string> = {
+  OPEN: 'Aberto',
+  FIXED: 'Corrigido',
+  FALSE_POSITIVE: 'Falso positivo',
+  IGNORED: 'Ignorado',
+};
 
 export const SEVERITY_ORDER: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 

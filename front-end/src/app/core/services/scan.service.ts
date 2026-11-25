@@ -14,6 +14,8 @@ export type ScanStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCE
 /** Concluída ou cancelada: as duas têm resultado (a cancelada, parcial). */
 export const hasResults = (status: ScanStatus): boolean => status === 'COMPLETED' || status === 'CANCELED';
 export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+/** triagem do achado (PATCH /api/scans/:id/findings/status) */
+export type FindingStatus = 'OPEN' | 'FIXED' | 'FALSE_POSITIVE' | 'IGNORED';
 export type FindingTool = 'ZAP' | 'NUCLEI' | 'SUBFINDER';
 
 // Espelha GET /api/scans (scan_controllers.js -> listScans).
@@ -63,6 +65,8 @@ export interface FindingLocation {
   reproduction?: string | null;
   severity: FindingSeverity;
   cvssScore?: number | null;
+  /** triagem de cada local (o agrupamento manda junto) */
+  status?: FindingStatus;
   rawRequest?: string | null;
   rawResponse?: string | null;
 }
@@ -71,7 +75,7 @@ export interface Finding {
   id: string;
   title: string;
   severity: FindingSeverity;
-  status: string;
+  status: FindingStatus;
   tool: FindingTool;
   ruleId?: string | null;
   affectedUrl: string | null;
@@ -253,6 +257,17 @@ export class ScanService {
 
   /** POST /api/scans/:id/run — responde 202 e a varredura roda em segundo plano. */
   /** Para as ferramentas; o que já foi verificado fica salvo como resultado parcial. */
+  /** Triagem: marca os registros (locais) de um achado como corrigido, falso positivo, ignorado ou aberto. */
+  updateFindingsStatus(scanId: string, findingIds: string[], status: FindingStatus): Observable<{ status: FindingStatus; updated: number }> {
+    return this.http
+      .patch<{ status: FindingStatus; updated: number }>(
+        `${API_BASE_URL}/scans/${encodeURIComponent(scanId)}/findings/status`,
+        { findingIds, status },
+        withCredentials,
+      )
+      .pipe(catchError(this.fail));
+  }
+
   cancelScan(id: string): Observable<{ message: string }> {
     return this.http
       .post<{ message: string }>(`${API_BASE_URL}/scans/${encodeURIComponent(id)}/cancel`, {}, withCredentials)
