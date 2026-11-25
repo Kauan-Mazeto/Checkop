@@ -1,0 +1,147 @@
+# Regras do Checkop para erros de lógica comuns que os analisadores gratuitos não pegam
+# num trecho colado (sem compilar o projeto inteiro).
+#
+# A correção é adaptada ao código enviado:
+#   - message: descrição + "@fix:" + texto da correção. O Semgrep troca os $X pelo trecho
+#     real (nome da variável, expressão), então o texto cita o código da pessoa.
+#   - fix / fix-regex: o trecho já corrigido, calculado pelo Semgrep sobre o próprio código.
+rules:
+  # ---------- variável nula usada (uma regra por linguagem: exceção e correção mudam) ----------
+  - id: checkop-null-deref-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $X recebe null e $X.$M(...) é chamado sem $X receber outro valor: isso lança
+      NullPointerException ao rodar.
+      @fix: Dê um valor a $X antes dessa linha ou cheque antes: if ($X != null) { ... }.
+      Se $X nunca deveria ser nulo, Objects.requireNonNull($X) deixa isso explícito.
+    patterns: &null_deref
+      - pattern-either:
+          - pattern: |
+              $T $X = null;
+              ...
+              $X.$M(...);
+          - pattern: |
+              var $X = null;
+              ...
+              $X.$M(...);
+      - pattern-not: |
+          $T $X = null;
+          ...
+          $X = $Y;
+          ...
+          $X.$M(...);
+      - pattern-not: |
+          $T $X = null;
+          ...
+          if (<... $X != null ...>) { ... }
+          ...
+    metadata: &null_meta
+      cwe: ["CWE-476: NULL Pointer Dereference"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Uso de variável nula"
+      confidence: HIGH
+
+  - id: checkop-null-deref-csharp
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      $X recebe null e $X.$M(...) é chamado sem $X receber outro valor: isso lança
+      NullReferenceException ao rodar.
+      @fix: Dê um valor a $X antes dessa linha ou use $X?.$M(...), que não chama o método
+      quando $X é null.
+    patterns: *null_deref
+    metadata: *null_meta
+
+  # ---------- divisão ----------
+  # soma seguida de divisão sem parênteses: "a + c / 2" divide só o c (quase sempre a
+  # intenção é dividir a soma, como numa média)
+  - id: checkop-integer-division-precedence
+    languages: [java, csharp]
+    severity: WARNING
+    message: >-
+      Em $X + $A / $B a divisão acontece antes da soma: só $A é dividido por $B, e por serem
+      inteiros a parte decimal também se perde.
+      @fix: Se a intenção é dividir a soma (ex.: média), coloque $X + $A entre parênteses e
+      converta para $T antes de dividir, como no trecho corrigido.
+    patterns:
+      - pattern-either:
+          - pattern: double $D = $X + (int $A) / (int $B);
+          - pattern: float $D = $X + (int $A) / (int $B);
+          - pattern: decimal $D = $X + (int $A) / (int $B);
+      - pattern: $T $D = $X + $A / $B;
+    fix: $T $D = ($T) ($X + $A) / $B;
+    metadata:
+      cwe: ["CWE-682: Incorrect Calculation"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Divisão feita antes da soma (faltam parênteses)"
+      confidence: HIGH
+
+  - id: checkop-integer-division-to-floating
+    languages: [java, csharp]
+    severity: WARNING
+    message: >-
+      $A / $B é uma divisão entre inteiros: o resultado perde a parte decimal antes de ser
+      guardado em $D.
+      @fix: Converta um dos lados antes de dividir: ($T) $A / $B.
+    patterns:
+      - pattern-either:
+          - pattern-inside: double $D = ...;
+          - pattern-inside: float $D = ...;
+          - pattern-inside: decimal $D = ...;
+      - pattern-inside: $T $D = ...;
+      - pattern: (int $A) / (int $B)
+      - pattern-not-inside: $T $D = $X + $A / $B;
+    fix: ($T) $A / $B
+    metadata:
+      cwe: ["CWE-682: Incorrect Calculation"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Divisão inteira perde as casas decimais"
+      confidence: HIGH
+
+  # ---------- String comparada com == / != (Java) ----------
+  - id: checkop-java-string-equals-operator
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $A == $B compara se as duas variáveis apontam para o mesmo objeto, não se o texto é igual:
+      duas Strings com o mesmo conteúdo podem dar false.
+      @fix: Troque $A == $B por Objects.equals($A, $B) (aceita null; importe java.util.Objects)
+      ou por $A.equals($B) se $A nunca for null.
+    patterns:
+      - pattern-either:
+          - pattern: (String $A) == $B
+          - pattern: $A == (String $B)
+      - pattern-not: $A == null
+      - pattern-not: null == $B
+    fix: Objects.equals($A, $B)
+    metadata:
+      cwe: ["CWE-597: Use of Wrong Operator in String Comparison"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "String comparada com == em vez de equals"
+      confidence: HIGH
+
+  - id: checkop-java-string-not-equals-operator
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $A != $B compara se as duas variáveis apontam para objetos diferentes, não se o texto é diferente.
+      @fix: Troque $A != $B por !Objects.equals($A, $B) (aceita null; importe java.util.Objects)
+      ou por !$A.equals($B) se $A nunca for null.
+    patterns:
+      - pattern-either:
+          - pattern: (String $A) != $B
+          - pattern: $A != (String $B)
+      - pattern-not: $A != null
+      - pattern-not: null != $B
+    fix: '!Objects.equals($A, $B)'
+    metadata:
+      cwe: ["CWE-597: Use of Wrong Operator in String Comparison"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "String comparada com != em vez de equals"
+      confidence: HIGH

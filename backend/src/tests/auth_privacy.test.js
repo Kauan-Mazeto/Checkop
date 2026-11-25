@@ -16,7 +16,7 @@ const prismaMock = {
     delete: mock.fn(async () => ({})),
   },
   termsAcceptance: {
-    findUnique: mock.fn(async () => null),
+    findFirst: mock.fn(async () => null),
     create: mock.fn(async () => ({})),
   },
   loginAttempt: {
@@ -43,7 +43,7 @@ const resetMocks = () => {
     else for (const fn of Object.values(model)) fn.mock.resetCalls();
   }
   prismaMock.user.findUnique.mock.mockImplementation(async () => null);
-  prismaMock.termsAcceptance.findUnique.mock.mockImplementation(async () => null);
+  prismaMock.termsAcceptance.findFirst.mock.mockImplementation(async () => null);
 };
 
 beforeEach(resetMocks);
@@ -79,7 +79,7 @@ test('usuário Google que já aceitou os termos entra sem reenviar o aceite', as
   prismaMock.user.findUnique.mock.mockImplementation(async () => ({
     id: 'user-1', email: googlePayload.email, googleId: 'google-123', role: 'DEV', tokenVersion: 0,
   }));
-  prismaMock.termsAcceptance.findUnique.mock.mockImplementation(async () => ({ id: 't-1' }));
+  prismaMock.termsAcceptance.findFirst.mock.mockImplementation(async () => ({ id: 't-1' }));
 
   const res = fakeRes();
   await authController.googleLogin(fakeReq({ body: { credential: 'x' } }), res);
@@ -180,7 +180,7 @@ test('quem já tem conta não troca de perfil pelo login com Google', async () =
   prismaMock.user.findUnique.mock.mockImplementation(async () => ({
     id: 'user-1', email: googlePayload.email, googleId: 'google-123', role: 'QA', tokenVersion: 0,
   }));
-  prismaMock.termsAcceptance.findUnique.mock.mockImplementation(async () => ({ id: 't1' }));
+  prismaMock.termsAcceptance.findFirst.mock.mockImplementation(async () => ({ id: 't1' }));
   const res = fakeRes();
   await authController.googleLogin(fakeReq({ body: { credential: 'x', role: 'PENTESTER' } }), res);
   assert.equal(res.statusCode, 200);

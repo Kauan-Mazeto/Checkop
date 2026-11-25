@@ -1,0 +1,88 @@
+# Regras do Checkop para C/C++: memória que não é liberada e laço que passa do tamanho
+# do vetor. Funcionam mesmo sem o cppcheck (que, quando instalado, confirma o achado).
+rules:
+  # ---------- vazamento de memória ----------
+  - id: checkop-c-memory-leak
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      $P recebe memória de $ALLOC(...) e a função $F termina sem free($P) e sem devolver $P:
+      a memória fica presa até o programa fechar (vazamento). Chamada muitas vezes, a função
+      esgota a memória.
+      @fix: Chame free($P) quando $P não for mais usado, antes de cada saída de $F (ou devolva
+      $P para quem chamou liberar).
+    patterns:
+      - pattern-either:
+          - pattern: $P = $ALLOC(...);
+          - pattern: $T $P = $ALLOC(...);
+      - metavariable-regex:
+          metavariable: $ALLOC
+          regex: ^(malloc|calloc|realloc|strdup|strndup)$
+      - pattern-inside: |
+          $RET $F(...) { ... }
+      - pattern-not-inside: |
+          $RET $F(...) {
+            ...
+            free($P);
+            ...
+          }
+      - pattern-not-inside: |
+          $RET $F(...) {
+            ...
+            return $P;
+          }
+    metadata:
+      cwe: ["CWE-401: Missing Release of Memory after Effective Lifetime"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Vazamento de memória"
+      confidence: MEDIUM
+
+  - id: checkop-c-memory-leak-early-return
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      Este return sai da função antes do free($P): $P recebeu memória de $ALLOC(...) e, por este
+      caminho, ela nunca é liberada (vazamento).
+      @fix: Chame free($P) antes deste return (ou concentre a limpeza num único ponto de saída da
+      função).
+    patterns:
+      - pattern-inside: |
+          $T $P = $ALLOC(...);
+          ...
+      - metavariable-regex:
+          metavariable: $ALLOC
+          regex: ^(malloc|calloc|realloc|strdup|strndup)$
+      - pattern: return ...;
+      - pattern-not-inside: |
+          free($P);
+          ...
+      - pattern-not: return $P;
+    metadata:
+      cwe: ["CWE-401: Missing Release of Memory after Effective Lifetime"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Vazamento de memória (saída antes do free)"
+      confidence: MEDIUM
+
+  # ---------- laço até o tamanho do vetor ----------
+  - id: checkop-c-array-loop-off-by-one
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      $ARR tem $N posições (0 a $N - 1), mas o laço vai com $I <= $N: na última volta $ARR[$N]
+      escreve/lê fora do vetor (memória de outra variável, ou o programa trava).
+      @fix: Troque $I <= $N por $I < $N.
+    patterns:
+      - pattern-inside: |
+          $T $ARR[$N];
+          ...
+      - pattern-inside: for (...) { ... }
+      - pattern: $I <= $N
+    fix: $I < $N
+    metadata:
+      cwe: ["CWE-193: Off-by-one Error"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Laço passa do fim do vetor (<= no lugar de <)"
+      confidence: HIGH

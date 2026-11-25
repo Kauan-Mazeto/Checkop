@@ -53,3 +53,8 @@ export const preferencesSchema = z
   .refine((data) => data.notifyScanEmail !== undefined || data.language !== undefined, {
     message: 'Informe ao menos uma preferência.',
   });
+
+// novo aceite quando a versão dos Termos muda: precisa ser marcado de propósito
+export const acceptTermsSchema = z.object({
+  accepted: z.literal(true, { errorMap: () => ({ message: 'É necessário aceitar os Termos de Uso para continuar.' }) }),
+});

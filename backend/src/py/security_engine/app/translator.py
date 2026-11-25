@@ -1,9 +1,13 @@
 import asyncio
 import html
+import json
 import os
 import re
+from pathlib import Path
 
 import httpx
+
+from . import local_env  # noqa: F401  (carrega o .env antes de ler DEEPL_API_KEY)
 
 # Traduz textos de regras (inglês -> idioma escolhido pelo usuário). Só o texto da
 # regra é enviado, nunca o código do usuário.
@@ -23,6 +27,37 @@ _LANGUAGE_RE = re.compile(r"^[a-z]{2,3}(-[a-z]{2,4})?$")
 _DEEPL_VARIANTS = {"pt": "PT-BR", "en": "EN-US", "zh": "ZH-HANS"}
 
 _cache: dict[tuple[str, str], str] = {}
+
+# O cache também fica em disco: o mesmo texto de regra se repete em toda análise, e sem isso
+# cada reinício do motor gastava de novo a cota diária do tradutor (MyMemory: 5 mil caracteres/dia).
+# Só textos de regras (nunca código do usuário) entram aqui.
+CACHE_FILE = Path(os.getenv("TRANSLATION_CACHE_FILE") or (Path.home() / ".checkop" / "traducoes.json"))
+
+
+def _load_cache() -> None:
+    try:
+        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    for target, items in (data or {}).items():
+        for original, translated in (items or {}).items():
+            _cache[(target, original)] = translated
+
+
+def _save_cache() -> None:
+    data: dict[str, dict[str, str]] = {}
+    for (target, original), translated in _cache.items():
+        data.setdefault(target, {})[original] = translated
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = CACHE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(CACHE_FILE)
+    except OSError:
+        pass  # sem disco gravável: segue só com o cache em memória
+
+
+_load_cache()
 
 
 class UnsupportedLanguageError(ValueError):
@@ -146,4 +181,6 @@ async def translate_many(texts: set[str], target: str = DEFAULT_TARGET) -> dict[
             else:
                 semaphore = asyncio.Semaphore(4)
                 await asyncio.gather(*(_translate_one(client, semaphore, t, target) for t in pending))
+        if any((target, t) in _cache for t in pending):
+            _save_cache()
     return {t: _cache.get((target, t), t) for t in texts}

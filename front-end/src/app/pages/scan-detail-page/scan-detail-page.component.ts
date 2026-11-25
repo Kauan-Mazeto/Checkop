@@ -19,8 +19,8 @@ import {
   exportFileName,
   filterBySeverity,
   groupCompliance,
-  EvidenceItem,
-  evidenceItems,
+  EvidenceGroup,
+  evidenceGroups,
   hasEvidence,
   locationsOf,
   sortBySeverity,
@@ -51,6 +51,17 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   protected readonly hasEvidence = hasEvidence;
   protected readonly locationsOf = locationsOf;
   protected readonly hasResults = hasResults;
+
+  /** botão "Copiar comando" da PoC */
+  protected copiedKey: string | null = null;
+
+  protected copyText(value: string | null | undefined, key: string): void {
+    if (!value) return;
+    navigator.clipboard?.writeText(value).then(() => {
+      this.copiedKey = key;
+      setTimeout(() => (this.copiedKey = this.copiedKey === key ? null : this.copiedKey), 1500);
+    });
+  }
 
   // cancelamento: as ferramentas param e o que já foi verificado vira resultado parcial
   protected isCanceling = false;
@@ -197,7 +208,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   // calculada uma vez por carga (em derive). Como getter, gerava objetos novos a
   // cada verificação do Angular e o *ngFor recriava todos os cartões de PoC sem
   // parar, travando a aba
-  protected evidenceFindings: EvidenceItem[] = [];
+  protected evidenceFindings: EvidenceGroup[] = [];
 
   protected get elapsedTime(): string {
     return elapsed(this.scan?.startedAt ?? null, this.now);
@@ -303,7 +314,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   private derive(scan: ScanDetail): void {
     this.sortedFindings = sortBySeverity(scan.findings);
-    this.evidenceFindings = evidenceItems(this.sortedFindings);
+    this.evidenceFindings = evidenceGroups(this.sortedFindings);
     this.complianceGroups = groupCompliance(scan.findings);
     this.severityChart = severityDoughnut(scan.summary.severityCounts) as ChartData;
     this.toolChart = countBar(countBy(scan.findings, (f) => f.tool)) as ChartData;

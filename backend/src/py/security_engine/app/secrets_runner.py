@@ -45,8 +45,11 @@ def parse_gitleaks_report(report: list[dict], base_dir: str, contents: dict[str,
                 ruleId=f"gitleaks.{leak.get('RuleID', 'secret')}",
                 affectedUrl=f"{file_path}:{line}" + (f"-{end_line}" if end_line != line else ""),
                 rawResponse=snippet,
-                remediation=_FIX,
+                remediation=f"{_FIX}\n\nReferências: https://cwe.mitre.org/data/definitions/798.html "
+                            f"https://github.com/gitleaks/gitleaks",
                 owaspUrl=map_to_owasp_category([], ["CWE-798"]),
+                category="SECURITY",
+                detectedBy=["Gitleaks"],
             )
         )
     return findings

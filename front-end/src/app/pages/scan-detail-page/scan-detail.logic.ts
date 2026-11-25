@@ -22,6 +22,7 @@ export const locationsOf = (finding: Finding): FindingLocation[] =>
   finding.locations?.length
     ? finding.locations
     : [{ id: finding.id, affectedUrl: finding.affectedUrl, parameter: finding.parameter, severity: finding.severity,
+         attack: finding.attack, reproduction: finding.reproduction,
          rawRequest: finding.rawRequest, rawResponse: finding.rawResponse }];
 
 export const hasEvidence = (finding: Finding): boolean => locationsOf(finding).some(locationHasEvidence);
@@ -33,6 +34,8 @@ export interface EvidenceItem {
   severity: FindingSeverity;
   affectedUrl: string | null;
   parameter?: string | null;
+  attack?: string | null;
+  reproduction?: string | null;
   rawRequest?: string | null;
   rawResponse?: string | null;
 }
@@ -52,6 +55,7 @@ export const evidenceItems = (findings: Finding[]): EvidenceItem[] =>
     locationsOf(f)
       .filter(locationHasEvidence)
       .map((l) => ({ id: l.id, title: f.title, severity: l.severity, affectedUrl: l.affectedUrl, parameter: l.parameter,
+                     attack: l.attack, reproduction: l.reproduction,
                      rawRequest: clipEvidence(l.rawRequest), rawResponse: clipEvidence(l.rawResponse) })),
   );
 
@@ -105,3 +109,16 @@ export const elapsed = (startedAt: string | null, now = Date.now()): string => {
   const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 };
+
+/** Aba Evidências: a mesma falha em vários locais vira um bloco só, com as ocorrências dentro. */
+export interface EvidenceGroup {
+  id: string;
+  title: string;
+  severity: FindingSeverity;
+  items: EvidenceItem[];
+}
+
+export const evidenceGroups = (findings: Finding[]): EvidenceGroup[] =>
+  findings
+    .map((f) => ({ id: f.id, title: f.title, severity: f.severity, items: evidenceItems([f]) }))
+    .filter((group) => group.items.length > 0);

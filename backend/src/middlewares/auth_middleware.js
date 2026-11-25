@@ -1,5 +1,12 @@
 import { verifyToken } from '../constants/utils.js';
 import prisma from '../lib/prisma.js';
+import { latestTermsAcceptance, termsStatus, termsUpdateRequiredBody } from '../lib/terms_status.js';
+
+// Com os Termos desatualizados, o usuário ainda pode cuidar da conta: ver a
+// sessão, aceitar a nova versão, baixar os dados, excluir a conta e sair
+// (direitos da LGPD não dependem de aceitar os Termos novos). Usar a
+// plataforma (alvos, varreduras, análise de código) exige o novo aceite.
+const ROUTES_ALLOWED_WITH_OUTDATED_TERMS = ['/api/auth', '/api/privacy'];
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -34,6 +41,11 @@ const authMiddleware = async (req, res, next) => {
     req.userPlan = userExists.plan;
     req.userNotifyScanEmail = userExists.notifyScanEmail;
     req.userLanguage = userExists.language;
+    req.termsStatus = termsStatus(await latestTermsAcceptance(userExists.id));
+
+    if (req.termsStatus.updateRequired && !ROUTES_ALLOWED_WITH_OUTDATED_TERMS.includes(req.baseUrl)) {
+      return res.status(403).json(termsUpdateRequiredBody());
+    }
 
     return next();
   } catch (err) {

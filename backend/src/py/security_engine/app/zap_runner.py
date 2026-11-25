@@ -127,6 +127,109 @@ def is_false_positive(alert: dict) -> bool:
     return str(alert.get("confidence", "")).strip().lower() in ("false positive", "0")
 
 
+# ---------- prova de conceito (PoC) ----------
+# A busca de alertas do ZAP só traz o trecho que provou a falha ("evidence",
+# ex.: "HTTP/1.1 500 Internal Server Error"). A requisição e a resposta completas
+# vêm da mensagem HTTP do alerta (messageId), buscada à parte.
+POC_MESSAGES_MAX = int(os.getenv("ZAP_POC_MESSAGES_MAX", "300"))
+POC_BODY_WINDOW = 800      # caracteres de cada lado da evidência no corpo da resposta
+POC_BODY_HEAD = 2000       # sem a evidência no corpo: o começo dele
+POC_REQUEST_BODY_MAX = 4000
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else f"{text[:limit]}\n[... {len(text) - limit} caracteres omitidos]"
+
+
+def _response_excerpt(body: str, evidence: str | None) -> str:
+    """Trecho do corpo em volta da evidência, marcada com >>> <<<."""
+    if not body:
+        return ""
+    at = body.find(evidence) if evidence else -1
+    if at < 0:
+        return _clip(body, POC_BODY_HEAD)
+    start, end = max(0, at - POC_BODY_WINDOW), min(len(body), at + len(evidence) + POC_BODY_WINDOW)
+    excerpt = body[start:at] + ">>> " + evidence + " <<<" + body[at + len(evidence):end]
+    return ("[...]\n" if start > 0 else "") + excerpt + ("\n[...]" if end < len(body) else "")
+
+
+def _curl_command(request_header: str, request_body: str) -> str | None:
+    """Comando curl equivalente à requisição do ataque.
+
+    Cookies e Authorization ficam de fora: são a sessão de quem rodou a varredura
+    (varredura autenticada) e não podem ir parar num relatório exportado."""
+    lines = [line for line in request_header.replace("\r\n", "\n").split("\n") if line.strip()]
+    if not lines:
+        return None
+    parts = lines[0].split(" ")
+    if len(parts) < 2:
+        return None
+    method, url = parts[0], parts[1]
+    quote_dq = lambda value: value.replace("\\", "\\\\").replace('"', '\\"')
+    command = ["curl -i"]
+    if method.upper() != "GET":
+        command.append(f"-X {method}")
+    command.append(f'"{quote_dq(url)}"')
+    for line in lines[1:]:
+        name = line.split(":", 1)[0].strip().lower()
+        if name == "content-type":
+            command.append(f'-H "{quote_dq(line.strip())}"')
+    if request_body:
+        command.append(f'--data-raw "{quote_dq(request_body[:POC_REQUEST_BODY_MAX])}"')
+    return " ".join(command)
+
+
+async def _attach_messages(client: httpx.AsyncClient, alerts: list[dict]) -> None:
+    """Busca, em paralelo, a mensagem HTTP de cada alerta (melhor esforço)."""
+    semaphore = asyncio.Semaphore(8)
+
+    async def one(alert: dict) -> None:
+        message_id = alert.get("messageId")
+        if not message_id:
+            return
+        async with semaphore:
+            try:
+                data = await _get(client, "/JSON/core/view/message/", {"id": str(message_id)})
+            except (ZapExecutionError, ZapNotAvailableError):
+                return
+        alert["_message"] = data.get("message") or {}
+
+    await asyncio.gather(*(one(alert) for alert in alerts[:POC_MESSAGES_MAX]))
+
+
+_SESSION_HEADERS = re.compile(r"^(cookie|authorization|proxy-authorization|x-api-key|x-auth-token)\s*:.*$", re.IGNORECASE | re.MULTILINE)
+
+
+def _redact_session(request_header: str) -> str:
+    """Oculta o valor dos cabeçalhos de sessão: a PoC vai para relatórios exportáveis."""
+    return _SESSION_HEADERS.sub(lambda m: f"{m.group(1)}: [omitido no relatório]", request_header)
+
+
+def _poc_fields(alert: dict) -> dict:
+    """rawRequest / rawResponse / reproduction a partir da mensagem do alerta."""
+    evidence = alert.get("evidence") or None
+    message = alert.get("_message") or {}
+    request_header = message.get("requestHeader") or ""
+    request_body = message.get("requestBody") or ""
+    response_header = message.get("responseHeader") or ""
+    response_body = message.get("responseBody") or ""
+
+    if not request_header and not response_header:
+        # sem a mensagem: fica só o trecho da evidência, como antes
+        return {"rawRequest": alert.get("request"), "rawResponse": evidence, "reproduction": None}
+
+    request = _redact_session(request_header).rstrip()
+    if request_body:
+        request += "\n\n" + _clip(request_body, POC_REQUEST_BODY_MAX)
+    response = response_header.rstrip()
+    excerpt = _response_excerpt(response_body, evidence)
+    if excerpt:
+        response += "\n\n" + excerpt
+    elif evidence and evidence not in response:
+        response += f"\n\nEvidência: {evidence}"
+    return {"rawRequest": request, "rawResponse": response, "reproduction": _curl_command(request_header, request_body)}
+
+
 def _parse_alert(alert: dict) -> Finding:
     risk_code = _risk_code(alert)
     tool_severity = RISK_TO_SEVERITY.get(risk_code, "INFO")
@@ -148,8 +251,9 @@ def _parse_alert(alert: dict) -> Finding:
         cvssVector=cvss["cvssVector"],
         cvssSource=cvss["cvssSource"],
         confidence=CONFIDENCE_MAP.get(str(alert.get("confidence", "")).strip().lower()),
-        rawRequest=alert.get("request"),
-        rawResponse=alert.get("evidence"),
+        parameter=alert.get("param") or None,
+        attack=alert.get("attack") or None,
+        **_poc_fields(alert),
         remediation=alert.get("solution"),
         owaspUrl=map_to_owasp_category(tags) if tags else None,
     )
@@ -487,6 +591,8 @@ async def run_zap_scan(
                     await _get(client, "/JSON/ascan/action/stop/", {"scanId": ascan_id})
 
             alerts_data = await _get(client, "/JSON/core/view/alerts/", {"baseurl": target_url})
+            # requisição e resposta completas de cada alerta, para a PoC
+            await _attach_messages(client, [a for a in alerts_data.get("alerts", []) if not is_false_positive(a)])
         finally:
             if context_name is not None:
                 await _cleanup_authentication(client, context_name)

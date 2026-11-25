@@ -17,7 +17,7 @@ const moreSevere = (a, b) => {
 };
 
 // campos que mudam de um local para outro (o resto é igual dentro do grupo)
-const LOCATION_FIELDS = ['id', 'affectedUrl', 'parameter', 'severity', 'cvssScore', 'confidence', 'status', 'rawRequest', 'rawResponse'];
+const LOCATION_FIELDS = ['id', 'affectedUrl', 'parameter', 'attack', 'reproduction', 'severity', 'cvssScore', 'confidence', 'status', 'rawRequest', 'rawResponse'];
 
 const toLocation = (finding) =>
   Object.fromEntries(LOCATION_FIELDS.filter((field) => field in finding).map((field) => [field, finding[field]]));

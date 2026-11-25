@@ -120,6 +120,8 @@ def _parse_line(raw_line: str) -> Finding | None:
         cvssSource=cvss["cvssSource"],
         # o Nuclei só reporta quando o matcher do template bate na resposta
         confidence="CONFIRMED" if severity != "INFO" else None,
+        # o Nuclei já devolve o comando curl equivalente à requisição que confirmou a falha
+        reproduction=entry.get("curl-command"),
         rawRequest=entry.get("request"),
         rawResponse=entry.get("response"),
         remediation=remediation,

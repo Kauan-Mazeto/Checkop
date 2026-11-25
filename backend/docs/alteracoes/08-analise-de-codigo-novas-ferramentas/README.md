@@ -1,6 +1,21 @@
 # 08 — Análise de código: novas ferramentas e medição de acerto
 
-**Data:** 2026-11-17 · **Status:** Proposto (não iniciado) · **Requisitos:** espec.txt 3.2 (análise de código), RF-21 (correção sugerida)
+**Data:** 2026-11-17 (implementado em 2026-11-23) · **Status:** Implementado (ferramentas) · medição de acerto pendente · **Requisitos:** espec.txt 3.2 (análise de código), RF-21 (correção sugerida)
+
+> **Atualização 2026-11-23: o que foi implementado.** Critério: só ferramentas gratuitas, leves e que funcionam num trecho colado, sem projeto completo nem compilador.
+>
+> | Tipo de problema | Ferramentas | Linguagens |
+> |---|---|---|
+> | **Sintaxe** | leitor do Semgrep (todas), JSON, Ruff, ESLint, PMD, ShellCheck, yamllint, actionlint, HTMLHint | todas |
+> | **Lógica** | Ruff, ESLint (+ TypeScript), PMD, cppcheck, ShellCheck, Hadolint, HTMLHint | Python, JS/TS, Java/Apex, C/C++, Shell, Dockerfile, HTML |
+> | **Segurança** | Semgrep + regras do Checkop (todas), Bandit, ESLint + plugin security, Flawfinder, Checkov, actionlint, PMD, Gitleaks | todas |
+> | **Dependência** | OSV-Scanner (base osv.dev) | requirements.txt, go.mod, pom.xml, lockfiles |
+>
+> **Ficou de fora** (Semgrep + regras do Checkop seguem cobrindo): gosec e `go vet` (exigem o Go inteiro), PHPStan/Psalm (PHP), RuboCop/Brakeman (Ruby), detekt (Kotlin), Clippy (Rust), SwiftLint (Swift), analisadores do .NET (C#) e Scala, todos por exigirem o compilador/interpretador e, em geral, um projeto completo. CodeQL: licença restrita para serviço comercial.
+>
+> Onde está: `app/extra_analyzers.py` (conversores de cada ferramenta para o formato do Semgrep, rodando em paralelo e só para as linguagens presentes), `app/analyzers/` (configuração do ESLint e versões fixadas dos pacotes JS), integração em `sast_runner.py`. Cada achado traz a **categoria** (Sintaxe, Lógica, Segurança ou Dependência) e **quem detectou**; a tela filtra por categoria e mostra as ferramentas usadas. Instalação: imagem do motor no Docker e `scripts/baixar-ferramentas.ps1` no Windows (cppcheck só no Docker).
+>
+> Pendente: **medição de acerto** (benchmark, item 4) e as regras do Checkop em modo taint (item 3).
 
 ## 1. Problema
 A análise de código usa hoje o **Semgrep** (pacotes oficiais + regras próprias em `rules/checkop`) e o **Gitleaks** (segredos). Ela funciona por **padrão de código**, então:
@@ -121,11 +136,11 @@ Documentação das mudanças: criar as pastas 09 em diante em backend/docs/alter
 Teste completo pelo app do que foi feito por último: tradução, exportação, cancelamento, correção com IA (com chave da Anthropic) e as regras novas da análise de código.
 E-mails de contato reais nos Termos e na Política de Privacidade (hoje são placeholders).
 Velocidade do Nuclei em alvo local: o limite está fixo em 10 requisições/s, e a varredura completa pode bater o tempo limite de 15 min. Subir o limite fora de produção e manter 10 em produção.
-Novo aceite dos Termos quando a versão mudar (hoje a versão é registrada, mas o usuário não é avisado).
+Novo aceite dos Termos quando a versão mudar — RESOLVIDO (documento 10).
 3. Para o TCC e a banca
 Medição de acerto da análise de código: rodar benchmarks públicos (OWASP Benchmark, Juliet/NIST) e o conjunto interno para obter cobertura e taxa de falso positivo. Dá números concretos ao trabalho. O plano está no documento 08.
 Testes de ponta a ponta (Playwright) do fluxo principal: login → nova varredura → resultado → exportação.
-"Baixar meus dados" (LGPD, art. 18): exportação dos dados pessoais da conta direto na tela (hoje há só um e-mail de contato).
+"Baixar meus dados" (LGPD, art. 18) — RESOLVIDO (documento 10).
 4. O que pode ser adicionado
 Análise de código (detalhado no documento 08)
 Dependências vulneráveis (SCA) com OSV-Scanner: bibliotecas com CVE e a versão que corrige.

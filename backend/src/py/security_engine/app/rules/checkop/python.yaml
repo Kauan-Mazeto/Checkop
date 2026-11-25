@@ -1,0 +1,98 @@
+# Regras do Checkop para Python (Flask/Django) e para SQL em qualquer linguagem:
+# casos que o registro gratuito do Semgrep e o Bandit deixam passar.
+rules:
+  - id: checkop-python-hardcoded-secret-key
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Chave secreta do framework escrita no código. Com ela, qualquer um que veja o código
+      falsifica cookies de sessão e tokens (e entra como qualquer usuário). Leia de uma variável
+      de ambiente e use um valor longo e aleatório.
+    pattern-either:
+      - pattern: $APP.secret_key = "..."
+      - pattern: $APP.config["SECRET_KEY"] = "..."
+      - pattern: $APP.config["JWT_SECRET_KEY"] = "..."
+      - pattern: $APP.config.update(..., SECRET_KEY="...", ...)
+      - pattern: SECRET_KEY = "..."
+      - pattern: JWT_SECRET_KEY = "..."
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-flask-fstring-xss
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A rota devolve HTML montado com f-string/format/concatenação. Qualquer valor interpolado
+      (da requisição ou do banco) vai para a página sem escape: XSS refletido ou armazenado.
+      Use render_template() (que escapa) ou markupsafe.escape() em cada valor.
+    patterns:
+      - pattern-inside: |
+          @$APP.route(...)
+          def $F(...):
+            ...
+      - pattern-either:
+          - pattern: return f"..."
+          - pattern: return f"...", $STATUS
+          - pattern: return "...".format(...)
+          - pattern: return "..." % $ARGS
+          - pattern: return "..." + $X
+          - pattern: return $X + "..."
+      - pattern-not: return "..."
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-python-global-db-connection
+    languages: [python]
+    severity: WARNING
+    message: >-
+      Conexão de banco aberta no módulo e usada por todas as requisições. O sqlite3 recusa o uso
+      em outra thread (ProgrammingError) e, liberando, as requisições disputam a mesma conexão e
+      o mesmo cursor. Abra a conexão por requisição (ex.: flask.g) ou use um pool.
+    patterns:
+      - pattern-either:
+          - pattern: $DB = sqlite3.connect(...)
+          - pattern: $DB = psycopg2.connect(...)
+          - pattern: $DB = pymysql.connect(...)
+          - pattern: $DB = mysql.connector.connect(...)
+      - pattern-not-inside: |
+          def $F(...):
+            ...
+    metadata:
+      cwe: ["CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization"]
+      owasp: ["A04:2021 - Insecure Design"]
+      category: correctness
+      checkop_category: LOGIC
+      confidence: MEDIUM
+
+  # ---------- SQL em qualquer linguagem (texto da consulta) ----------
+  - id: checkop-senha-comparada-em-texto-puro
+    languages: [python, javascript, typescript, php, java, kotlin, go, ruby, csharp, scala]
+    severity: WARNING
+    message: >-
+      A senha é comparada direto na consulta SQL (WHERE senha = ...). Isso só funciona se a senha
+      estiver guardada em texto puro no banco: um vazamento expõe a senha de todos os usuários.
+    pattern-regex: (?i)\b(select|update|delete)\b[^\n]*\bwhere\b[^\n]*\b(senha|password|passwd|pwd|pass_hash_plain)\b\s*=
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A04:2021 - Insecure Design"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-insert-senha-fixa
+    languages: [python, javascript, typescript, php, java, kotlin, go, ruby, csharp, scala]
+    severity: ERROR
+    message: >-
+      O código grava um usuário com senha fixa e em texto puro (INSERT ... VALUES com a senha literal).
+      Quem lê o código conhece a senha, e ela fica sem hash no banco.
+    pattern-regex: (?i)\binsert\s+(or\s+\w+\s+)?into\b[^\n]*\b(senha|password|passwd|pwd)\b[^\n]*\bvalues\s*\([^\n)]*'[^'\n]{1,}'[^\n)]*\)
+    metadata:
+      cwe: ["CWE-259: Use of Hard-coded Password"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH

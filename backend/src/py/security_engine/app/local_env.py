@@ -53,13 +53,35 @@ def load_env_file(path: Path = BACKEND_DIR / ".env") -> None:
 
 
 def find_tool(name: str) -> str | None:
-    """Binário no PATH ou em backend/tools/<nome>/<nome>(.exe)."""
+    """Binário no PATH ou baixado em backend/tools/.
+
+    Procura em tools/<nome>/<nome>(.exe), no ambiente Python separado das
+    ferramentas de análise (tools/pyanalyzers) e em distribuições com bin/
+    dentro de uma subpasta versionada (ex.: tools/pmd/pmd-bin-7.29.0/bin/pmd.bat).
+    """
     found = shutil.which(name)
     if found:
         return found
-    for candidate in (TOOLS_DIR / name / f"{name}.exe", TOOLS_DIR / name / name):
+    candidates = [
+        TOOLS_DIR / name / f"{name}.exe",
+        TOOLS_DIR / name / name,
+        TOOLS_DIR / "pyanalyzers" / "Scripts" / f"{name}.exe",
+        # no Windows o pip instala alguns comandos (ex.: Checkov) como .cmd, não .exe
+        TOOLS_DIR / "pyanalyzers" / "Scripts" / f"{name}.cmd",
+        TOOLS_DIR / "pyanalyzers" / "bin" / name,
+        TOOLS_DIR / name / "bin" / f"{name}.bat",
+        TOOLS_DIR / name / "bin" / name,
+    ]
+    if (TOOLS_DIR / name).is_dir():
+        for sub in sorted((TOOLS_DIR / name).iterdir()):
+            candidates += [sub / "bin" / f"{name}.bat", sub / "bin" / name, sub / f"{name}.exe"]
+    for candidate in candidates:
         if candidate.is_file():
             return str(candidate)
+    # instalador extraído (ex.: MSI do cppcheck em tools/cppcheck/.../Cppcheck/cppcheck.exe)
+    if (TOOLS_DIR / name).is_dir():
+        for found_exe in sorted((TOOLS_DIR / name).rglob(f"{name}.exe")):
+            return str(found_exe)
     return None
 
 

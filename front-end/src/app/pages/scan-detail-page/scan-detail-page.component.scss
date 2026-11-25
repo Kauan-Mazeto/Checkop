@@ -399,3 +399,98 @@ h3 {
   }
 }
 
+
+// Evidências / PoC: a mesma falha agrupada, fechada por padrão
+.evidence-group {
+  > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--info);
+      outline-offset: 2px;
+    }
+  }
+
+  &:not([open]) > summary {
+    border-bottom: 0;
+  }
+}
+
+.evidence-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.evidence-arrow {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border-right: 2px solid var(--text-2);
+  border-bottom: 2px solid var(--text-2);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.evidence-group[open] .evidence-arrow {
+  transform: rotate(-135deg);
+}
+
+.evidence-items {
+  display: grid;
+  gap: 16px;
+}
+
+.evidence-item + .evidence-item {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.evidence-where {
+  margin: 0 0 8px;
+  color: var(--text-2);
+  word-break: break-all;
+}
+
+.evidence-attack {
+  margin: 0 0 10px;
+
+  code {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    word-break: break-all;
+  }
+}
+
+.evidence-repro {
+  margin-bottom: 12px;
+}
+
+.evidence-repro-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+
+  h3 {
+    margin: 0;
+  }
+}

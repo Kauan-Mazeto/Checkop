@@ -2,7 +2,7 @@ import { getComplianceNotes } from '../../constants/compliance_mapping.js';
 
 // Campos que só o plano Premium recebe (espec.txt, seções 2 e 3): a correção
 // exata, a prova de conceito (PoC) e o mapeamento de compliance.
-const PREMIUM_FIELDS = ['remediation', 'rawRequest', 'rawResponse', 'parameter'];
+const PREMIUM_FIELDS = ['remediation', 'rawRequest', 'rawResponse', 'parameter', 'attack', 'reproduction'];
 
 const SAFE_MODE_FIELDS = [
   'id', 'title', 'severity', 'status', 'tool', 'ruleId', 'affectedUrl', 'cveId',
@@ -11,7 +11,7 @@ const SAFE_MODE_FIELDS = [
 
 // RF-11: o perfil Estudante recebe o painel educacional; requisições e
 // respostas cruas (payloads de ataque prontos) ficam de fora.
-const STUDENT_HIDDEN_FIELDS = ['rawRequest', 'rawResponse'];
+const STUDENT_HIDDEN_FIELDS = ['rawRequest', 'rawResponse', 'attack', 'reproduction'];
 
 // RF-07 / RF-08 (Modo Seguro) + plano Free/Premium + perfil (RF-11).
 // O corte é feito aqui, no servidor: esconder só na tela não protege nada.

@@ -2,8 +2,8 @@ import express from 'express';
 import authController from '../controllers/auth_controllers.js';
 import validate from '../middlewares/auth_validate.js';
 import authMiddleware from '../middlewares/auth_middleware.js';
-import { forgotPasswordLimiter, resetPasswordLimiter, loginLimiter, registerLimiter, googleLoginLimiter } from '../middlewares/rate_limit_middleware.js';
-import { registerSchema, loginSchema, googleLoginSchema, forgotPasswordSchema, resetPasswordSchema, changePlanSchema, changeRoleSchema, preferencesSchema} from '../validators/auth_validator.js';
+import { forgotPasswordLimiter, resetPasswordLimiter, loginLimiter, registerLimiter, googleLoginLimiter, myDataLimiter } from '../middlewares/rate_limit_middleware.js';
+import { registerSchema, loginSchema, googleLoginSchema, forgotPasswordSchema, resetPasswordSchema, changePlanSchema, changeRoleSchema, preferencesSchema, acceptTermsSchema} from '../validators/auth_validator.js';
 
 const router = express.Router();
 
@@ -20,6 +20,9 @@ router.get('/login-history', authMiddleware, authController.getLoginHistory);
 router.patch('/plan', authMiddleware, validate(changePlanSchema), authController.changePlan);
 router.patch('/role', authMiddleware, validate(changeRoleSchema), authController.changeRole);
 router.patch('/preferences', authMiddleware, validate(preferencesSchema), authController.updatePreferences);
+router.post('/terms/accept', authMiddleware, validate(acceptTermsSchema), authController.acceptTerms);
+// LGPD art. 18: "Baixar meus dados" (vale para qualquer plano)
+router.get('/my-data', authMiddleware, myDataLimiter, authController.exportMyData);
 
 router.get('/me', authMiddleware, (req, res) => {
   return res.json({
@@ -31,6 +34,8 @@ router.get('/me', authMiddleware, (req, res) => {
     plan: req.userPlan,
     notifyScanEmail: req.userNotifyScanEmail,
     language: req.userLanguage,
+    // o front pede o novo aceite quando updateRequired é true
+    terms: req.termsStatus,
   });
 });
 

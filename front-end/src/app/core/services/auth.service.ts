@@ -9,6 +9,17 @@ export type UserRole = 'DEV' | 'QA' | 'PENTESTER' | 'STUDENT' | 'ADM';
 
 export type UserPlan = 'FREE' | 'PREMIUM';
 
+// Espelha termsStatus (backend/src/lib/terms_status.js): situação do usuário
+// frente à versão atual dos Termos de Uso.
+export interface TermsStatus {
+  currentVersion: string;
+  lastUpdated: string;
+  acceptedVersion: string | null;
+  acceptedAt: string | null;
+  /** true: a versão mudou desde o último aceite; o app pede o novo aceite */
+  updateRequired: boolean;
+}
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -19,6 +30,7 @@ export interface AuthUser {
   notifyScanEmail?: boolean;
   /** idioma dos textos dos achados (título, descrição, correção) */
   language?: string;
+  terms?: TermsStatus;
 }
 
 // Espelha o corpo de resposta de POST /api/auth/login e /api/auth/register
@@ -56,6 +68,7 @@ export interface MeResponse {
   /** RF-22: e-mail ao terminar cada varredura */
   notifyScanEmail?: boolean;
   language?: string;
+  terms?: TermsStatus;
 }
 
 // Espelha os formatos de erro do backend:

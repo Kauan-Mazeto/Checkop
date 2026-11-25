@@ -2,7 +2,7 @@ import { Finding } from '../../core/services/scan.service';
 import { groupObjectives } from '../new-scan-page/new-scan-page.component';
 import { LANGUAGES, buildCodeView, isAcceptedFile } from '../code-analysis-page/code-view';
 import { parseSastLocation } from '../../core/services/sast.service';
-import { EVIDENCE_MAX_CHARS, elapsed, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
+import { EVIDENCE_MAX_CHARS, elapsed, evidenceGroups, evidenceItems, exportFileName, filterBySeverity, groupCompliance, hasEvidence, locationsOf, sortBySeverity } from './scan-detail.logic';
 
 const finding = (over: Partial<Finding>): Finding => ({
   id: over.id ?? Math.random().toString(36),
@@ -61,6 +61,21 @@ describe('detalhe da varredura: lógica', () => {
     const [item] = evidenceItems([finding({ rawResponse: big })]);
     expect(item.rawResponse!.length).toBeLessThan(big.length);
     expect(item.rawResponse).toContain('500 caracteres omitidos');
+  });
+
+  it('evidências: a mesma falha vira um bloco com as ocorrências; falha sem PoC fica de fora', () => {
+    const xss = finding({
+      id: 'x', title: 'XSS',
+      locations: [
+        { id: 'a', affectedUrl: 'http://x/search', severity: 'HIGH', rawRequest: 'GET /search?q=<script>' },
+        { id: 'b', affectedUrl: 'http://x/item', severity: 'HIGH', rawResponse: '<script>' },
+      ],
+    });
+    const semPoc = finding({ id: 'y', title: 'CSP ausente' });
+    const groups = evidenceGroups([xss, semPoc]);
+    expect(groups.length).toBe(1);
+    expect(groups[0].title).toBe('XSS');
+    expect(groups[0].items.map((i) => i.affectedUrl)).toEqual(['http://x/search', 'http://x/item']);
   });
 
   it('achado sem agrupamento conta como um local só', () => {

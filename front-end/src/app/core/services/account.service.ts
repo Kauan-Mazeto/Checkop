@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, tap, throwError } from 'rxjs';
 import { API_BASE_URL } from '../constants/api.constants';
 import { toApiError } from '../http/api-error';
-import { AuthService, AuthUser, UserPlan, UserRole } from './auth.service';
+import { AuthService, AuthUser, TermsStatus, UserPlan, UserRole } from './auth.service';
 
 export interface LoginAttempt {
   success: boolean;
@@ -80,6 +80,39 @@ export class AccountService {
         tap((user) => this.auth.updateCachedUser({ plan: user.plan })),
         catchError(this.fail)
       );
+  }
+
+  /** Novo aceite quando a versão dos Termos muda. Atualiza o cache local. */
+  acceptTerms(): Observable<TermsStatus> {
+    return this.http
+      .post<{ terms: TermsStatus }>(`${API_BASE_URL}/auth/terms/accept`, { accepted: true }, withCredentials)
+      .pipe(
+        map((r) => r.terms),
+        tap((terms) => this.auth.updateCachedUser({ terms })),
+        catchError(this.fail)
+      );
+  }
+
+  /** LGPD art. 18: todos os dados da conta em JSON, pronto para baixar. */
+  downloadMyData(): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/auth/my-data`, { ...withCredentials, responseType: 'blob' }).pipe(
+      catchError((error: HttpErrorResponse) =>
+        // o erro chega como Blob: a mensagem sai pelo status
+        throwError(() =>
+          toApiError(
+            new HttpErrorResponse({
+              status: error.status,
+              error: {
+                error:
+                  error.status === 429
+                    ? 'Você já baixou seus dados várias vezes na última hora. Tente novamente mais tarde.'
+                    : 'Não foi possível gerar o arquivo agora. Tente novamente.',
+              },
+            })
+          )
+        )
+      )
+    );
   }
 
   /** LGPD: conta com senha confirma com a senha; conta Google, com a frase. */

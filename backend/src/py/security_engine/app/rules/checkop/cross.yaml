@@ -1,0 +1,261 @@
+# Regras do Checkop que valem para várias linguagens: credencial fixa por nome de
+# variável, erros de lógica clássicos (laço que passa do fim, atribuição na condição,
+# nulo usado, erro ignorado) e segredos de sessão/JWT.
+rules:
+  # ---------- credencial fixa (qualquer linguagem) ----------
+  - id: checkop-hardcoded-credential-assignment
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Senha, segredo ou chave escrito direto no código, atribuído a uma variável com nome de credencial.
+      Quem tem acesso ao código (ou ao repositório) passa a ter a credencial. Leia de uma variável de
+      ambiente ou de um cofre de segredos e troque a credencial exposta.
+    pattern-regex: (?i)\b[\w.$]*(senha|password|passwd|pwd|secret|segredo|api[_-]?key|apikey|access[_-]?key|private[_-]?key|auth[_-]?token|client[_-]?secret)\w*\b["']?\s*(:=|=|:)\s*[fbru]?["'][^"'\s]{4,}["']
+    paths:
+      exclude: ["*.md", "*.txt", "*.lock", "*.json", "*.html", "*.htm", "*.css"]
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: MEDIUM
+
+  - id: checkop-php-db-password-literal
+    languages: [php]
+    severity: ERROR
+    message: Senha do banco escrita na chamada de conexão. Leia de variável de ambiente ou de um arquivo fora do repositório.
+    pattern-either:
+      - pattern: mysqli_connect($H, $U, "$P", ...)
+      - pattern: new mysqli($H, $U, "$P", ...)
+      - pattern: new PDO($DSN, $U, "$P", ...)
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH
+
+  - id: checkop-node-hardcoded-session-secret
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Segredo de sessão/JWT fixo no código. Com ele, qualquer um falsifica o cookie de sessão ou o
+      token e entra como outro usuário. Use process.env e um valor longo e aleatório.
+    pattern-either:
+      - pattern: '$SESSION({..., secret: "...", ...})'
+      - pattern: $JWT.sign($PAYLOAD, "...", ...)
+      - pattern: $JWT.verify($TOKEN, "...", ...)
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: HIGH
+
+  # ---------- laço que passa do fim do vetor ----------
+  # uma regra por família: o padrão de tamanho muda (.length, .Length/.Count, sizeof) e
+  # um padrão que não existe na linguagem derruba a regra inteira
+  - id: checkop-loop-off-by-one
+    languages: [javascript, typescript, java, kotlin]
+    severity: WARNING
+    message: &offbyone_msg >-
+      O laço vai com $I <= até o tamanho de $ARR: a última volta acessa $ARR[tamanho], uma
+      posição que não existe (undefined em JS, exceção em Java/C#, memória inválida em C).
+      @fix: As posições de $ARR vão de 0 até tamanho - 1: troque <= por < na condição do laço.
+    patterns:
+      - pattern-inside: for (...) { ... }
+      - pattern-either:
+          - pattern: $I <= $ARR.length
+          - pattern: $I <= $ARR.size()
+    fix-regex: &offbyone_fix
+      regex: <=
+      replacement: <
+      count: 1
+    metadata: &offbyone_meta
+      cwe: ["CWE-193: Off-by-one Error"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Laço passa do fim do vetor (<= no lugar de <)"
+      confidence: HIGH
+
+  - id: checkop-loop-off-by-one-csharp
+    languages: [csharp]
+    severity: WARNING
+    message: *offbyone_msg
+    patterns:
+      - pattern-inside: |
+          for (...; ...; ...)
+            $S
+      - pattern-either:
+          - pattern: $I <= $ARR.Length
+          - pattern: $I <= $ARR.Count
+    fix-regex: *offbyone_fix
+    metadata: *offbyone_meta
+
+  - id: checkop-loop-off-by-one-c
+    languages: [c, cpp]
+    severity: WARNING
+    message: *offbyone_msg
+    patterns:
+      - pattern-inside: for (...) { ... }
+      - pattern: $I <= sizeof($ARR) / sizeof($ARR[0])
+    fix-regex: *offbyone_fix
+    metadata: *offbyone_meta
+
+  # ---------- atribuição no lugar de comparação ----------
+  - id: checkop-assignment-in-condition
+    languages: [c, cpp]
+    severity: WARNING
+    message: >-
+      A condição faz $X = $Y (atribuição) em vez de comparar: guarda $Y em $X e testa o valor
+      guardado, então o if quase sempre vai pelo mesmo caminho.
+      @fix: Para comparar, use $X == $Y. Se a atribuição for de propósito, faça ela na linha de cima.
+    pattern-either:
+      - pattern: if ($X = $Y) { ... }
+      - pattern: while ($X = $Y) { ... }
+    fix-regex:
+      regex: (?<![=!<>])=(?!=)
+      replacement: ==
+      count: 1
+    metadata:
+      cwe: ["CWE-481: Assigning instead of Comparing"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Atribuição (=) usada como comparação (==)"
+      confidence: MEDIUM
+
+  - id: checkop-php-assignment-in-condition
+    languages: [php]
+    severity: WARNING
+    message: >-
+      A condição faz $X = $Y (atribuição) em vez de comparar: guarda $Y em $X e testa o valor
+      guardado, então o if quase sempre vai pelo mesmo caminho.
+      @fix: Para comparar, use $X === $Y (compara valor e tipo). Se a atribuição for de
+      propósito, faça ela na linha de cima.
+    pattern-either:
+      - pattern: if ($X = $Y) { ... }
+      - pattern: while ($X = $Y) { ... }
+    fix-regex:
+      regex: (?<![=!<>])=(?!=)
+      replacement: ===
+      count: 1
+    metadata:
+      cwe: ["CWE-481: Assigning instead of Comparing"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Atribuição (=) usada como comparação (==)"
+      confidence: MEDIUM
+
+  # ---------- nulo usado ----------
+  - id: checkop-null-property-access-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $X recebe null e $X.$P é usado sem $X receber outro valor: isso lança
+      NullPointerException ao rodar.
+      @fix: Dê um valor a $X antes dessa linha ou cheque antes: if ($X != null) { ... }.
+      Se $X nunca deveria ser nulo, Objects.requireNonNull($X) deixa isso explícito.
+    patterns:
+      - pattern-inside: |
+          $T $X = null;
+          ...
+      - pattern: $X.$P
+      - pattern-not-inside: |
+          $X = $Y;
+          ...
+      - pattern-not-inside: if (<... $X != null ...>) { ... }
+    metadata: &null_access_meta
+      cwe: ["CWE-476: NULL Pointer Dereference"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Uso de variável nula"
+      confidence: HIGH
+
+  - id: checkop-null-property-access-csharp
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      $X recebe null e $X.$P é usado sem $X receber outro valor: isso lança
+      NullReferenceException ao rodar.
+      @fix: Dê um valor a $X antes dessa linha ou use $X?.$P, que devolve null em vez de
+      lançar a exceção.
+    patterns:
+      - pattern-inside: |
+          $T $X = null;
+          ...
+      - pattern: $X.$P
+      - pattern-not-inside: |
+          $X = $Y;
+          ...
+      - pattern-not-inside: if (<... $X != null ...>) { ... }
+      - pattern-not-inside: $X?.$Q
+    metadata: *null_access_meta
+
+  - id: checkop-kotlin-not-null-assertion-on-null
+    languages: [kotlin]
+    severity: WARNING
+    message: >-
+      $X recebeu null e $X!! força o uso mesmo assim: ao rodar, isso lança NullPointerException.
+      @fix: Troque $X!! por $X?. (não executa quando é nulo) e, se precisar de um valor,
+      complete com ?: valorPadrao.
+    patterns:
+      - pattern-inside: |
+          val $X: $T? = null
+          ...
+      - pattern: $X!!
+    fix: $X?
+    metadata:
+      cwe: ["CWE-476: NULL Pointer Dereference"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Uso de variável nula"
+      confidence: HIGH
+
+  - id: checkop-go-nil-pointer-deref
+    languages: [go]
+    severity: WARNING
+    message: >-
+      $P foi declarado como *$T sem valor (nil) e *$P é lido em seguida: o programa entra em
+      pânico (nil pointer dereference) ao rodar.
+      @fix: Inicialize $P antes ($P = new($T) ou $P = &valor) ou cheque: if $P != nil { ... }.
+    patterns:
+      - pattern-inside: |
+          var $P *$T
+          ...
+      - pattern: "*$P"
+      - pattern-not-inside: |
+          $P = $V
+          ...
+      - pattern-not-inside: |
+          if $P != nil { ... }
+    metadata:
+      cwe: ["CWE-476: NULL Pointer Dereference"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Uso de ponteiro nulo"
+      confidence: HIGH
+
+  # ---------- erro ignorado (Go) ----------
+  - id: checkop-go-ignored-error
+    languages: [go]
+    severity: WARNING
+    message: >-
+      O erro de $F é descartado com _. Se a operação falhar, o código segue com $V vazio e
+      quebra mais adiante, longe da causa.
+      @fix: Guarde o erro em err e trate logo abaixo, antes de usar $V: if err != nil { return err }
+      (ou registre e responda com erro).
+    patterns:
+      - pattern-either:
+          - pattern: $V, _ := $OBJ.$F(...)
+          - pattern: $V, _ = $OBJ.$F(...)
+          - pattern: $V, _ := $F(...)
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(Query|QueryRow|Exec|Prepare|Open|OpenFile|ReadFile|ReadAll|Atoi|ParseInt|ParseFloat|ParseBool|Unmarshal|Marshal|Get|Post|Do|NewRequest|Dial|Listen|Create|Begin)$
+    fix-regex:
+      regex: ',\s*_\s*(:?=)'
+      replacement: ', err \1'
+      count: 1
+    metadata:
+      cwe: ["CWE-252: Unchecked Return Value"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Erro retornado e ignorado"
+      confidence: HIGH

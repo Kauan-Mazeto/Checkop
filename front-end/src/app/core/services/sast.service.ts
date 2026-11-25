@@ -7,14 +7,41 @@ import { FindingSeverity } from './scan.service';
 
 // Espelha o Finding do motor (security_engine/app/sast_runner.py -> _parse_result):
 // affectedUrl = "arquivo:linha" ou "arquivo:inicio-fim"; rawResponse = trecho vulnerável.
+/** Tipo do problema encontrado na análise de código. */
+export type SastCategory = 'SECURITY' | 'LOGIC' | 'SYNTAX' | 'DEPENDENCY' | 'QUALITY';
+
+/** COMPLETE = todas as regras de todas as ferramentas; ESSENTIAL = só bug, sintaxe e segurança. */
+export type SastDepth = 'COMPLETE' | 'ESSENTIAL';
+
+/** Outro problema no mesmo trecho de código, mostrado dentro do achado principal. */
+export interface SastRelatedIssue {
+  title: string;
+  severity: SastFinding['severity'];
+  category?: SastCategory | null;
+  description?: string | null;
+  remediation?: string | null;
+  fixedCode?: string | null;
+}
+
 export interface SastFinding {
   title: string;
+  /** sem categoria = segurança (achados antigos do Semgrep/Gitleaks) */
+  category?: SastCategory | null;
+  ruleId?: string | null;
+  cveId?: string | null;
+  cvssScore?: number | null;
   description: string | null;
   severity: FindingSeverity;
   tool: 'SAST';
   affectedUrl: string;
   rawResponse: string | null;
   remediation: string | null;
+  /** linhas do achado já corrigidas, calculadas pela ferramenta sobre o código enviado (sem IA) */
+  fixedCode?: string | null;
+  /** ferramentas que apontaram o achado (Semgrep, PMD, ESLint...) */
+  detectedBy?: string[] | null;
+  /** outros problemas apontados no mesmo trecho (um card por trecho) */
+  related?: SastRelatedIssue[] | null;
   owaspUrl: string | null;
 }
 
@@ -22,6 +49,8 @@ export interface SastResult {
   findings: SastFinding[];
   findingsCount: number;
   durationSeconds: number;
+  /** ferramentas que analisaram, as não instaladas neste servidor e avisos */
+  tools?: { depth?: SastDepth; used: string[]; skipped: string[]; warnings: string[] };
 }
 
 // Espelha backend/src/validators/sast_validator.js (aiFixSchema).
@@ -109,9 +138,9 @@ export class SastService {
   }
 
   /** POST /api/sast/analyze — { files: { "nome.ext": "conteúdo" } }. Pode levar até 2 min. */
-  analyze(files: Record<string, string>): Observable<SastResult> {
+  analyze(files: Record<string, string>, depth: SastDepth = 'COMPLETE'): Observable<SastResult> {
     return this.http
-      .post<SastResult>(`${API_BASE_URL}/sast/analyze`, { files }, { withCredentials: true })
+      .post<SastResult>(`${API_BASE_URL}/sast/analyze`, { files, depth }, { withCredentials: true })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
   }
 }

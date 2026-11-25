@@ -130,7 +130,7 @@ model User {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   scans                    Scan[]
-  termsAcceptance          TermsAcceptance?
+  termsAcceptances         TermsAcceptance[]
   loginAttempts            LoginAttempt[]
   targets                  Target[]
   auditLogs                AuditLog[]
@@ -195,6 +195,9 @@ model Finding {
   ruleId      String?
   affectedUrl String?        
   parameter   String?        
+  // prova de conceito: payload usado e comando para reproduzir (curl)
+  attack       String?
+  reproduction String?
   cveId       String?         
   cvssScore   Float?          
   // CVSS 3.1: vetor do cálculo e origem (TEMPLATE | CWE | SEVERITY)
@@ -210,14 +213,18 @@ model Finding {
 }
 
 
+// Um registro por versão aceita (histórico): o mais recente diz se o usuário
+// está em dia com a versão atual dos Termos (TERMS_OF_USE.version).
 model TermsAcceptance {
   id         String   @id @default(uuid())
-  userId     String   @unique
+  userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   version    String   @default("1.0")
   acceptedAt DateTime @default(now())
   ipAddress  String?
   userAgent  String?
+
+  @@index([userId, acceptedAt])
 }
 
 // Alvo cadastrado pelo usuário. Varredura em alvo público só roda com o alvo

@@ -116,10 +116,32 @@
         <span>{{ policy ? 'Versão ' + policy.version + ' · atualizada em ' + (policy.lastUpdated | date: 'dd/MM/yyyy') : 'Dados coletados, finalidades e seus direitos (LGPD)' }}</span>
       </a>
       <p class="hint">
-        Pela LGPD (art. 18) você pode pedir acesso, correção ou portabilidade dos seus dados em
-        <a class="link" href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>. A exclusão da conta pode ser
-        feita abaixo, a qualquer momento.
+        Outros pedidos da LGPD (art. 18), como correção de dados, podem ser feitos em
+        <a class="link" href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>.
       </p>
+    </div>
+  </section>
+
+  <!-- Baixar meus dados (LGPD art. 18, II e V: acesso e portabilidade) -->
+  <section class="card">
+    <header class="card-header">
+      <div>
+        <h2>Baixar meus dados</h2>
+        <p>Uma cópia de tudo o que o Checkop guarda sobre você, num arquivo JSON que pode ser levado a outro serviço (LGPD, art. 18).</p>
+      </div>
+    </header>
+    <div class="card-body form">
+      <p class="hint">
+        Inclui a conta, o histórico de aceites dos Termos, os domínios, as varreduras com os achados, os acessos e os registros de
+        auditoria. Ficam de fora só o hash da senha e os códigos de redefinição. O código enviado para análise não é guardado.
+      </p>
+      <div *ngIf="myDataError" class="alert alert-error" role="alert">{{ myDataError }}</div>
+      <div class="actions">
+        <button class="button button-outline" type="button" (click)="downloadMyData()" [disabled]="isDownloadingData">
+          <span *ngIf="isDownloadingData" class="spinner" aria-hidden="true"></span>
+          Baixar meus dados
+        </button>
+      </div>
     </div>
   </section>
 

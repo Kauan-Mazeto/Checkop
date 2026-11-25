@@ -35,7 +35,13 @@ export const ACCEPTED_EXTENSIONS = [
 ];
 
 /** Arquivos reconhecidos pelo nome (sem extensão). */
-export const ACCEPTED_FILENAMES = ['dockerfile', 'containerfile'];
+export const ACCEPTED_FILENAMES = [
+  'dockerfile', 'containerfile',
+  // dependências (OSV-Scanner)
+  'requirements.txt', 'pipfile.lock', 'poetry.lock', 'pdm.lock', 'uv.lock', 'package-lock.json', 'yarn.lock',
+  'pnpm-lock.yaml', 'go.mod', 'go.sum', 'pom.xml', 'gradle.lockfile', 'composer.lock', 'gemfile.lock',
+  'cargo.lock', 'packages.lock.json', 'pubspec.lock', 'mix.lock',
+];
 
 export const isAcceptedFile = (name: string): boolean => {
   const lower = name.toLowerCase();
@@ -43,7 +49,7 @@ export const isAcceptedFile = (name: string): boolean => {
   return ACCEPTED_FILENAMES.includes(base) || base.startsWith('dockerfile.') || ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 };
 
-export type LanguageGroup = 'Web e back-end' | 'JVM e .NET' | 'Sistemas e mobile' | 'Infraestrutura e scripts';
+export type LanguageGroup = 'Web e back-end' | 'JVM e .NET' | 'Sistemas e mobile' | 'Infraestrutura e scripts' | 'Dependências';
 
 export interface CodeLanguage {
   label: string;
@@ -54,7 +60,7 @@ export interface CodeLanguage {
   example: string;
 }
 
-export const LANGUAGE_GROUPS: LanguageGroup[] = ['Web e back-end', 'JVM e .NET', 'Sistemas e mobile', 'Infraestrutura e scripts'];
+export const LANGUAGE_GROUPS: LanguageGroup[] = ['Web e back-end', 'JVM e .NET', 'Sistemas e mobile', 'Infraestrutura e scripts', 'Dependências'];
 
 export const LANGUAGES: CodeLanguage[] = [
   {
@@ -379,6 +385,35 @@ export const LANGUAGES: CodeLanguage[] = [
       '        with:',
       '          ref: ${{ github.event.pull_request.head.sha }}',
       '      - run: echo "${{ github.event.pull_request.title }}"',
+    ].join('\n'),
+  },
+  {
+    label: 'Python (requirements.txt)',
+    group: 'Dependências',
+    filename: 'requirements.txt',
+    example: [
+      '# versões antigas com vulnerabilidades conhecidas (CVE)',
+      'django==2.2.0',
+      'requests==2.19.1',
+      'pyyaml==5.3',
+      'flask==0.12.2',
+      'jinja2==2.10',
+    ].join('\n'),
+  },
+  {
+    label: 'Go (go.mod)',
+    group: 'Dependências',
+    filename: 'go.mod',
+    example: [
+      'module exemplo.com/loja',
+      '',
+      'go 1.21',
+      '',
+      'require (',
+      '\tgithub.com/gin-gonic/gin v1.6.0',
+      '\tgolang.org/x/crypto v0.0.0-20200622213623-75b288015ac9',
+      '\tgithub.com/dgrijalva/jwt-go v3.2.0+incompatible',
+      ')',
     ].join('\n'),
   },
 ];

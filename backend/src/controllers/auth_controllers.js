@@ -5,6 +5,8 @@ import { logLoginAttempt, logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import prisma from '../lib/prisma.js';
 import bcrypt from 'bcryptjs';
 import { TERMS_OF_USE } from '../lib/terms_of_use.js';
+import { PRIVACY_POLICY } from '../lib/privacity.js';
+import { latestTermsAcceptance, recordTermsAcceptance, termsStatus } from '../lib/terms_status.js';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
   `checkop-dummy-${Date.now()}-${Math.random()}`,
@@ -48,14 +50,7 @@ const register = async (req, res) => {
       },
     });
 
-    await prisma.termsAcceptance.create({
-      data: {
-        userId: newUser.id,
-        version: TERMS_OF_USE.version,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || null,
-      },
-    });
+    await recordTermsAcceptance(newUser.id, req);
 
     const token = await generateToken(newUser);
 
@@ -195,7 +190,7 @@ const googleLogin = async (req, res) => {
     // aceite dos termos, igual ao cadastro por e-mail. A checagem vem antes de
     // criar o usuário para não deixar conta sem aceite registrado.
     const hasAcceptedTerms = user
-      ? Boolean(await prisma.termsAcceptance.findUnique({ where: { userId: user.id } }))
+      ? Boolean(await latestTermsAcceptance(user.id))
       : false;
 
     if (!hasAcceptedTerms && termsAccepted !== true) {
@@ -218,14 +213,7 @@ const googleLogin = async (req, res) => {
     }
 
     if (!hasAcceptedTerms) {
-      await prisma.termsAcceptance.create({
-        data: {
-          userId: user.id,
-          version: TERMS_OF_USE.version,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'] || null,
-        },
-      });
+      await recordTermsAcceptance(user.id, req);
     }
 
     await logLoginAttempt({
@@ -524,4 +512,107 @@ const updatePreferences = async (req, res) => {
   }
 };
 
-export default {register , login , getGoogleConfig , googleLogin ,forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan, changeRole, updatePreferences};
+// Novo aceite quando a versão dos Termos muda. Cada aceite fica no histórico
+// (versão, data, IP e navegador), como o do cadastro.
+const acceptTerms = async (req, res) => {
+  try {
+    if (req.termsStatus && !req.termsStatus.updateRequired) {
+      return res.status(200).json({ message: 'Você já aceitou a versão atual dos Termos.', terms: req.termsStatus });
+    }
+    await recordTermsAcceptance(req.userId, req);
+    await logAudit(req, {
+      action: AUDIT_ACTIONS.TERMS_ACCEPTED,
+      resourceType: 'terms',
+      resourceId: TERMS_OF_USE.version,
+    });
+    return res.status(200).json({
+      message: 'Termos aceitos. Obrigado!',
+      terms: termsStatus(await latestTermsAcceptance(req.userId)),
+    });
+  } catch (error) {
+    console.error('Erro ao registrar o aceite dos termos:', error);
+    return res.status(500).json({ error: 'Erro interno ao registrar o aceite.' });
+  }
+};
+
+// LGPD art. 18, II e V (acesso e portabilidade): todos os dados pessoais da conta
+// num JSON legível por máquina (art. 19, § 2º). Ficam de fora só os segredos
+// de autenticação (hash da senha, códigos de redefinição, versão do token) e o
+// token de verificação de domínio, que não são dados sobre a pessoa.
+const exportMyData = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const [user, termsAcceptances, targets, scans, loginAttempts, auditLogs] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true, name: true, email: true, role: true, plan: true, language: true,
+          notifyScanEmail: true, aiCredits: true, googleId: true, createdAt: true, updatedAt: true,
+        },
+      }),
+      prisma.termsAcceptance.findMany({
+        where: { userId },
+        orderBy: { acceptedAt: 'asc' },
+        select: { version: true, acceptedAt: true, ipAddress: true, userAgent: true },
+      }),
+      prisma.target.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, hostname: true, scope: true, verificationMethod: true, verifiedAt: true, lastCheckedAt: true, createdAt: true },
+      }),
+      prisma.scan.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        include: { findings: { orderBy: { createdAt: 'asc' } } },
+      }),
+      prisma.loginAttempt.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { success: true, ipAddress: true, userAgent: true, createdAt: true },
+      }),
+      prisma.auditLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { action: true, resourceType: true, resourceId: true, ipAddress: true, userAgent: true, details: true, createdAt: true },
+      }),
+    ]);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    const { googleId, ...account } = user;
+    const exportedAt = new Date();
+    const data = {
+      about: {
+        description: 'Dados pessoais da sua conta no Checkop (LGPD, art. 18, II e V).',
+        exportedAt,
+        privacyPolicyVersion: PRIVACY_POLICY.version,
+        notIncluded: [
+          'Hash da senha, códigos de redefinição de senha e controle de sessão (segredos de autenticação).',
+          'Código-fonte enviado para análise: não é armazenado pelo Checkop.',
+        ],
+      },
+      account: { ...account, signInWithGoogle: Boolean(googleId) },
+      termsAcceptances,
+      targets,
+      scans: scans.map(({ userId: _owner, findings, ...scan }) => ({
+        ...scan,
+        findings: findings.map(({ scanId: _scan, ...finding }) => finding),
+      })),
+      loginAttempts,
+      auditLogs,
+    };
+
+    await logAudit(req, { action: AUDIT_ACTIONS.DATA_EXPORTED, resourceType: 'user', resourceId: userId });
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="checkop-meus-dados-${exportedAt.toISOString().slice(0, 10)}.json"`);
+    return res.status(200).send(JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Erro ao exportar os dados da conta:', error);
+    return res.status(500).json({ error: 'Erro interno ao exportar os seus dados.' });
+  }
+};
+
+export default {register , login , getGoogleConfig , googleLogin ,forgotPassword , resetPassword , logout , deleteAccount , getLoginHistory, changePlan, changeRole, updatePreferences, acceptTerms, exportMyData};

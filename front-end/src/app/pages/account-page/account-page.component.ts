@@ -107,6 +107,31 @@ export class AccountPageComponent implements OnInit {
     });
   }
 
+  // LGPD art. 18: cópia dos dados da conta em JSON
+  protected isDownloadingData = false;
+  protected myDataError: string | null = null;
+
+  protected downloadMyData(): void {
+    if (this.isDownloadingData) return;
+    this.isDownloadingData = true;
+    this.myDataError = null;
+    this.account.downloadMyData().subscribe({
+      next: (blob) => {
+        this.isDownloadingData = false;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `checkop-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (error: ApiError) => {
+        this.isDownloadingData = false;
+        this.myDataError = error.message;
+      },
+    });
+  }
+
   protected googleAccount = false;
   protected deletePassword = '';
   protected deleteConfirmation = '';

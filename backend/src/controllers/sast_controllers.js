@@ -10,12 +10,14 @@ import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 const analyzeCode = async (req, res) => {
     try {
         const { files } = req.body;
+        // COMPLETE (padrão) = todas as regras de todas as ferramentas; ESSENTIAL = só bug, sintaxe e segurança
+        const depth = req.body.depth === 'ESSENTIAL' ? 'ESSENTIAL' : 'COMPLETE';
 
         if (!files || typeof files !== 'object' || Object.keys(files).length === 0) {
             return res.status(400).json({ error: 'Envie ao menos um arquivo em "files".' });
         }
 
-        const result = await runSastScan({ files, language: req.userLanguage });
+        const result = await runSastScan({ files, language: req.userLanguage, depth });
         return res.status(200).json(result);
     } catch (error) {
         console.error('Erro na análise SAST:', error);

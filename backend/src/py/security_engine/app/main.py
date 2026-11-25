@@ -110,7 +110,7 @@ async def scan_subdomains(payload: SubdomainEnumRequest):
 @app.post("/scans/sast", dependencies=protected)
 async def scan_with_sast(payload: SastScanRequest):
     try:
-        findings, duration = await run_sast_scan(payload.files, payload.language)
+        findings, duration, tools = await run_sast_scan(payload.files, payload.language, payload.depth == "COMPLETE")
     except UnsupportedLanguageError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except SastExecutionError as e:
@@ -120,6 +120,8 @@ async def scan_with_sast(payload: SastScanRequest):
         "findings": findings,
         "findingsCount": len(findings),
         "durationSeconds": round(duration, 2),
+        # quais ferramentas analisaram, quais não estão instaladas e avisos
+        "tools": tools,
     }
 
 

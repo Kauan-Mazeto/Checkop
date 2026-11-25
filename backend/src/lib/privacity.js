@@ -7,8 +7,8 @@
 //
 // Formato: markdown simples lido por front-end/src/app/shared/ui/markdown.ts.
 export const PRIVACY_POLICY = {
-  version: '2.1',
-  lastUpdated: '2026-11-17',
+  version: '2.2',
+  lastUpdated: '2026-11-22',
   content: `
 # Política de Privacidade
 
@@ -99,7 +99,12 @@ Nos termos do art. 18 da LGPD, você pode solicitar:
 - informação sobre as entidades com as quais os dados são compartilhados;
 - revisão de decisões tomadas unicamente com base em tratamento automatizado.
 
-Diretamente na plataforma, em "Conta e privacidade", você pode consultar os acessos recentes à sua conta e excluí-la definitivamente. Os demais pedidos podem ser enviados para **privacidade@checkop.com.br** e serão respondidos em até 15 (quinze) dias, conforme o art. 19 da LGPD. Você também pode apresentar reclamação à ANPD.
+Diretamente na plataforma, em "Conta e privacidade", você pode:
+- **baixar os seus dados** ("Baixar meus dados"): um arquivo JSON com a conta, o histórico de aceites dos Termos, os alvos, as varreduras com os achados, os acessos e os registros de auditoria, em formato que pode ser levado a outro serviço (acesso e portabilidade, art. 18, II e V). Ficam de fora apenas os segredos de autenticação (o hash da senha e os códigos de redefinição);
+- consultar os acessos recentes à sua conta;
+- excluir a conta definitivamente.
+
+Os demais pedidos podem ser enviados para **privacidade@checkop.com.br** e serão respondidos em até 15 (quinze) dias, conforme o art. 19 da LGPD. Você também pode apresentar reclamação à ANPD.
 
 ## 10. Crianças e adolescentes
 O Checkop não se destina a menores de 18 anos e não coleta intencionalmente dados de crianças e adolescentes.

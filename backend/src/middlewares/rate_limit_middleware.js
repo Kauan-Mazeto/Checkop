@@ -59,19 +59,21 @@ export const scanCreationLimiter = rateLimit({
   message: { error: 'Limite de varreduras criadas por hora atingido. Tente novamente mais tarde.' },
 });
 
-// B6: cada análise aceita até 10mb e prende o Semgrep por até 2 min
+// B6: cada análise aceita até 10mb e prende as ferramentas por minutos. Em
+// desenvolvimento (MODO_DEV=DEV) não limita, para não travar os testes locais.
 export const sastLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.MODO_DEV === 'DEV',
   message: { error: 'Limite de análises de código por hora atingido. Tente novamente mais tarde.' },
 });
 
 // cada correção com IA é uma chamada paga à Anthropic
 export const aiFixLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 20,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Limite de correções com IA por hora atingido. Tente novamente mais tarde.' },
@@ -85,4 +87,13 @@ export const targetVerificationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas tentativas de verificação. Tente novamente mais tarde.' },
+});
+
+// "Baixar meus dados": junta tudo da conta; poucas vezes por hora basta
+export const myDataLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Você já baixou seus dados várias vezes na última hora. Tente novamente mais tarde.' },
 });

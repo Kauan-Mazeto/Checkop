@@ -40,11 +40,31 @@
               </button>
             </div>
           </div>
-          <label class="field">
-            <span>Código</span>
-            <textarea class="textarea" name="code" [(ngModel)]="code" (ngModelChange)="saveDraft()" spellcheck="false"
-              placeholder="Cole aqui o código do back-end que você quer revisar"></textarea>
-          </label>
+          <!-- editor estilo IDE: aba do arquivo, calha de números e barra de status -->
+          <div class="editor">
+            <div class="editor-bar">
+              <span class="editor-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="editor-tab mono">{{ filename }}</span>
+            </div>
+            <div class="editor-body">
+              <div #gutter class="editor-gutter mono" aria-hidden="true"><span *ngFor="let n of lineNumbers">{{ n }}</span></div>
+              <div class="editor-code">
+                <!-- camada colorida por trás; o textarea por cima recebe a digitação -->
+                <pre #colors class="editor-colors mono" aria-hidden="true" [innerHTML]="highlighted"></pre>
+                <textarea #editor class="editor-input mono" name="code" aria-label="Código" [(ngModel)]="code" (ngModelChange)="saveDraft()"
+                  spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"
+                  (scroll)="syncGutter(editor, gutter, colors)" (keyup)="updateCursor(editor)" (click)="updateCursor(editor)"
+                  (keydown.tab)="onEditorTab($event, editor)"
+                  placeholder="// Cole aqui o código que você quer revisar"></textarea>
+              </div>
+            </div>
+            <div class="editor-status mono">
+              <span>{{ language.label }}</span>
+              <span>Ln {{ cursor.line }}, Col {{ cursor.col }}</span>
+              <span>{{ lineNumbers.length }} linha(s)</span>
+              <span>UTF-8</span>
+            </div>
+          </div>
         </ng-container>
 
         <ng-container *ngIf="mode === 'upload'">
@@ -63,10 +83,22 @@
           <span>{{ error }} <a *ngIf="needsPremium" class="link" routerLink="/plans">Ver planos</a></span>
         </div>
 
+        <!-- profundidade: completa (todas as regras) ou essencial (só o mais importante) -->
+        <fieldset class="depth">
+          <legend>Tipo de análise</legend>
+          <div class="depth-options" role="radiogroup" aria-label="Tipo de análise">
+            <button *ngFor="let d of depthOptions" type="button" role="radio" class="depth-option"
+              [class.selected]="depth === d.id" [attr.aria-checked]="depth === d.id" (click)="setDepth(d.id)" [disabled]="isAnalyzing">
+              <strong>{{ d.label }}</strong>
+              <span>{{ d.hint }}</span>
+            </button>
+          </div>
+        </fieldset>
+
         <div class="actions">
           <button class="button button-primary" type="button" (click)="analyze()" [disabled]="isAnalyzing">
             <span *ngIf="isAnalyzing" class="spinner" aria-hidden="true"></span>
-            {{ isAnalyzing ? 'Analisando (até 2 min)...' : 'Analisar código' }}
+            {{ isAnalyzing ? (depth === 'COMPLETE' ? 'Analisando (análise completa, alguns minutos)...' : 'Analisando...') : 'Analisar código' }}
           </button>
         </div>
       </div>
@@ -79,6 +111,10 @@
           <span class="kpi-label">Problemas encontrados</span>
           <span class="kpi-value" [class.text-danger]="views.length > 0" [class.text-success]="views.length === 0">{{ views.length }}</span>
           <span class="kpi-hint">análise em {{ result.durationSeconds | number: '1.0-1' }} s</span>
+          <button type="button" class="link clear-result" (click)="clearResult()">Limpar resultado</button>
+          <span *ngIf="result.tools?.depth" class="kpi-hint">Análise {{ result.tools!.depth === 'COMPLETE' ? 'completa' : 'essencial' }}</span>
+          <span *ngIf="result.tools?.used?.length" class="kpi-hint tools-used">Analisado por: {{ result.tools!.used.join(', ') }}</span>
+          <span *ngIf="result.tools?.skipped?.length" class="kpi-hint">Não instalado neste servidor: {{ result.tools!.skipped.join(', ') }}</span>
         </article>
         <article class="card">
           <div class="card-body">
@@ -142,10 +178,29 @@
         </div>
       </section>
 
-      <article *ngFor="let v of views" class="card">
+      <!-- filtro por tipo de problema -->
+      <div *ngIf="views.length > 0" class="chips category-filter" role="group" aria-label="Filtrar por tipo de problema">
+        <button type="button" class="chip" [class.active]="categoryFilter === 'ALL'" (click)="setCategory('ALL')">Todos ({{ views.length }})</button>
+        <ng-container *ngFor="let c of categoryOrder">
+          <button *ngIf="categoryCounts[c] > 0" type="button" class="chip" [class.active]="categoryFilter === c" (click)="setCategory(c)">
+            {{ categoryLabel[c] }} ({{ categoryCounts[c] }})
+          </button>
+        </ng-container>
+      </div>
+      <div *ngFor="let w of result.tools?.warnings ?? []" class="alert alert-warning" role="status">{{ w }}</div>
+
+      <article *ngFor="let v of visibleViews" class="card">
         <header class="card-header">
-          <div><h2>{{ v.finding.title }}</h2><p *ngIf="v.finding.owaspUrl">{{ v.finding.owaspUrl }}</p></div>
-          <span class="badge sev" [attr.data-severity]="v.finding.severity">{{ severityLabel[v.finding.severity] }}</span>
+          <div>
+            <h2>{{ v.displayTitle }} <span *ngIf="v.ruleCode" class="rule-code mono">{{ v.ruleCode }}</span></h2>
+            <p class="finding-meta mono">{{ v.file }} · linha {{ v.start }}<ng-container *ngIf="v.end !== v.start">–{{ v.end }}</ng-container></p>
+            <p *ngIf="v.finding.owaspUrl">{{ v.finding.owaspUrl }}</p>
+          </div>
+          <div class="finding-badges">
+            <span class="badge category" [attr.data-category]="categoryOf(v)">{{ categoryLabel[categoryOf(v)] }}</span>
+            <span class="badge sev" [attr.data-severity]="v.finding.severity">{{ severityLabel[v.finding.severity] }}</span>
+            <span *ngFor="let tool of v.finding.detectedBy ?? []" class="badge tool" title="Ferramenta que encontrou o problema">{{ tool }}</span>
+          </div>
         </header>
         <div class="card-body finding">
           <p *ngIf="v.finding.description" class="description">{{ v.finding.description }}</p>
@@ -158,13 +213,40 @@
 
           <!-- Lado a lado: inseguro × correção -->
           <div class="grid grid-2">
-            <div class="side insecure">
-              <h3>Código inseguro · linha {{ v.start }}<ng-container *ngIf="v.end !== v.start">–{{ v.end }}</ng-container></h3>
+            <div class="side insecure" [attr.data-category]="categoryOf(v)">
+              <h3>{{ v.snippetLabel }} · linha {{ v.start }}<ng-container *ngIf="v.end !== v.start">–{{ v.end }}</ng-container></h3>
               <pre class="code">{{ v.finding.rawResponse || '(trecho indisponível)' }}</pre>
             </div>
             <div class="side fix">
               <h3>Como corrigir</h3>
-              <p>{{ v.finding.remediation }}</p>
+              <p>{{ v.fixText }}</p>
+              <!-- correção calculada sobre o próprio código enviado (ferramenta, sem IA) -->
+              <div *ngIf="v.finding.fixedCode" class="fixed-code">
+                <span>No seu código</span>
+                <pre class="code">{{ v.finding.fixedCode }}</pre>
+              </div>
+              <div *ngIf="v.references.length" class="references">
+                <span>Referência</span>
+                <a *ngFor="let r of v.references" [href]="r.url" target="_blank" rel="noopener noreferrer" [title]="r.url">{{ r.label }} ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- outros problemas apontados no mesmo trecho: um card por trecho, não um por regra -->
+          <div *ngIf="v.finding.related?.length" class="related">
+            <h3>Também neste trecho ({{ v.finding.related!.length }})</h3>
+            <div *ngFor="let r of v.finding.related" class="related-item">
+              <div class="related-head">
+                <strong>{{ r.title }}</strong>
+                <span class="badge category" [attr.data-category]="r.category ?? 'SECURITY'">{{ categoryLabel[r.category ?? 'SECURITY'] }}</span>
+                <span class="badge sev" [attr.data-severity]="r.severity">{{ severityLabel[r.severity] }}</span>
+              </div>
+              <p *ngIf="r.description" class="description">{{ r.description }}</p>
+              <p *ngIf="r.remediation" class="related-fix"><span>Como corrigir:</span> {{ r.remediation }}</p>
+              <div *ngIf="r.fixedCode" class="fixed-code">
+                <span>No seu código</span>
+                <pre class="code">{{ r.fixedCode }}</pre>
+              </div>
             </div>
           </div>
 
@@ -181,7 +263,7 @@
 
             <ng-container *ngIf="v.ai.result as fix">
               <div class="diff" role="table" aria-label="Código original e código corrigido">
-                <div class="diff-head" role="row"><span role="columnheader">Código inseguro</span><span role="columnheader">Correção sugerida</span></div>
+                <div class="diff-head" role="row"><span role="columnheader">Código original</span><span role="columnheader">Correção sugerida</span></div>
                 <div *ngFor="let row of v.ai.rows" class="diff-row" role="row">
                   <span class="diff-cell" role="cell" [class.removed]="row.left?.changed" [class.empty]="!row.left"><span class="ln">{{ row.left?.number }}</span>{{ row.left?.text }}</span>
                   <span class="diff-cell" role="cell" [class.added]="row.right?.changed" [class.empty]="!row.right"><span class="ln">{{ row.right?.number }}</span>{{ row.right?.text }}</span>

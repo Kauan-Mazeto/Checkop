@@ -71,3 +71,40 @@ rules:
       owasp: ["A02:2021 - Cryptographic Failures"]
       category: security
       confidence: HIGH
+
+  # ---------- acesso fora do vetor (panic em tempo de execução) ----------
+  - id: checkop-rust-range-off-by-one
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      O laço vai de 0 até $V.len() inclusive (..=): na última volta o índice é $V.len(), que não
+      existe, e $V[$I] entra em pânico (index out of bounds).
+      @fix: Use 0..$V.len() (sem o =) ou percorra direto com for item in &$V, que não usa índice.
+    pattern: for $I in 0..=$V.len() { ... }
+    fix-regex:
+      regex: \.\.=
+      replacement: ..
+      count: 1
+    metadata:
+      cwe: ["CWE-193: Off-by-one Error"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Laço passa do fim do vetor (..= no lugar de ..)"
+      confidence: HIGH
+
+  - id: checkop-rust-index-len
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      $V[$V.len()] lê uma posição depois da última: as posições vão de 0 até $V.len() - 1, então
+      isso sempre entra em pânico (index out of bounds).
+      @fix: Para o último item use $V.last() (devolve None se estiver vazio) ou $V[$V.len() - 1]
+      depois de checar que $V não está vazio.
+    pattern: $V[$V.len()]
+    fix: $V[$V.len() - 1]
+    metadata:
+      cwe: ["CWE-125: Out-of-bounds Read"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Acesso fora dos limites do vetor"
+      confidence: HIGH

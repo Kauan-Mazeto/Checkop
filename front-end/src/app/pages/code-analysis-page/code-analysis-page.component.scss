@@ -123,7 +123,21 @@ h3 {
     border-color: rgba(216, 74, 86, 0.3);
   }
 
+  // trecho com erro (não de segurança): âmbar/azul em vez do vermelho de "inseguro"
+  &.insecure[data-category='LOGIC'],
+  &.insecure[data-category='SYNTAX'] {
+    h3 { color: #d6b36a; }
+    .code { border-color: rgba(214, 179, 106, 0.3); }
+  }
+
+  &.insecure[data-category='QUALITY'] {
+    h3 { color: #8299ad; }
+    .code { border-color: rgba(130, 153, 173, 0.3); }
+  }
+
   &.fix {
+    display: flex;
+    flex-direction: column;
     padding: 14px;
     border: 1px solid rgba(126, 170, 140, 0.25);
     border-radius: 8px;
@@ -305,4 +319,379 @@ h3 {
 
 .top-gap {
   margin-top: 12px;
+}
+
+// tipo do problema (sintaxe, lógica, segurança, dependência)
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finding-badges {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.badge.category {
+  &[data-category='SECURITY'] {
+    border-color: var(--brand-border);
+    color: var(--brand-hover);
+  }
+
+  &[data-category='DEPENDENCY'] {
+    border-color: rgba(197, 166, 108, 0.35);
+    color: var(--warning);
+  }
+
+  &[data-category='LOGIC'] {
+    border-color: rgba(130, 153, 173, 0.35);
+    color: var(--info);
+  }
+
+  &[data-category='SYNTAX'] {
+    border-color: var(--border-strong);
+    color: var(--text-2);
+  }
+}
+
+.tools-used {
+  display: block;
+  margin-top: 4px;
+}
+
+// tipo de análise: completa ou essencial
+.depth {
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin-bottom: 8px;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+}
+
+.depth-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.depth-option {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  span {
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+
+  &.selected {
+    border-color: var(--brand);
+    background: var(--brand-soft);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+}
+
+.badge.category[data-category='QUALITY'] {
+  border-color: var(--border);
+  color: var(--text-2);
+}
+
+// ---------- título do achado ----------
+.rule-code {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.finding-meta {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+// referência fica no pé do "Como corrigir", separada do texto, e abre o site
+.references {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(126, 170, 140, 0.2);
+  font-size: 12.5px;
+
+  > span {
+    color: var(--text-2);
+  }
+
+  a {
+    color: #7eaa8c;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    word-break: break-all;
+
+    &:hover {
+      color: #a3cbb0;
+    }
+  }
+}
+
+.side.fix p + .references {
+  margin-top: 16px;
+}
+
+// ---------- editor estilo IDE (campo de colar código) ----------
+.editor {
+  overflow: hidden;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  background: #1f1f1f;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  &:focus-within {
+    border-color: #3d5a73;
+  }
+}
+
+.editor-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid #2b2b2b;
+  background: #181818;
+}
+
+.editor-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3a3c41;
+  }
+}
+
+.editor-tab {
+  padding: 8px 14px;
+  border-top: 2px solid #79b8ff;
+  background: #1f1f1f;
+  color: #d5d5d8;
+  font-size: 12px;
+}
+
+.editor-body {
+  display: flex;
+  height: 360px;
+  min-height: 200px;
+  resize: vertical;
+  overflow: hidden;
+}
+
+.editor-gutter {
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 10px 10px 10px 0;
+  min-width: 48px;
+  border-right: 1px solid #2b2b2b;
+  background: #1f1f1f;
+  color: #5c5e65;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+
+  span {
+    display: block;
+    padding-left: 12px;
+  }
+}
+
+.editor-code {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+// mesma fonte, tamanho, espaçamento e quebra do textarea: as letras caem no mesmo lugar
+.editor-colors,
+.editor-input {
+  font-size: 12.5px;
+  line-height: 1.6;
+  letter-spacing: normal;
+  tab-size: 4;
+  white-space: pre;
+}
+
+.editor-colors {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 10px 14px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: #d1d5da;
+  pointer-events: none;
+
+  // cores do Min Theme (escuro); os spans vêm do innerHTML, por isso o ::ng-deep
+  ::ng-deep {
+    .tk-keyword { color: #f97583; }
+    .tk-string { color: #ffab70; }
+    .tk-number { color: #79b8ff; }
+    .tk-func { color: #b392f0; }
+    .tk-type { color: #79b8ff; }
+    .tk-deco { color: #b392f0; }
+    .tk-comment { color: #6b737c; font-style: italic; }
+  }
+}
+
+.editor-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  // o texto aparece pela camada colorida; aqui fica só o cursor e a seleção
+  color: transparent;
+  caret-color: #e1e4e8;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow: auto;
+  resize: none;
+  tab-size: 4;
+
+  &::placeholder {
+    color: #5c5e65;
+  }
+
+  &::selection {
+    background: rgba(79, 134, 184, 0.35);
+  }
+}
+
+.editor-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 4px 12px;
+  border-top: 1px solid #2b2b2b;
+  background: #181818;
+  color: #85858b;
+  font-size: 11.5px;
+
+  span:first-child {
+    margin-right: auto;
+    color: #b0b0b5;
+  }
+}
+
+// trecho já corrigido, montado pela ferramenta sobre o código enviado
+.fixed-code {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+
+  > span {
+    color: #7eaa8c;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .code {
+    margin: 0;
+    border-color: rgba(126, 170, 140, 0.3);
+    background: rgba(126, 170, 140, 0.06);
+    white-space: pre;
+    overflow-x: auto;
+  }
+}
+
+// ferramenta que encontrou o problema (Semgrep, PMD, ESLint...): sempre azul
+.badge.tool {
+  border-color: #4a7aa6;
+  background: #2f5577;
+  color: #e3eef8;
+}
+
+// outros problemas no mesmo trecho (um card por trecho)
+.related {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+
+  h3 {
+    margin: 0;
+    color: var(--text-2);
+  }
+}
+
+.related-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+
+  .description {
+    margin: 0;
+  }
+}
+
+.related-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  strong {
+    margin-right: auto;
+    font-size: 13.5px;
+  }
+}
+
+.related-fix {
+  margin: 0;
+  color: #d5d5d8;
+  font-size: 13px;
+  line-height: 1.6;
+
+  span {
+    color: #7eaa8c;
+    font-weight: 600;
+  }
 }

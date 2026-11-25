@@ -3,8 +3,11 @@ import { Component, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
-import { AuthService, AuthUser } from '../../../core/services/auth.service';
+import { ApiError } from '../../../core/http/api-error';
+import { AccountService } from '../../../core/services/account.service';
+import { AuthService, AuthUser, TermsStatus } from '../../../core/services/auth.service';
 import { GoogleAuthService } from '../../../core/services/google-auth.service';
+import { CheckComponent } from '../check/check.component';
 import { ROLE_LABEL } from '../../ui/labels';
 import { planOf } from '../../ui/plans';
 
@@ -87,7 +90,7 @@ const saveHighContrast = (value: boolean): void => {
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, CheckComponent],
   template: `
     <div class="ck-app" [class.high-contrast]="highContrast">
       <div class="app-layout">
@@ -141,8 +144,45 @@ const saveHighContrast = (value: boolean): void => {
             <span class="brand-name">Checkop</span>
           </div>
           <main class="page">
+            <!-- em Conta e privacidade a janela não cobre a tela (dá para baixar os dados ou excluir a conta) -->
+            <div *ngIf="termsPending && !gateOpen" class="alert alert-warning terms-banner" role="status">
+              <span>Os Termos de Uso foram atualizados (versão {{ terms?.currentVersion }}). Aceite a nova versão para voltar a usar as varreduras.</span>
+              <button class="button button-primary button-sm" type="button" (click)="reviewTerms = true">Revisar e aceitar</button>
+            </div>
             <ng-content></ng-content>
           </main>
+        </div>
+      </div>
+
+      <!-- novo aceite quando a versão dos Termos muda (Termos, seção 14) -->
+      <div *ngIf="gateOpen && terms" class="terms-gate" role="dialog" aria-modal="true" aria-labelledby="terms-gate-title">
+        <div class="card terms-gate-box">
+          <div class="card-body form">
+            <h2 id="terms-gate-title">Os Termos de Uso foram atualizados</h2>
+            <p class="hint">
+              A versão {{ terms.currentVersion }}, de {{ terms.lastUpdated | date: 'dd/MM/yyyy' }},
+              {{ terms.acceptedVersion ? 'substitui a versão ' + terms.acceptedVersion + ' que você aceitou.' : 'ainda não foi aceita na sua conta.' }}
+              Para continuar usando o Checkop, leia e aceite a nova versão.
+            </p>
+            <a class="link" routerLink="/terms" target="_blank" rel="noopener">Ler os Termos de Uso (abre em outra aba)</a>
+            <app-check [(checked)]="termsAgreed">
+              <strong>Li e aceito os Termos de Uso</strong>
+              e a Política de Privacidade, que faz parte deles.
+            </app-check>
+            <div *ngIf="termsError" class="alert alert-error" role="alert">{{ termsError }}</div>
+            <div class="actions">
+              <button class="button button-primary" type="button" (click)="acceptTerms()" [disabled]="!termsAgreed || isAcceptingTerms">
+                <span *ngIf="isAcceptingTerms" class="spinner" aria-hidden="true"></span>
+                Aceitar e continuar
+              </button>
+              <button class="button button-outline" type="button" (click)="logout()">Sair</button>
+            </div>
+            <p class="hint">
+              Não concorda? Você ainda pode
+              <a class="link" routerLink="/account" (click)="reviewTerms = false">baixar seus dados ou excluir a conta</a>
+              em Conta e privacidade.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -152,6 +192,7 @@ export class AppShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly google = inject(GoogleAuthService);
+  private readonly account = inject(AccountService);
 
   protected readonly groups = NAV_GROUPS;
   protected readonly roleLabel = ROLE_LABEL;
@@ -160,6 +201,39 @@ export class AppShellComponent {
   protected url = this.router.url;
   protected menuOpen = false;
   protected highContrast = readHighContrast();
+
+  // novo aceite dos Termos (o guard atualiza a situação a cada navegação, via /me)
+  protected terms: TermsStatus | null = this.user?.terms ?? null;
+  protected reviewTerms = false;
+  protected termsAgreed = false;
+  protected isAcceptingTerms = false;
+  protected termsError: string | null = null;
+
+  protected get termsPending(): boolean {
+    return Boolean(this.terms?.updateRequired);
+  }
+
+  /** Bloqueia as telas logadas, menos Conta e privacidade (lá vira um aviso no topo). */
+  protected get gateOpen(): boolean {
+    return this.termsPending && (this.reviewTerms || !this.url.startsWith('/account'));
+  }
+
+  protected acceptTerms(): void {
+    if (!this.termsAgreed || this.isAcceptingTerms) return;
+    this.isAcceptingTerms = true;
+    this.termsError = null;
+    this.account.acceptTerms().subscribe({
+      next: (terms) => {
+        this.isAcceptingTerms = false;
+        this.terms = terms;
+        this.reviewTerms = false;
+      },
+      error: (error: ApiError) => {
+        this.isAcceptingTerms = false;
+        this.termsError = error.message;
+      },
+    });
+  }
 
   constructor() {
     this.router.events

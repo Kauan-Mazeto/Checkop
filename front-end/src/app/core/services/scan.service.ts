@@ -57,6 +57,10 @@ export interface FindingLocation {
   id: string;
   affectedUrl: string | null;
   parameter?: string | null;
+  /** payload usado no ataque (PoC) */
+  attack?: string | null;
+  /** comando para reproduzir (curl) */
+  reproduction?: string | null;
   severity: FindingSeverity;
   cvssScore?: number | null;
   rawRequest?: string | null;
@@ -72,6 +76,8 @@ export interface Finding {
   ruleId?: string | null;
   affectedUrl: string | null;
   parameter?: string | null;
+  attack?: string | null;
+  reproduction?: string | null;
   cveId: string | null;
   cvssScore: number | null;
   /** CVSS 3.1: vetor usado no cálculo da nota */

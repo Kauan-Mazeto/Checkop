@@ -1,0 +1,14 @@
+{
+  "name": "checkop-js-analyzers",
+  "private": true,
+  "description": "Analisadores de JavaScript/TypeScript/HTML usados pela análise de código do Checkop (instalados em tools/js-analyzers ou /opt/js-analyzers).",
+  "dependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-security": "4.2.1",
+    "globals": "17.14.0",
+    "htmlhint": "1.9.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.74.0"
+  }
+}
