@@ -1,89 +1,49 @@
-// Base visual em src/styles/_app-ui.scss (escopo .ck-app).
+// Nova varredura: barra de endereço no topo, catálogo de tipos em linhas e o plano da
+// varredura fixo à direita (linha do tempo do que vai rodar + autorização + início).
+// Mesmo estilo do detalhe da varredura: linhas finas, contorno branco, sem cartões.
+// Base (botões, alertas, app-check) em src/styles/_app-ui.scss (escopo .ck-app).
+
+$hairline: rgba(255, 255, 255, 0.08);
+$hairline-soft: rgba(255, 255, 255, 0.05);
+$white-line: #fff;
+
 :host {
   display: block;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  align-items: start;
-  gap: 20px;
+.mono {
+  font-family: var(--mono);
 }
 
-.steps {
-  gap: 16px;
+.meta-text {
+  color: var(--faint);
+  font-size: 12px;
 }
 
-.objective-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid #303135;
-  border-radius: 7px;
-  list-style: none;
-
-  li + li {
-    border-top: 1px solid #303135;
-  }
-}
-
-.objective {
-  display: flex;
+.tag {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 11px 14px;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  transition: background 0.15s ease;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
 
-  &:hover {
-    background: #26272a;
-  }
-
-  &.selected {
-    background: rgba(130, 153, 173, 0.08);
-
-    .radio {
-      border-color: #8299ad;
-      box-shadow: inset 0 0 0 4px #191a1c;
-      background: #8299ad;
-    }
+  &.tag-brand {
+    background: var(--brand-soft);
+    color: var(--brand-text);
   }
 }
 
-.radio {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid #46474c;
-  border-radius: 50%;
-}
-
-.objective-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-
-  strong {
-    font-size: 13.5px;
-    font-weight: 550;
-  }
-
-  small {
-    color: #b0b0b5;
-    font-size: 12.5px;
-  }
-}
-
-.objective-tags {
-  display: flex;
-  flex-shrink: 0;
-  gap: 6px;
+.section-title {
+  margin: 0 0 14px;
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .block-cta {
@@ -91,36 +51,435 @@
   margin-top: 10px;
 }
 
-.summary {
-  position: sticky;
-  top: 24px;
+// ---------- cabeçalho ----------
+.ns-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 
-  dl {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+  h1 {
     margin: 0;
-  }
-
-  dt {
-    margin-bottom: 2px;
-    color: #b0b0b5;
-    font-size: 12px;
-  }
-
-  dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-    font-size: 13px;
+    font-size: 24px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
   }
 }
 
+.limit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  font-size: 13px;
+}
+
+.ns {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+// ---------- barra de endereço ----------
+.address {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.address-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 18px;
+  // contorno branco bem marcado: é o primeiro campo da tela
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: text;
+
+  &:focus-within {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 17px;
+
+    &::placeholder {
+      color: var(--faint);
+      font-size: 15px;
+    }
+  }
+}
+
+.address-scheme {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.kind {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kind-local {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.kind-public {
+  background: rgba(229, 72, 77, 0.14);
+  color: #f2777b;
+}
+
+.address-hint {
+  margin: 0;
+  padding-left: 4px;
+  color: var(--muted);
+  font-size: 13px;
+
+  // local: liberado (verde) · público: depende de domínio verificado, bloqueia sem ele (vermelho)
+  &[data-kind='local'] {
+    color: #4fb276;
+    font-weight: 550;
+  }
+
+  &[data-kind='public'] {
+    color: #f2777b;
+    font-weight: 550;
+
+    .link {
+      color: #fff;
+    }
+  }
+}
+
+// ---------- corpo: catálogo | plano ----------
+.ns-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 32px;
+}
+
+// catálogo de tipos
+.group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+
+  button {
+    min-height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 550;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.5);
+      color: var(--text);
+    }
+
+    &.active {
+      border-color: $white-line;
+      background: $white-line;
+      color: var(--bg);
+    }
+  }
+}
+
+.group-desc {
+  margin: 0 0 14px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.objective-rows {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid $white-line;
+  border-radius: 12px;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid $hairline;
+  }
+}
+
+.objective-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+
+  &:hover {
+    background: var(--surface-2);
+  }
+
+  &.selected {
+    background: rgba(63, 154, 98, 0.1);
+
+    // escolhido: verde cheio com anel, igual à caixa de autorização marcada
+    .radio {
+      border-color: #4fb276;
+      background: #3a9e61;
+      box-shadow: inset 0 0 0 3px var(--surface);
+    }
+  }
+}
+
+.fixed-objective {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .objective-row {
+    border: 1px solid $white-line;
+    border-radius: 12px;
+  }
+}
+
+.upsell {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.radio {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  // contorno branco: o círculo aparece mesmo desmarcado
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+}
+
+.objective-row:hover .radio {
+  border-color: #fff;
+}
+
+.objective-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+}
+
+.objective-tags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+// ---------- plano da varredura ----------
+.plan {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+
+  .section-title {
+    margin-bottom: 0;
+  }
+}
+
+.plan-target,
+.plan-objective {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid $hairline;
+
+  strong {
+    font-size: 14px;
+  }
+}
+
+.plan-url {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  // trilho vertical entre as etapas
+  &::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+
+.step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+
+  &[data-state='gated'] .step-dot {
+    border-color: var(--warning);
+    color: var(--warning);
+  }
+
+  &[data-state='skip'] {
+    opacity: 0.5;
+
+    .step-dot {
+      border-style: dashed;
+    }
+  }
+}
+
+.step-dot {
+  z-index: 1;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border: 1.5px solid $white-line;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+.step-flag {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.step[data-state='skip'] .step-flag {
+  color: var(--faint);
+}
+
+.plan-consent {
+  padding-top: 14px;
+  border-top: 1px solid $hairline;
+}
+
+.plan-note {
+  margin: 0;
+  color: var(--warning);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.plan-submit {
+  min-height: 42px;
+  font-weight: 600;
+}
+
+.plan-blocker {
+  margin: -6px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.plan-cancel {
+  align-self: center;
+  font-size: 13px;
+}
+
 @media (max-width: 1100px) {
-  .layout {
+  .ns-body {
     grid-template-columns: 1fr;
   }
 
-  .summary {
+  .plan {
     position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .objective-row {
+    flex-wrap: wrap;
+  }
+
+  .objective-tags {
+    justify-content: flex-start;
+    width: 100%;
+    padding-left: 30px;
+  }
+
+  .address-bar {
+    flex-wrap: wrap;
+    padding: 10px 14px;
   }
 }

@@ -44,6 +44,10 @@ export interface ScanObjective {
   coverage: 'FULL' | 'PARTIAL';
   requiresActiveScan: boolean;
   engines: string[];
+  /** o ZAP envia ataques (ativo) ou só observa as respostas (passivo) */
+  zapActive?: boolean;
+  /** Nuclei com todos os templates (varredura completa) */
+  nucleiAllTemplates?: boolean;
 }
 
 export interface ComplianceNote {

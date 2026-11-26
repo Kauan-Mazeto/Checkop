@@ -887,12 +887,13 @@
       display: grid;
       flex-shrink: 0;
       place-items: center;
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       margin-top: 1px;
-      border: 1.5px solid var(--border-strong);
+      // contorno branco: a caixa precisa aparecer mesmo desmarcada no fundo escuro
+      border: 2px solid rgba(255, 255, 255, 0.85);
       border-radius: 5px;
-      background: var(--surface);
+      background: transparent;
       transition: background 0.15s ease, border-color 0.15s ease;
 
       svg {
@@ -918,17 +919,21 @@
     }
 
     &:hover {
-      border-color: var(--muted);
+      border-color: rgba(255, 255, 255, 0.6);
+
+      .check-box {
+        border-color: #fff;
+      }
     }
 
     &.checked {
-      border-color: rgba(126, 170, 140, 0.45);
-      background: rgba(126, 170, 140, 0.05);
+      border-color: #3f9a62;
+      background: rgba(63, 154, 98, 0.12);
 
       .check-box {
-        border-color: var(--success);
-        background: var(--success);
-        color: #0b1a12;
+        border-color: #4fb276;
+        background: #3a9e61;
+        color: #fff;
 
         svg {
           opacity: 1;

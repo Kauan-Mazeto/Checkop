@@ -322,6 +322,11 @@ export const listObjectives = () =>
     coverage: o.coverage,
     requiresActiveScan: o.requiresActiveScan,
     engines: o.engines,
+    // para o plano da varredura na tela: o ZAP ataca (ativo) ou só observa (passivo)?
+    // activeScannerIds null = todas as regras ativas; [] = objetivo só passivo
+    zapActive: o.engines.includes('ZAP') && o.zap?.activeScannerIds !== undefined && (o.zap.activeScannerIds === null || o.zap.activeScannerIds.length > 0),
+    // Nuclei com todos os templates (tags vazias) ou só os do objetivo
+    nucleiAllTemplates: o.engines.includes('NUCLEI') && (o.nuclei?.tags?.length ?? 0) === 0,
   }));
 
 /**

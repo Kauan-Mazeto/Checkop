@@ -161,7 +161,16 @@
           <button type="button" role="tab" [class.active]="tab === 'compliance'" [attr.aria-selected]="tab === 'compliance'" (click)="tab = 'compliance'">Conformidade <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
           <button *ngIf="s.status === 'COMPLETED'" type="button" role="tab" [class.active]="tab === 'compare'" [attr.aria-selected]="tab === 'compare'" (click)="openCompare()">Comparação <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
         </nav>
-        <span class="view-hint">Visão de {{ view.label }} · <a class="link" routerLink="/account">trocar perfil</a></span>
+        <!-- troca de perfil na própria tela: muda o conteúdo de cada achado na hora -->
+        <label *ngIf="role !== 'ADM'; else adminView" class="role-switch">
+          <span>Visão</span>
+          <select name="role" [ngModel]="role" (ngModelChange)="changeRole($event)" [disabled]="isChangingRole" aria-label="Perfil da visão">
+            <option *ngFor="let r of switchableRoles" [value]="r">{{ roleViews[r].label }}</option>
+          </select>
+          <span *ngIf="isChangingRole" class="spinner spinner-muted" aria-hidden="true"></span>
+        </label>
+        <ng-template #adminView><span class="view-hint">Visão de Admin (tudo)</span></ng-template>
+        <span *ngIf="roleError" class="role-error" role="alert">{{ roleError }}</span>
       </div>
 
       <!-- ===== Achados: lista | detalhe | metadados ===== -->
@@ -227,12 +236,11 @@
               <p *ngIf="f.description" class="prose detail-desc">{{ f.description }}</p>
             </div>
 
-            <div *ngIf="isStudent && owaspExplanation(f.owaspUrl) as explanation" class="explain">
-              <strong>Entenda a falha</strong>
-              <p>{{ explanation }}</p>
-            </div>
-
             <nav class="detail-tabs" role="tablist" aria-label="Detalhes do achado">
+              <!-- aba própria do perfil, sempre primeiro -->
+              <button *ngIf="roleTab('learn')" type="button" role="tab" class="role-tab" [class.active]="detailTab === 'learn'" [attr.aria-selected]="detailTab === 'learn'" (click)="setDetailTab('learn')">Aprender</button>
+              <button *ngIf="roleTab('ticket')" type="button" role="tab" class="role-tab" [class.active]="detailTab === 'ticket'" [attr.aria-selected]="detailTab === 'ticket'" (click)="setDetailTab('ticket')">Ticket</button>
+              <button *ngIf="roleTab('exploit')" type="button" role="tab" class="role-tab" [class.active]="detailTab === 'exploit'" [attr.aria-selected]="detailTab === 'exploit'" (click)="setDetailTab('exploit')">Exploração</button>
               <button type="button" role="tab" [class.active]="detailTab === 'fix'" [attr.aria-selected]="detailTab === 'fix'" (click)="setDetailTab('fix')">Como corrigir</button>
               <button type="button" role="tab" [class.active]="detailTab === 'evidence'" [attr.aria-selected]="detailTab === 'evidence'" (click)="setDetailTab('evidence')">
                 Evidência <span *ngIf="isPremium && selectedEvidence.length" class="tab-count">{{ selectedEvidence.length }}</span><span *ngIf="!isPremium" class="badge badge-pro">PRO</span>
@@ -240,6 +248,96 @@
               <button type="button" role="tab" [class.active]="detailTab === 'locations'" [attr.aria-selected]="detailTab === 'locations'" (click)="setDetailTab('locations')">Ocorrências <span class="tab-count">{{ locationsOf(f).length }}</span></button>
               <button *ngIf="f.compliance.length" type="button" role="tab" [class.active]="detailTab === 'compliance'" [attr.aria-selected]="detailTab === 'compliance'" (click)="setDetailTab('compliance')">Conformidade</button>
             </nav>
+
+            <!-- Estudante: o que é, por que importa e onde estudar -->
+            <div *ngIf="detailTab === 'learn' && guide" class="detail-body guide">
+              <section class="guide-block">
+                <h4>O que é · {{ guide.name }}</h4>
+                <p class="prose">{{ guide.what }}</p>
+              </section>
+              <section class="guide-block">
+                <h4>Por que é perigoso</h4>
+                <p class="prose">{{ guide.impact }}</p>
+              </section>
+              <section class="guide-block">
+                <h4>Para estudar e corrigir</h4>
+                <ul class="link-list">
+                  <li *ngFor="let l of studyLinks"><a [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+                </ul>
+              </section>
+              <button type="button" class="link" (click)="setDetailTab('fix')">Ver como corrigir no seu código →</button>
+            </div>
+
+            <!-- QA: entender, comprovar e documentar o ticket -->
+            <div *ngIf="detailTab === 'ticket' && guide" class="detail-body guide">
+              <section class="guide-block">
+                <h4>Entenda a falha · {{ guide.name }}</h4>
+                <p class="prose">{{ guide.what }} {{ guide.impact }}</p>
+              </section>
+              <section class="guide-block">
+                <h4>Como verificar</h4>
+                <p class="prose">{{ guide.verify }}</p>
+              </section>
+              <section *ngIf="standards.length" class="guide-block">
+                <h4>Padrões que comprovam</h4>
+                <ul class="link-list">
+                  <li *ngFor="let l of standards"><a [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+                </ul>
+              </section>
+              <section class="guide-block ticket">
+                <div class="ticket-head">
+                  <h4>Texto do ticket</h4>
+                  <button type="button" class="button button-outline button-sm" (click)="copyText(ticketText, 'ticket')">{{ copiedKey === 'ticket' ? 'Copiado' : 'Copiar ticket' }}</button>
+                </div>
+                <p class="meta-text">Cola direto no Jira, GitHub, Azure DevOps ou e-mail: título, passos, esperado × obtido, critério de aceite e referências.</p>
+                <pre class="ticket-text mono">{{ ticketText }}</pre>
+              </section>
+            </div>
+
+            <!-- Pentester: superfície, requisição crua, vetor CVSS e material de ataque -->
+            <div *ngIf="detailTab === 'exploit' && guide" class="detail-body guide">
+              <section class="guide-block">
+                <h4>Superfície</h4>
+                <dl class="exploit-facts">
+                  <div><dt>Locais</dt><dd>{{ locationsOf(f).length }}</dd></div>
+                  <div *ngIf="attackParams.length"><dt>Parâmetros</dt><dd class="mono">{{ attackParams.join(', ') }}</dd></div>
+                  <div *ngIf="currentEvidence?.attack"><dt>Payload</dt><dd><code class="mono payload">{{ currentEvidence?.attack }}</code></dd></div>
+                  <div><dt>Detectado por</dt><dd>{{ toolsOf(f) }}<ng-container *ngIf="f.ruleId"> · <span class="mono">{{ f.ruleId }}</span></ng-container></dd></div>
+                  <div *ngIf="f.confidence"><dt>Confiança</dt><dd>{{ confidenceLabel[f.confidence] }}</dd></div>
+                </dl>
+              </section>
+
+              <section *ngIf="isPremium && rawRequestText" class="guide-block">
+                <div class="ticket-head">
+                  <h4>Requisição HTTP crua</h4>
+                  <span class="copy-row">
+                    <button type="button" class="button button-outline button-sm" (click)="copyText(rawRequestText, 'raw')">{{ copiedKey === 'raw' ? 'Copiado' : 'Copiar (Burp Repeater)' }}</button>
+                    <button *ngIf="currentEvidence?.reproduction" type="button" class="button button-outline button-sm" (click)="copyText(currentEvidence?.reproduction, 'curl2')">{{ copiedKey === 'curl2' ? 'Copiado' : 'Copiar curl' }}</button>
+                  </span>
+                </div>
+                <pre class="ticket-text mono">{{ rawRequestText }}</pre>
+              </section>
+
+              <section *ngIf="cvssParts.length" class="guide-block">
+                <h4>Vetor CVSS 3.1 · {{ f.cvssScore | number: '1.1-1' }}</h4>
+                <table class="cvss-table">
+                  <tbody>
+                    <tr *ngFor="let p of cvssParts">
+                      <th scope="row"><span class="mono">{{ p.metric }}:{{ p.value }}</span> {{ p.name }}</th>
+                      <td>{{ p.meaning }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section class="guide-block">
+                <h4>Material de exploração · {{ guide.name }}</h4>
+                <ul class="link-list">
+                  <li *ngFor="let l of guide.attack"><a [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+                  <li *ngFor="let l of guide.learn"><a [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+                </ul>
+              </section>
+            </div>
 
             <!-- Como corrigir -->
             <div *ngIf="detailTab === 'fix'" class="detail-body">

@@ -4,9 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ApiError } from '../../core/http/api-error';
-import { AuthService } from '../../core/services/auth.service';
+import { AccountService } from '../../core/services/account.service';
+import { AuthService, UserRole } from '../../core/services/auth.service';
 import { Finding, FindingSeverity, FindingStatus, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions, hasResults } from '../../core/services/scan.service';
-import { RoleView, roleView } from '../../shared/ui/role-views';
+import { ROLE_VIEWS, RoleView, roleView } from '../../shared/ui/role-views';
+import { CvssPart, FlawGuide, GuideLink, buildTicket, cweLink, explainCvss, guideFor, owaspLink, standardLinks } from './role-guides';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
@@ -37,7 +39,11 @@ import {
 // a evidência fica dentro do achado (sub-aba do painel central), não numa aba própria
 type Tab = 'overview' | 'findings' | 'compliance' | 'compare';
 /** sub-abas do detalhe do achado (painel central) */
-export type DetailTab = 'fix' | 'evidence' | 'locations' | 'compliance';
+// learn = Estudante, ticket = QA, exploit = Pentester (conteúdo de cada perfil, RF-11)
+export type DetailTab = 'fix' | 'evidence' | 'locations' | 'compliance' | 'learn' | 'ticket' | 'exploit';
+
+/** Perfis que o usuário pode escolher na tela (Admin não troca por aqui). */
+const SWITCHABLE_ROLES: Exclude<UserRole, 'ADM'>[] = ['DEV', 'QA', 'PENTESTER', 'STUDENT'];
 /** abas do visor de evidência */
 export type ViewerTab = 'response' | 'request' | 'curl';
 
@@ -54,6 +60,7 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly scanService = inject(ScanService);
   private readonly auth = inject(AuthService);
+  private readonly account = inject(AccountService);
 
   protected readonly severityLabel = SEVERITY_LABEL;
   protected readonly severityOrder = SEVERITY_ORDER;
@@ -109,6 +116,89 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   // RF-11: formato do relatório pelo perfil (o servidor confirma o perfil em scan.role)
   protected view: RoleView = roleView(this.auth.getCachedUser()?.role);
   private viewApplied = false;
+  /** perfil em vigor (o servidor confirma em scan.role) */
+  protected role: UserRole = this.auth.getCachedUser()?.role ?? 'DEV';
+  protected readonly switchableRoles = SWITCHABLE_ROLES;
+  protected readonly roleViews = ROLE_VIEWS;
+  protected isChangingRole = false;
+  protected roleError: string | null = null;
+
+  /**
+   * Troca o perfil sem sair da tela: salva na conta e recarrega a varredura, porque o
+   * servidor corta os dados pelo perfil (ex.: Estudante não recebe payloads).
+   */
+  protected changeRole(role: Exclude<UserRole, 'ADM'>): void {
+    if (this.isChangingRole || role === this.role) return;
+    this.isChangingRole = true;
+    this.roleError = null;
+    this.account.changeRole(role).subscribe({
+      next: () => {
+        this.isChangingRole = false;
+        this.role = role;
+        this.view = roleView(role);
+        this.viewApplied = false; // a próxima carga reabre na aba e sub-aba do novo perfil
+        this.load();
+      },
+      error: (error: ApiError) => {
+        this.isChangingRole = false;
+        this.roleError = error.message;
+      },
+    });
+  }
+
+  // ---------- conteúdo do perfil para o achado aberto (calculado ao abrir, não a cada verificação) ----------
+  protected guide: FlawGuide | null = null;
+  /** Estudante: onde estudar e como corrigir */
+  protected studyLinks: GuideLink[] = [];
+  /** QA: padrões oficiais que comprovam a falha */
+  protected standards: GuideLink[] = [];
+  /** QA: texto do ticket pronto para colar */
+  protected ticketText = '';
+  /** Pentester: vetor CVSS item a item */
+  protected cvssParts: CvssPart[] = [];
+  /** Pentester: parâmetros atingidos nos locais da falha */
+  protected attackParams: string[] = [];
+
+  /** Sub-aba própria do perfil: só ela aparece (Admin vê as três). */
+  protected roleTab(tab: 'learn' | 'ticket' | 'exploit'): boolean {
+    const owner = { learn: 'STUDENT', ticket: 'QA', exploit: 'PENTESTER' }[tab];
+    return this.role === owner || this.role === 'ADM';
+  }
+
+  private buildRoleContent(finding: Finding | null): void {
+    if (!finding || !this.scan) {
+      this.guide = null;
+      this.studyLinks = this.standards = this.cvssParts = [];
+      this.attackParams = [];
+      this.ticketText = '';
+      return;
+    }
+    const guide = guideFor(finding);
+    this.guide = guide;
+    const unique = (links: (GuideLink | null)[]) =>
+      links.filter((l, i, all): l is GuideLink => Boolean(l) && all.findIndex((o) => o?.url === l!.url) === i);
+    this.studyLinks = unique([owaspLink(finding.owaspUrl), ...guide.learn, cweLink(guide.cwe)]);
+    this.standards = standardLinks(finding, guide);
+    this.cvssParts = explainCvss(finding.cvssVector);
+    this.attackParams = [...new Set(locationsOf(finding).map((l) => l.parameter).filter((p): p is string => Boolean(p)))];
+    const proof = this.selectedEvidence.find((e) => e.reproduction || e.rawResponse);
+    const marked = (proof?.rawResponse ?? '').match(/>>> ([\s\S]*?) <<</)?.[1] ?? null;
+    this.ticketText = buildTicket({
+      finding,
+      guide,
+      severityLabel: this.severityLabel[finding.severity],
+      targetUrl: this.scan.targetUrl,
+      environment: this.environmentLabel[this.scan.environment],
+      locations: locationsOf(finding).map((l) => [l.affectedUrl, l.parameter && `parâmetro ${l.parameter}`].filter(Boolean).join(' · ')),
+      reproduction: proof?.reproduction ?? null,
+      evidenceLine: marked,
+    });
+  }
+
+  /** Requisição HTTP crua da ocorrência aberta, sem os marcadores (para o Burp Repeater). */
+  protected get rawRequestText(): string {
+    return stripEvidenceMarks(this.currentEvidence?.rawRequest ?? '');
+  }
 
   protected get isStudent(): boolean {
     return this.view.explanations;
@@ -318,12 +408,15 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     this.selected = finding;
     this.selectedEvidence = finding ? evidenceItems([finding]) : [];
     this.occurrenceIndex = 0;
+    const roleTabs: DetailTab[] = ['learn', 'ticket', 'exploit'];
     const tabMissing =
       (this.detailTab === 'evidence' && this.selectedEvidence.length === 0) ||
-      (this.detailTab === 'compliance' && !finding?.compliance.length);
+      (this.detailTab === 'compliance' && !finding?.compliance.length) ||
+      (roleTabs.includes(this.detailTab) && !this.roleTab(this.detailTab as 'learn' | 'ticket' | 'exploit'));
     if (!keepTab || tabMissing) this.detailTab = this.preferredDetailTab();
     this.viewerTab = this.firstViewerTab(this.currentEvidence);
     this.buildViewer();
+    this.buildRoleContent(finding);
   }
 
   protected setDetailTab(tab: DetailTab): void {
@@ -369,9 +462,12 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     if (!this.selected || !this.filteredFindings.includes(this.selected)) this.select(this.filteredFindings[0] ?? null, false);
   }
 
-  /** Sub-aba que o perfil vê primeiro (RF-11): Pentester a evidência, os demais a correção. */
+  /** Sub-aba que o perfil vê primeiro (RF-11): a dele (Aprender, Ticket, Exploração); Dev a correção. */
   private preferredDetailTab(): DetailTab {
-    return this.view.defaultTab === 'evidence' && this.selectedEvidence.length ? 'evidence' : 'fix';
+    if (this.role === 'STUDENT') return 'learn';
+    if (this.role === 'QA') return 'ticket';
+    if (this.role === 'PENTESTER') return 'exploit';
+    return 'fix';
   }
 
   private firstViewerTab(e: EvidenceItem | null): ViewerTab {
@@ -478,12 +574,14 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   /** Na primeira carga, abre a aba e os achados que o perfil prioriza (RF-11). */
   private applyRoleView(scan: ScanDetail): void {
-    if (scan.role) this.view = roleView(scan.role);
+    if (scan.role) {
+      this.role = scan.role;
+      this.view = roleView(scan.role);
+    }
     if (this.viewApplied || !hasResults(scan.status)) return;
     this.viewApplied = true;
-    // QA abre no resumo; os demais no painel de achados, com o mais grave aberto na
-    // sub-aba do perfil (Pentester na evidência, os outros na correção)
-    this.tab = this.view.defaultTab === 'overview' ? 'overview' : 'findings';
+    // todos abrem no painel de achados, com o mais grave aberto na sub-aba do perfil
+    this.tab = 'findings';
     this.select(this.filteredFindings[0] ?? null, false);
   }
 

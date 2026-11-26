@@ -71,6 +71,47 @@ export const groupObjectives = (objectives: ScanObjective[]): ObjectiveGroup[] =
   return groups.filter((g) => g.objectives.length > 0);
 };
 
+/** Etapa do plano da varredura (linha do tempo da lateral). */
+export interface PlanStep {
+  title: string;
+  detail: string;
+  /** 'run' roda; 'gated' depende da autorização extra da próxima tela; 'skip' não roda */
+  state: 'run' | 'gated' | 'skip';
+}
+
+/** O que a varredura vai fazer, na ordem, para o tipo e o alvo escolhidos. */
+export const planSteps = (objective: ScanObjective | undefined, kind: 'local' | 'public' | null): PlanStep[] => {
+  if (!objective) return [];
+  const steps: PlanStep[] = [];
+  const engines = objective.engines;
+  if (engines.includes('ZAP')) {
+    steps.push({ title: 'Mapeamento do site', detail: 'Spider do ZAP; em SPA (Angular, React, Vue) abre um navegador', state: 'run' });
+    steps.push({ title: 'Análise passiva', detail: 'Só observa as respostas: cabeçalhos, cookies, vazamentos', state: 'run' });
+    if (objective.zapActive) {
+      steps.push(
+        kind === 'public'
+          ? { title: 'Ataque ativo (ZAP)', detail: 'Em site público, só com a autorização extra da próxima tela', state: 'gated' }
+          : { title: 'Ataque ativo (ZAP)', detail: 'Envia os ataques do tipo escolhido; liberado em ambiente local', state: 'run' },
+      );
+    }
+  }
+  if (engines.includes('NUCLEI')) {
+    steps.push({
+      title: 'Templates do Nuclei',
+      detail: objective.nucleiAllTemplates ? 'Todos os ~14 mil templates (CVEs, exposições, configuração)' : 'Só os templates deste tipo de falha',
+      state: 'run',
+    });
+  }
+  if (engines.includes('SUBFINDER')) {
+    steps.push(
+      kind === 'local'
+        ? { title: 'Subdomínios', detail: 'Não se aplica a localhost ou endereço IP', state: 'skip' }
+        : { title: 'Subdomínios', detail: 'Fontes públicas (Subfinder), sem tocar no site', state: 'run' },
+    );
+  }
+  return steps;
+};
+
 const DRAFT_KEY = 'new-scan';
 
 interface NewScanDraft {
@@ -112,6 +153,12 @@ export class NewScanPageComponent implements OnInit {
   protected isSubmitting = false;
   protected submitError: string | null = null;
   protected needsVerification = false;
+  /** linha do tempo do plano (campo, não getter: o *ngFor não recria as etapas a cada verificação) */
+  protected steps: PlanStep[] = [];
+
+  private refreshPlan(): void {
+    this.steps = planSteps(this.selected, this.targetKind);
+  }
 
   ngOnInit(): void {
     const draft = this.drafts.load<NewScanDraft>(DRAFT_KEY);
@@ -126,6 +173,9 @@ export class NewScanPageComponent implements OnInit {
         if (this.objective && !objectives.some((o) => o.key === this.objective)) this.objective = null;
         // plano sem escolha: o tipo é fixo (o backend aplica o mesmo padrão)
         if (!this.plan.canChooseObjective) this.objective = this.plan.defaultObjective;
+        // abre na categoria do tipo já escolhido (rascunho), ou na primeira
+        this.groupKey = this.groups.find((g) => g.objectives.some((o) => o.key === this.objective))?.key ?? this.groupKey ?? this.groups[0]?.key ?? null;
+        this.refreshPlan();
         this.isLoading = false;
       },
       error: (error: ApiError) => {
@@ -173,6 +223,7 @@ export class NewScanPageComponent implements OnInit {
   }
 
   protected saveDraft(): void {
+    this.refreshPlan();
     this.drafts.save<NewScanDraft>(DRAFT_KEY, { targetUrl: this.targetUrl, groupKey: this.groupKey, objective: this.objective });
   }
 

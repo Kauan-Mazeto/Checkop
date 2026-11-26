@@ -4,7 +4,7 @@
 // Base (botões, abas, paywall, cores) em src/styles/_app-ui.scss (escopo .ck-app).
 
 $severities: (CRITICAL: critical, HIGH: high, MEDIUM: medium, LOW: low, INFO: info);
-$hairline: rgba(255, 255, 255, 0.08);
+$hairline: rgba(255, 255, 255, 0.16);
 $hairline-soft: rgba(255, 255, 255, 0.05);
 
 :host {
@@ -313,7 +313,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   grid-template-columns: 300px minmax(0, 1fr) 270px;
   height: max(560px, calc(100vh - 260px));
   // contorno branco: destaca a área de trabalho do fundo escuro
-  border: 1px solid #fff;
+  border: 1.5px solid #fff;
   border-radius: 10px;
   background: var(--surface);
   overflow: hidden;
@@ -368,7 +368,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   height: 34px;
   padding: 0 10px;
   // contorno branco: os campos da lista se destacam do fundo escuro
-  border: 1px solid #fff;
+  border: 1.5px solid #fff;
   border-radius: 8px;
   background: var(--bg);
   color: var(--muted);
@@ -429,7 +429,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
     min-width: 0;
     height: 30px;
     padding: 0 8px;
-    border: 1px solid #fff;
+    border: 1.5px solid #fff;
     border-radius: 6px;
     outline: 0;
     background: var(--bg);
@@ -1216,5 +1216,198 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   .alert,
   .notices {
     display: none !important;
+  }
+}
+
+// =========================================================
+// Troca de perfil e conteúdo de cada perfil
+// =========================================================
+.role-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  color: var(--faint);
+  font-size: 12.5px;
+
+  select {
+    height: 30px;
+    padding: 0 8px;
+    border: 1.5px solid #fff;
+    border-radius: 6px;
+    outline: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+
+    &:focus-visible {
+      box-shadow: 0 0 0 1px #fff;
+    }
+  }
+}
+
+.role-error {
+  padding-bottom: 8px;
+  color: var(--brand-hover);
+  font-size: 12.5px;
+}
+
+// a aba do perfil se diferencia das demais
+.detail-tabs .role-tab {
+  color: var(--text);
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+    vertical-align: middle;
+  }
+}
+
+.guide {
+  gap: 20px;
+  width: 100%;
+}
+
+.guide-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+
+  h4 {
+    margin: 0;
+    color: var(--faint);
+    font-size: 11.5px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid $hairline-soft;
+
+  li {
+    border-bottom: 1px solid $hairline-soft;
+  }
+
+  // links de referência com cor de link por padrão (azul): dá para ver que são clicáveis
+  a {
+    display: block;
+    padding: 9px 2px;
+    color: #79b8ff;
+    font-size: 13.5px;
+    text-decoration: underline;
+    text-decoration-color: rgba(121, 184, 255, 0.35);
+    text-underline-offset: 3px;
+
+    &:hover {
+      color: #a8d1ff;
+      text-decoration-color: #a8d1ff;
+    }
+
+    &:visited {
+      color: #b392f0;
+    }
+
+    span {
+      color: inherit;
+    }
+  }
+}
+
+.ticket-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ticket-text {
+  max-height: 420px;
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  border: 1.5px solid #fff;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.exploit-facts {
+  margin: 0;
+
+  > div {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid $hairline-soft;
+    font-size: 13px;
+  }
+
+  dt {
+    flex: 0 0 120px;
+    color: var(--faint);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.payload {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  word-break: break-all;
+}
+
+.cvss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th,
+  td {
+    padding: 8px 0;
+    border-bottom: 1px solid $hairline-soft;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    width: 55%;
+    color: var(--muted);
+    font-weight: 500;
+
+    .mono {
+      display: inline-block;
+      min-width: 46px;
+      color: var(--text);
+    }
   }
 }
