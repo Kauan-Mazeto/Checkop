@@ -386,8 +386,8 @@ h3 {
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
   background: var(--surface);
   color: var(--text);
   text-align: left;
@@ -398,9 +398,15 @@ h3 {
     font-size: 12.5px;
   }
 
+  // escolhida: branca, como as abas e botões escolhidos das outras telas
   &.selected {
-    border-color: var(--brand);
-    background: var(--brand-soft);
+    border-color: #fff;
+    background: #fff;
+    color: var(--bg);
+
+    span {
+      color: #3a3a3f;
+    }
   }
 
   &:disabled {

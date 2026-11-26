@@ -128,7 +128,7 @@
     flex-direction: column;
     height: 100vh;
     padding: 18px 14px;
-    border-right: 1px solid var(--border);
+    border-right: 1px solid rgba(255, 255, 255, 0.16);
     background: var(--bg-sidebar);
   }
 
@@ -191,11 +191,13 @@
       color: #fff;
     }
 
-    // único destaque avermelhado do menu: o item ativo
+    // item ativo: fundo claro e barra branca à esquerda (mesmo padrão dos submenus)
     &.active {
-      border-color: var(--brand-border);
-      background: #301018;
+      border-color: transparent;
+      background: var(--surface-hover);
+      box-shadow: inset 2px 0 0 #fff;
       color: #fff;
+      font-weight: 600;
     }
 
     .nav-badge {
@@ -490,9 +492,10 @@
   // =========================================================
   // Cartões e grades
   // =========================================================
+  // contorno branco: o estilo das telas refeitas (detalhe, nova varredura, histórico...)
   .card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border: 1.5px solid #fff;
+    border-radius: 12px;
     background: var(--surface);
     box-shadow: var(--shadow);
   }
@@ -507,11 +510,11 @@
     justify-content: space-between;
     gap: 12px;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 
     h2 {
-      font-size: 14.5px;
-      font-weight: 600;
+      font-size: 15px;
+      font-weight: 650;
     }
 
     p {
@@ -829,8 +832,9 @@
     width: 100%;
     min-height: 38px;
     padding: 8px 12px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    // contorno branco nos campos, como nas telas refeitas
+    border: 1.5px solid rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
     outline: 0;
     background: var(--bg);
     color: var(--text);
@@ -842,8 +846,8 @@
     }
 
     &:focus {
-      border-color: var(--info);
-      box-shadow: 0 0 0 3px rgba(130, 153, 173, 0.15);
+      border-color: #fff;
+      box-shadow: 0 0 0 1px #fff;
     }
   }
 

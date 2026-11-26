@@ -31,11 +31,41 @@ export const filterScans = (scans: Scan[], f: HistoryFilters): Scan[] => {
   );
 };
 
+export interface DayGroup {
+  /** "Hoje", "Ontem" ou "24 de novembro" */
+  label: string;
+  scans: Scan[];
+}
+
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** Agrupa por dia (a lista já vem da mais recente para a mais antiga). */
+export const groupByDay = (scans: Scan[], now = new Date()): DayGroup[] => {
+  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const today = dayKey(now);
+  const yesterday = dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  const groups: DayGroup[] = [];
+  let currentKey = '';
+  for (const scan of scans) {
+    const date = new Date(scan.createdAt);
+    const key = dayKey(date);
+    if (key !== currentKey) {
+      currentKey = key;
+      const label = key === today ? 'Hoje' : key === yesterday ? 'Ontem'
+        : `${date.getDate()} de ${MONTHS[date.getMonth()]}${date.getFullYear() !== now.getFullYear() ? ` de ${date.getFullYear()}` : ''}`;
+      groups.push({ label, scans: [] });
+    }
+    groups[groups.length - 1].scans.push(scan);
+  }
+  return groups;
+};
+
 @Component({
   selector: 'app-scan-history-page',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, AppShellComponent],
   templateUrl: './scan-history-page.component.html',
+  styleUrl: './scan-history-page.component.scss',
 })
 export class ScanHistoryPageComponent implements OnInit {
   private readonly scanService = inject(ScanService);
@@ -54,12 +84,23 @@ export class ScanHistoryPageComponent implements OnInit {
   protected isLoading = true;
   protected loadError: string | null = null;
 
+  /** lista filtrada e agrupada por dia (campos, não getters: o *ngFor não recria as linhas) */
+  protected visible: Scan[] = [];
+  protected days: DayGroup[] = [];
+  /** faixa de números do topo, por status */
+  protected counts: Record<ScanStatus, number> = { PENDING: 0, RUNNING: 0, COMPLETED: 0, CANCELED: 0, FAILED: 0 };
+  /** status nas abas do filtro (o pendente vai junto de "todas") */
+  protected readonly statusTabs: ScanStatus[] = ['COMPLETED', 'RUNNING', 'CANCELED', 'FAILED'];
+
   ngOnInit(): void {
     this.scanService.listScans().subscribe({
       next: (scans) => {
         this.scans = scans;
         const seen = new Map(scans.map((s) => [s.objective, s.objectiveLabel]));
         this.objectiveOptions = [...seen].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label));
+        this.counts = { PENDING: 0, RUNNING: 0, COMPLETED: 0, CANCELED: 0, FAILED: 0 };
+        for (const scan of scans) this.counts[scan.status]++;
+        this.refresh();
         this.isLoading = false;
       },
       error: (error: ApiError) => {
@@ -69,17 +110,32 @@ export class ScanHistoryPageComponent implements OnInit {
     });
   }
 
-  protected get visible(): Scan[] {
+  private refresh(): void {
     // sem histórico os filtros ficam ocultos; um filtro salvo não pode esconder o último scan
-    return this.plan.canViewHistory ? filterScans(this.scans, this.filters) : this.scans;
+    this.visible = this.plan.canViewHistory ? filterScans(this.scans, this.filters) : this.scans;
+    this.days = groupByDay(this.visible);
   }
 
   protected get hasFilters(): boolean {
     return Object.values(this.filters).some(Boolean);
   }
 
+  protected setStatus(status: ScanStatus | ''): void {
+    this.filters = { ...this.filters, status };
+    this.onFilterChange();
+  }
+
   protected onFilterChange(): void {
     this.drafts.save('history-filters', this.filters);
+    this.refresh();
+  }
+
+  protected trackById(_: number, scan: Scan): string {
+    return scan.id;
+  }
+
+  protected hasResults(scan: Scan): boolean {
+    return scan.status === 'COMPLETED' || scan.status === 'CANCELED';
   }
 
   protected clearFilters(): void {

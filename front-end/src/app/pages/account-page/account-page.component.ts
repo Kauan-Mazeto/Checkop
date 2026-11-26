@@ -13,6 +13,20 @@ import { DEFAULT_LANGUAGE, LANGUAGES } from '../../shared/ui/languages';
 
 const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
 
+/** Seções do submenu da conta (uma aberta por vez, sem rolar a página inteira). */
+export type AccountSection = 'profile' | 'plan' | 'notifications' | 'language' | 'access' | 'legal' | 'data' | 'delete';
+
+export const ACCOUNT_SECTIONS: { id: AccountSection; label: string; danger?: boolean }[] = [
+  { id: 'profile', label: 'Perfil' },
+  { id: 'plan', label: 'Plano' },
+  { id: 'notifications', label: 'Notificações' },
+  { id: 'language', label: 'Idioma dos relatórios' },
+  { id: 'access', label: 'Acessos recentes' },
+  { id: 'legal', label: 'Documentos legais' },
+  { id: 'data', label: 'Baixar meus dados' },
+  { id: 'delete', label: 'Excluir conta', danger: true },
+];
+
 @Component({
   selector: 'app-account-page',
   standalone: true,
@@ -21,6 +35,9 @@ const DELETE_PHRASE = 'EXCLUIR MINHA CONTA';
   styleUrl: './account-page.component.scss',
 })
 export class AccountPageComponent implements OnInit {
+  protected readonly sections = ACCOUNT_SECTIONS;
+  protected section: AccountSection = 'profile';
+
   private readonly account = inject(AccountService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -60,7 +77,8 @@ export class AccountPageComponent implements OnInit {
       },
     });
   }
-  protected roleMessage: { ok: boolean; text: string } | null = null;
+  /** role: perfil escolhido, mostrado com a cor dele na mensagem de sucesso */
+  protected roleMessage: { ok: boolean; text: string; role?: UserRole } | null = null;
 
   // idioma dos textos dos achados (título, descrição e "como corrigir")
   protected readonly languages = LANGUAGES;
@@ -98,7 +116,7 @@ export class AccountPageComponent implements OnInit {
       next: (user) => {
         this.isChangingRole = false;
         this.user = { ...this.user!, role: user.role };
-        this.roleMessage = { ok: true, text: 'Perfil atualizado. O painel e os relatórios já seguem o novo perfil.' };
+        this.roleMessage = { ok: true, role: user.role, text: 'O painel e os relatórios já seguem o novo perfil.' };
       },
       error: (error: ApiError) => {
         this.isChangingRole = false;

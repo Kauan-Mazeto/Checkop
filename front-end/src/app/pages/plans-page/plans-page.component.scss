@@ -1,8 +1,8 @@
 // Tabela de comparação de planos, no mesmo visual sóbrio de src/styles/_app-ui.scss
 // (cinzas neutros e o vermelho só no destaque do Premium).
-$border: #303135;
-$premium-bg: #1d1416;
-$premium-border: #662033;
+$border: rgba(255, 255, 255, 0.16);
+$premium-bg: rgba(229, 72, 77, 0.07);
+$premium-border: #e5484d;
 
 :host {
   display: block;
@@ -16,9 +16,10 @@ $premium-border: #662033;
   display: grid;
   grid-template-columns: minmax(280px, 1.4fr) minmax(220px, 1fr) minmax(220px, 1fr);
   overflow: hidden;
-  border: 1px solid $border;
-  border-radius: 6px;
-  background: #191a1c;
+  // contorno branco, como nas telas de varredura
+  border: 1.5px solid #fff;
+  border-radius: 12px;
+  background: var(--surface);
 }
 
 .cell {
@@ -148,14 +149,14 @@ $premium-border: #662033;
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: rgba(126, 170, 140, 0.15);
-    color: #7eaa8c;
+    background: #3a9e61;
+    color: #fff;
     font-size: 13px;
     font-weight: 700;
   }
 
   .no {
-    color: #85858b;
+    color: rgba(255, 255, 255, 0.35);
     font-size: 16px;
   }
 }
@@ -167,7 +168,7 @@ $premium-border: #662033;
   background: $premium-bg;
 
   &.top {
-    border-top: 3px solid #d84a56;
+    border-top: 3px solid #e5484d;
   }
 }
 

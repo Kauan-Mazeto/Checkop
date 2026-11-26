@@ -82,7 +82,8 @@ export class TargetsPageComponent implements OnInit {
       next: (targets) => {
         this.targets = targets;
         this.isLoading = false;
-        this.expandedId ??= targets.find((t) => !t.verified)?.id ?? null;
+        // abre o primeiro pendente (é o que precisa de ação); sem pendentes, o primeiro
+        this.expandedId ??= targets.find((t) => !t.verified)?.id ?? targets[0]?.id ?? null;
       },
       error: (error: ApiError) => {
         this.loadError = error.message;
@@ -159,6 +160,7 @@ export class TargetsPageComponent implements OnInit {
       next: () => {
         this.removingId = null;
         this.targets = this.targets.filter((t) => t.id !== target.id);
+        if (this.expandedId === target.id) this.expandedId = this.targets[0]?.id ?? null;
       },
       error: (error: ApiError) => {
         this.removingId = null;
@@ -167,8 +169,22 @@ export class TargetsPageComponent implements OnInit {
     });
   }
 
-  protected toggle(target: Target): void {
-    this.expandedId = this.expandedId === target.id ? null : target.id;
+  /** domínio aberto no painel de verificação (sempre um, quando a lista tem algum) */
+  protected select(target: Target): void {
+    this.expandedId = target.id;
+    this.confirmingRemoveId = null;
+  }
+
+  protected get selected(): Target | null {
+    return this.targets.find((t) => t.id === this.expandedId) ?? null;
+  }
+
+  protected get verifiedCount(): number {
+    return this.targets.filter((t) => t.verified).length;
+  }
+
+  protected trackById(_: number, target: Target): string {
+    return target.id;
   }
 
   protected copy(value: string | undefined, key: string): void {

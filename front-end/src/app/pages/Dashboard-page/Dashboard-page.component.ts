@@ -170,4 +170,12 @@ export class DashboardPageComponent implements OnInit {
   protected get recentScans(): Scan[] {
     return this.scans.slice(0, 6);
   }
+
+  protected trackById(_: number, scan: Scan): string {
+    return scan.id;
+  }
+
+  protected hasResults(scan: Scan): boolean {
+    return scan.status === 'COMPLETED' || scan.status === 'CANCELED';
+  }
 }

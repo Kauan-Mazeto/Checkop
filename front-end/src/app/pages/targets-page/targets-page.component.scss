@@ -1,87 +1,444 @@
-// Base visual em src/styles/_app-ui.scss (escopo .ck-app).
+// Domínios: faixa para adicionar, lista de domínios e o passo a passo de verificação
+// do domínio escolhido. Mesmo estilo das telas de varredura: linhas finas, contorno
+// branco, sem cartões. Base (botões, alertas) em src/styles/_app-ui.scss.
+
+$hairline: rgba(255, 255, 255, 0.16);
+$hairline-soft: rgba(255, 255, 255, 0.07);
+$white-line: #fff;
+$ok: #4fb276;
+$pending: #e5b24c;
+
 :host {
   display: block;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  align-items: start;
-  gap: 20px;
+.mono {
+  font-family: var(--mono);
 }
 
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.meta-text {
+  color: var(--faint);
+  font-size: 12.5px;
 }
 
-.target-title {
+.section-title {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 
-  small {
-    color: #b0b0b5;
+  span {
+    color: var(--muted);
     font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
   }
 }
 
-.target-detail {
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(229, 178, 76, 0.14);
+  color: $pending;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.ok {
+    background: rgba(79, 178, 118, 0.14);
+    color: $ok;
+  }
+}
+
+.state-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: $pending;
+
+  &.ok {
+    background: $ok;
+  }
+}
+
+// ---------- cabeçalho ----------
+.t-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+}
+
+// ---------- adicionar ----------
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.add-url {
+  display: flex;
+  flex: 1 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--muted);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+  }
+}
+
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--bg);
+
+  button {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 550;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &.active {
+      background: $white-line;
+      color: var(--bg);
+    }
+  }
+}
+
+.add-submit {
+  min-height: 40px;
+}
+
+.add-hint {
+  margin: -14px 0 0;
+  padding-left: 4px;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+// ---------- estados ----------
+.state {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 44px 16px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+
+  strong {
+    color: var(--text);
+    font-size: 15px;
+  }
+}
+
+// ---------- lista | verificação ----------
+.split {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid $hairline;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  padding: 0 20px 18px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  text-align: left;
+
+  &:hover {
+    background: var(--surface-2);
+  }
+
+  &.active {
+    background: var(--surface-hover);
+    box-shadow: inset 3px 0 0 $white-line;
+  }
+}
+
+.row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row-host {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+// passo a passo do domínio escolhido
+.verify {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.verify-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid $hairline;
+
+  h2 {
+    margin: 8px 0 4px;
+    font-size: 19px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+}
+
+.verify-btn {
+  min-height: 42px;
+  padding: 0 20px;
+  font-weight: 600;
+}
+
+.feedback {
+  padding: 12px 14px;
+  border: 1px solid rgba(242, 119, 123, 0.5);
+  border-radius: 9px;
+  background: rgba(229, 72, 77, 0.1);
+  color: #f2777b;
+  font-size: 13px;
+
+  &.ok {
+    border-color: rgba(79, 178, 118, 0.5);
+    background: rgba(79, 178, 118, 0.1);
+    color: $ok;
+  }
 }
 
 .steps {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   margin: 0;
-  padding-left: 20px;
-  color: #d5d5d8;
-  font-size: 13.5px;
+  padding: 0;
+  list-style: none;
 
-  .copy-field {
-    margin-top: 8px;
+  li {
+    display: flex;
+    gap: 14px;
+    color: var(--text-2);
+    font-size: 13.5px;
+    line-height: 1.6;
+
+    > div {
+      flex: 1;
+      min-width: 0;
+    }
   }
 }
 
+.step-n {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid $white-line;
+  border-radius: 50%;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.copy {
+  display: flex;
+  align-items: stretch;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: var(--surface);
+
+  code {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    word-break: break-all;
+  }
+
+  button {
+    flex-shrink: 0;
+    padding: 0 14px;
+    border: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.35);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+
+    &:hover {
+      background: var(--surface-hover);
+    }
+  }
+}
+
+.inline {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.note {
+  margin: 0;
+}
+
+.verify-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid $hairline;
+}
+
+.remove {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #f2777b;
+  font-size: 13px;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+// ---------- garantias ----------
 .rules {
-  position: sticky;
-  top: 24px;
+  padding-top: 8px;
 
   ul {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 0;
-    padding-left: 36px;
-    color: #d5d5d8;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0 28px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    padding: 10px 0;
+    border-bottom: 1px solid $hairline-soft;
+    color: var(--muted);
     font-size: 13px;
-  }
+    line-height: 1.55;
 
-  strong {
-    color: #f1f1f2;
-  }
-
-  .legal {
-    padding-top: 0;
+    strong {
+      color: var(--text);
+    }
   }
 }
 
-@media (max-width: 1100px) {
-  .layout {
+@media (max-width: 900px) {
+  .split {
     grid-template-columns: 1fr;
-  }
-
-  .rules {
-    position: static;
   }
 }

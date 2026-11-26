@@ -73,3 +73,346 @@
     width: min(300px, calc(100vw - 32px));
   }
 }
+
+// =========================================================
+// Painel (bento): saudação, números, blocos de tamanhos diferentes com contorno
+// branco e o painel do perfil. Mesmo estilo das telas de varredura.
+// =========================================================
+$hairline: rgba(255, 255, 255, 0.16);
+$hairline-soft: rgba(255, 255, 255, 0.07);
+$white-line: #fff;
+
+:host {
+  --status-color: var(--faint);
+}
+
+[data-status='COMPLETED'] { --status-color: #4fb276; }
+[data-status='RUNNING'] { --status-color: #79b8ff; }
+[data-status='CANCELED'] { --status-color: #e5b24c; }
+[data-status='FAILED'] { --status-color: #f2777b; }
+
+.mono {
+  font-family: var(--mono);
+}
+
+.meta-text {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+// ---------- saudação ----------
+.d-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+}
+
+.d-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+
+  &.chip-premium {
+    border-color: var(--brand);
+    background: var(--brand-soft);
+    color: var(--brand-text);
+  }
+}
+
+.d-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// ---------- números ----------
+.kpis {
+  display: flex;
+  flex-wrap: wrap;
+  border-top: 1px solid $hairline;
+  border-bottom: 1px solid $hairline;
+}
+
+.kpi {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 24px;
+  border-right: 1px solid $hairline-soft;
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  strong {
+    font-size: 34px;
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  &.kpi-alert strong {
+    color: #f2777b;
+  }
+}
+
+// ---------- bento ----------
+.bento {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.tile-recent {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.tile-wide {
+  grid-column: span 2;
+}
+
+.tile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 650;
+  }
+}
+
+.tile-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+
+  strong {
+    color: var(--text);
+    font-size: 15px;
+  }
+}
+
+.tile-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+// linhas de varredura (mesmo desenho do Histórico)
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid $hairline;
+  }
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 100px 86px 80px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 6px;
+  border-radius: 8px;
+  color: var(--text-2);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--surface-2);
+  }
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-color);
+}
+
+.row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row-url {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-status {
+  color: var(--status-color);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.row-num {
+  font-size: 12.5px;
+
+  strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+}
+
+.row-meta {
+  color: var(--faint);
+  font-size: 12px;
+  text-align: right;
+}
+
+// atalhos
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+
+  a {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 11px 4px;
+    border-bottom: 1px solid $hairline-soft;
+    color: var(--text);
+    text-decoration: none;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &:hover strong {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    strong {
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    span {
+      color: var(--faint);
+      font-size: 12px;
+    }
+
+    strong::after {
+      content: ' →';
+      color: var(--faint);
+    }
+  }
+}
+
+// ---------- painel do perfil e planos: os cartões dos componentes ganham o contorno ----------
+.role-zone ::ng-deep .card {
+  border: 1.5px solid $white-line;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+@media (max-width: 1100px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile-recent,
+  .tile-wide {
+    grid-column: span 2;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .bento {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-recent,
+  .tile-wide {
+    grid-column: auto;
+  }
+
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+
+    .row-status,
+    .row-meta {
+      display: none;
+    }
+  }
+
+  .kpi {
+    padding-left: 0;
+  }
+}

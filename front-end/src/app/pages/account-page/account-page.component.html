@@ -1,188 +1,179 @@
 ﻿<app-shell>
-  <header class="page-header">
-    <div>
-      <h1>Conta e privacidade</h1>
-      <p>Seus dados, seu plano e seus direitos pela LGPD.</p>
-    </div>
+  <header class="a-head">
+    <h1>Conta e privacidade</h1>
+    <p>Seus dados, seu plano e seus direitos pela LGPD.</p>
   </header>
 
-  <div class="grid grid-2">
-    <!-- Perfil -->
-    <section class="card" *ngIf="user">
-      <header class="card-header"><h2>Perfil</h2></header>
-      <dl class="card-body facts">
-        <div><dt>Nome</dt><dd>{{ user.name }}</dd></div>
-        <div><dt>E-mail</dt><dd>{{ user.email }}</dd></div>
-        <div><dt>Perfil de uso</dt><dd>{{ roleLabel[user.role] }}</dd></div>
-        <div><dt>Plano</dt><dd><span class="badge" [class.badge-pro]="isPremium">{{ isPremium ? 'Premium' : 'Free' }}</span></dd></div>
-      </dl>
-      <div class="card-body role-switch" *ngIf="user.role !== 'ADM'">
-        <span class="hint">O perfil muda o painel e o formato dos relatórios.</span>
-        <div class="role-options" role="radiogroup" aria-label="Perfil de uso">
-          <button *ngFor="let r of selectableRoles" type="button" role="radio" class="role-option"
-            [class.selected]="user.role === r.id" [attr.aria-checked]="user.role === r.id"
-            [disabled]="isChangingRole" (click)="changeRole(r.id)">{{ r.label }}</button>
-        </div>
-        <div *ngIf="roleMessage" class="alert" [class.alert-success]="roleMessage.ok" [class.alert-error]="!roleMessage.ok" role="status">{{ roleMessage.text }}</div>
-      </div>
-    </section>
+  <div class="settings">
+    <!-- ===== submenu ===== -->
+    <nav class="side-nav" aria-label="Seções da conta">
+      <button *ngFor="let s of sections" type="button" [class.active]="section === s.id" [class.danger]="s.danger"
+        [attr.aria-current]="section === s.id ? 'page' : null" (click)="section = s.id">{{ s.label }}</button>
+    </nav>
 
-    <!-- Planos -->
-    <section class="card">
-      <header class="card-header">
-        <div><h2>Planos</h2><p>Troca demonstrativa: o TCC não inclui cobrança (seção 6.3).</p></div>
-      </header>
-      <div class="card-body form">
-        <p class="hint">
-          Você está no plano <strong>{{ isPremium ? 'Premium' : 'Free' }}</strong>.
-          {{ isPremium
-            ? 'Varreduras ilimitadas, todos os tipos de teste, histórico, relatórios, correção, PoC, compliance e análise de código estão liberados.'
-            : 'O Free faz 1 scan básico por dia e mostra o diagnóstico. O Premium libera os tipos de teste, o histórico, os relatórios, a correção, a PoC, o compliance e a análise de código.' }}
-        </p>
-        <div class="actions">
+    <div class="panel">
+      <!-- Perfil -->
+      <section *ngIf="section === 'profile' && user" class="block">
+        <header class="block-head"><h2>Perfil</h2><p>Quem você é e como o Checkop mostra os relatórios.</p></header>
+        <dl class="facts">
+          <div><dt>Nome</dt><dd>{{ user.name }}</dd></div>
+          <div><dt>E-mail</dt><dd>{{ user.email }}</dd></div>
+          <div><dt>Plano</dt><dd><span class="pill" [class.pill-premium]="isPremium">{{ isPremium ? 'Premium' : 'Free' }}</span></dd></div>
+        </dl>
+        <div class="block-row" *ngIf="user.role !== 'ADM'; else admin">
+          <div>
+            <strong>Perfil de uso</strong>
+            <p>Muda o painel inicial e o que aparece em cada achado (Dev, QA, Pentester ou Estudante).</p>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Perfil de uso">
+            <button *ngFor="let r of selectableRoles" type="button" role="radio" [class.active]="user.role === r.id" [attr.data-role]="r.id"
+              [attr.aria-checked]="user.role === r.id" [disabled]="isChangingRole" (click)="changeRole(r.id)">
+              {{ r.label }}
+            </button>
+          </div>
+        </div>
+        <ng-template #admin><p class="meta-text">Perfil de uso: {{ roleLabel[user.role] }} (administradores não trocam por aqui).</p></ng-template>
+        <div *ngIf="roleMessage" class="role-message" [class.error]="!roleMessage.ok" [attr.data-role]="roleMessage.role" role="status">
+          <ng-container *ngIf="roleMessage.ok && roleMessage.role; else plainMessage">
+            Perfil atualizado para <strong class="role-name">{{ roleLabel[roleMessage.role] }}</strong>. {{ roleMessage.text }}
+          </ng-container>
+          <ng-template #plainMessage>{{ roleMessage.text }}</ng-template>
+        </div>
+      </section>
+
+      <!-- Plano -->
+      <section *ngIf="section === 'plan'" class="block">
+        <header class="block-head"><h2>Plano</h2><p>Troca demonstrativa: o TCC não inclui cobrança (seção 6.3).</p></header>
+        <div class="block-row">
+          <div>
+            <strong>Você está no plano <span class="pill" [class.pill-premium]="isPremium">{{ isPremium ? 'Premium' : 'Free' }}</span></strong>
+            <p>
+              {{ isPremium
+                ? 'Varreduras ilimitadas, todos os tipos de teste, histórico, relatórios, correção, PoC, compliance e análise de código estão liberados.'
+                : 'O Free faz 1 scan básico por dia e mostra o diagnóstico. O Premium libera os tipos de teste, o histórico, os relatórios, a correção, a PoC, o compliance e a análise de código.' }}
+            </p>
+          </div>
           <a class="button button-primary" routerLink="/plans">{{ isPremium ? 'Gerenciar plano' : 'Conhecer o Premium' }}</a>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <!-- Notificações (RF-22) -->
+      <section *ngIf="section === 'notifications'" class="block">
+        <header class="block-head"><h2>Notificações</h2><p>Avisos sobre as suas varreduras.</p></header>
+        <app-check [checked]="notifyScanEmail" (checkedChange)="toggleNotify($event)">
+          <strong>E-mail quando uma varredura terminar</strong>
+          Com a contagem por severidade e destaque para falhas críticas e altas. Os detalhes técnicos ficam só na plataforma.
+        </app-check>
+        <div *ngIf="notifyMessage" class="alert" [class.alert-success]="notifyMessage.ok" [class.alert-error]="!notifyMessage.ok" role="status">{{ notifyMessage.text }}</div>
+      </section>
+
+      <!-- Idioma dos relatórios -->
+      <section *ngIf="section === 'language'" class="block">
+        <header class="block-head">
+          <h2>Idioma dos relatórios</h2>
+          <p>Título, descrição e "como corrigir" de cada achado. As ferramentas publicam as regras em inglês; os demais idiomas são traduzidos automaticamente.</p>
+        </header>
+        <div class="block-row">
+          <div><strong>Idioma</strong><p>Vale para as próximas telas abertas.</p></div>
+          <select class="white-select" name="language" [ngModel]="language" (ngModelChange)="changeLanguage($event)" [disabled]="isSavingLanguage" aria-label="Idioma">
+            <option *ngFor="let l of languages" [value]="l.code">{{ l.label }}</option>
+          </select>
+        </div>
+        <div *ngIf="languageMessage" class="alert" [class.alert-success]="languageMessage.ok" [class.alert-error]="!languageMessage.ok" role="status">{{ languageMessage.text }}</div>
+      </section>
+
+      <!-- Acessos recentes (auditoria, RNF-23) -->
+      <section *ngIf="section === 'access'" class="block">
+        <header class="block-head"><h2>Acessos recentes</h2><p>Os 10 acessos mais recentes à sua conta. Não reconhece algum? Troque a senha.</p></header>
+        <div *ngIf="attemptsError" class="alert alert-error">{{ attemptsError }}</div>
+        <p *ngIf="!attemptsError && attempts.length === 0" class="meta-text">Nenhum acesso registrado.</p>
+        <ul *ngIf="attempts.length > 0" class="access-rows">
+          <li *ngFor="let a of attempts | slice: 0 : 10" class="access-row" [class.fail]="!a.success">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="access-result">{{ a.success ? 'Sucesso' : 'Falhou' }}</span>
+            <span class="access-browser">{{ browser(a.userAgent) }}</span>
+            <span class="mono access-ip" [title]="a.ipAddress || ''">{{ formatIp(a.ipAddress) }}</span>
+            <span class="mono access-date">{{ a.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Documentos legais -->
+      <section *ngIf="section === 'legal'" class="block">
+        <header class="block-head"><h2>Documentos legais</h2><p>Os textos que regem o uso do Checkop e o tratamento dos seus dados.</p></header>
+        <div class="docs">
+          <a class="doc" routerLink="/terms" target="_blank" rel="noopener">
+            <strong>Termos de Uso ↗</strong>
+            <span>{{ terms ? 'Versão ' + terms.version + ' · atualizado em ' + (terms.lastUpdated | date: 'dd/MM/yyyy') : 'Regras de uso, planos e autorização de testes' }}</span>
+          </a>
+          <a class="doc" routerLink="/privacy" target="_blank" rel="noopener">
+            <strong>Política de Privacidade ↗</strong>
+            <span>{{ policy ? 'Versão ' + policy.version + ' · atualizada em ' + (policy.lastUpdated | date: 'dd/MM/yyyy') : 'Dados coletados, finalidades e seus direitos (LGPD)' }}</span>
+          </a>
+        </div>
+        <p class="meta-text">
+          Outros pedidos da LGPD (art. 18), como correção de dados, podem ser feitos em
+          <a class="link" href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>.
+        </p>
+      </section>
+
+      <!-- Baixar meus dados (LGPD art. 18, II e V) -->
+      <section *ngIf="section === 'data'" class="block">
+        <header class="block-head">
+          <h2>Baixar meus dados</h2>
+          <p>Uma cópia de tudo o que o Checkop guarda sobre você, num arquivo JSON que pode ser levado a outro serviço (LGPD, art. 18).</p>
+        </header>
+        <div class="block-row">
+          <p>
+            Inclui a conta, o histórico de aceites dos Termos, os domínios, as varreduras com os achados, os acessos e os registros de
+            auditoria. Ficam de fora só o hash da senha e os códigos de redefinição. O código enviado para análise não é guardado.
+          </p>
+          <button class="button button-outline" type="button" (click)="downloadMyData()" [disabled]="isDownloadingData">
+            <span *ngIf="isDownloadingData" class="spinner" aria-hidden="true"></span>
+            Baixar meus dados
+          </button>
+        </div>
+        <div *ngIf="myDataError" class="alert alert-error" role="alert">{{ myDataError }}</div>
+      </section>
+
+      <!-- Exclusão de conta (LGPD art. 18) -->
+      <section *ngIf="section === 'delete'" class="block block-danger">
+        <header class="block-head">
+          <h2>Excluir conta</h2>
+          <p>Apaga seus dados pessoais, varreduras e domínios. Os registros de acesso ficam por 6 meses sem identificação, por obrigação legal.</p>
+        </header>
+        <div class="form">
+          <label class="switch">
+            <input type="checkbox" [(ngModel)]="googleAccount" name="google" />
+            <span class="switch-track"></span>
+            Entrei com o Google (não tenho senha)
+          </label>
+
+          <label class="field" *ngIf="!googleAccount">
+            <span>Confirme com sua senha</span>
+            <input class="input white-input" type="password" name="deletePassword" [(ngModel)]="deletePassword" autocomplete="current-password" />
+          </label>
+
+          <label class="field" *ngIf="googleAccount">
+            <span>Digite <strong class="mono">{{ deletePhrase }}</strong> para confirmar</span>
+            <input class="input white-input" type="text" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" />
+          </label>
+
+          <app-check [(checked)]="deleteAcknowledged">
+            <strong>Entendo que a exclusão é definitiva</strong>
+            Não é possível desfazer nem recuperar as varreduras depois.
+          </app-check>
+
+          <div *ngIf="deleteError" class="alert alert-error" role="alert">{{ deleteError }}</div>
+
+          <div class="actions">
+            <button class="button button-danger-solid" type="button" (click)="deleteAccount()" [disabled]="!canDelete">
+              <span *ngIf="isDeleting" class="spinner" aria-hidden="true"></span>
+              Excluir minha conta
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
-
-  <!-- Notificações (RF-22) -->
-  <section class="card">
-    <header class="card-header">
-      <div><h2>Notificações</h2><p>Avisos sobre as suas varreduras.</p></div>
-    </header>
-    <div class="card-body form">
-      <app-check [checked]="notifyScanEmail" (checkedChange)="toggleNotify($event)">
-        <strong>E-mail quando uma varredura terminar</strong>
-        Com a contagem por severidade e destaque para falhas críticas e altas. Os detalhes técnicos ficam só na plataforma.
-      </app-check>
-      <div *ngIf="notifyMessage" class="alert" [class.alert-success]="notifyMessage.ok" [class.alert-error]="!notifyMessage.ok" role="status">{{ notifyMessage.text }}</div>
-    </div>
-  </section>
-
-  <!-- Idioma dos relatórios -->
-  <section class="card">
-    <header class="card-header">
-      <div>
-        <h2>Idioma dos relatórios</h2>
-        <p>Título, descrição e "como corrigir" de cada achado. As ferramentas publicam as regras em inglês; os demais idiomas são traduzidos automaticamente.</p>
-      </div>
-    </header>
-    <div class="card-body form">
-      <label class="field">
-        <span>Idioma</span>
-        <select class="select" name="language" [ngModel]="language" (ngModelChange)="changeLanguage($event)" [disabled]="isSavingLanguage">
-          <option *ngFor="let l of languages" [value]="l.code">{{ l.label }}</option>
-        </select>
-      </label>
-      <div *ngIf="languageMessage" class="alert" [class.alert-success]="languageMessage.ok" [class.alert-error]="!languageMessage.ok" role="status">{{ languageMessage.text }}</div>
-    </div>
-  </section>
-
-  <!-- Histórico de logins (auditoria, RNF-23) -->
-  <section class="card">
-    <header class="card-header">
-      <div><h2>Acessos recentes</h2><p>Últimas 50 tentativas de login na sua conta. Não reconhece alguma? Troque a senha.</p></div>
-    </header>
-    <div *ngIf="attemptsError" class="card-body"><div class="alert alert-error">{{ attemptsError }}</div></div>
-    <div *ngIf="!attemptsError && attempts.length === 0" class="empty"><p>Nenhum acesso registrado.</p></div>
-    <div class="table-wrap" *ngIf="attempts.length > 0">
-      <table class="table">
-        <thead><tr><th>Data</th><th>Resultado</th><th>Navegador</th><th>IP</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let a of attempts">
-            <td>{{ a.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
-            <td><span class="badge badge-dot status" [attr.data-status]="a.success ? 'COMPLETED' : 'FAILED'">{{ a.success ? 'Sucesso' : 'Falhou' }}</span></td>
-            <td class="muted">{{ browser(a.userAgent) }}</td>
-            <td class="mono muted" [title]="a.ipAddress || ''">{{ formatIp(a.ipAddress) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Política de privacidade -->
-  <section class="card">
-    <header class="card-header">
-      <div><h2>Documentos legais</h2><p>Os textos que regem o uso do Checkop e o tratamento dos seus dados.</p></div>
-    </header>
-    <div class="card-body legal-docs">
-      <a class="legal-doc" routerLink="/terms" target="_blank" rel="noopener">
-        <strong>Termos de Uso</strong>
-        <span>{{ terms ? 'Versão ' + terms.version + ' · atualizado em ' + (terms.lastUpdated | date: 'dd/MM/yyyy') : 'Regras de uso, planos e autorização de testes' }}</span>
-      </a>
-      <a class="legal-doc" routerLink="/privacy" target="_blank" rel="noopener">
-        <strong>Política de Privacidade</strong>
-        <span>{{ policy ? 'Versão ' + policy.version + ' · atualizada em ' + (policy.lastUpdated | date: 'dd/MM/yyyy') : 'Dados coletados, finalidades e seus direitos (LGPD)' }}</span>
-      </a>
-      <p class="hint">
-        Outros pedidos da LGPD (art. 18), como correção de dados, podem ser feitos em
-        <a class="link" href="mailto:privacidade@checkop.com.br">privacidade&#64;checkop.com.br</a>.
-      </p>
-    </div>
-  </section>
-
-  <!-- Baixar meus dados (LGPD art. 18, II e V: acesso e portabilidade) -->
-  <section class="card">
-    <header class="card-header">
-      <div>
-        <h2>Baixar meus dados</h2>
-        <p>Uma cópia de tudo o que o Checkop guarda sobre você, num arquivo JSON que pode ser levado a outro serviço (LGPD, art. 18).</p>
-      </div>
-    </header>
-    <div class="card-body form">
-      <p class="hint">
-        Inclui a conta, o histórico de aceites dos Termos, os domínios, as varreduras com os achados, os acessos e os registros de
-        auditoria. Ficam de fora só o hash da senha e os códigos de redefinição. O código enviado para análise não é guardado.
-      </p>
-      <div *ngIf="myDataError" class="alert alert-error" role="alert">{{ myDataError }}</div>
-      <div class="actions">
-        <button class="button button-outline" type="button" (click)="downloadMyData()" [disabled]="isDownloadingData">
-          <span *ngIf="isDownloadingData" class="spinner" aria-hidden="true"></span>
-          Baixar meus dados
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Exclusão de conta (LGPD art. 18) -->
-  <section class="card danger-zone">
-    <header class="card-header">
-      <div>
-        <h2>Excluir conta</h2>
-        <p>Apaga seus dados pessoais, varreduras e domínios. Os registros de acesso ficam por 6 meses sem identificação, por obrigação legal.</p>
-      </div>
-    </header>
-    <div class="card-body form">
-      <label class="switch">
-        <input type="checkbox" [(ngModel)]="googleAccount" name="google" />
-        <span class="switch-track"></span>
-        Entrei com o Google (não tenho senha)
-      </label>
-
-      <label class="field" *ngIf="!googleAccount">
-        <span>Confirme com sua senha</span>
-        <input class="input" type="password" name="deletePassword" [(ngModel)]="deletePassword" autocomplete="current-password" />
-      </label>
-
-      <label class="field" *ngIf="googleAccount">
-        <span>Digite <strong class="mono">{{ deletePhrase }}</strong> para confirmar</span>
-        <input class="input" type="text" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" />
-      </label>
-
-      <app-check [(checked)]="deleteAcknowledged">
-        <strong>Entendo que a exclusão é definitiva</strong>
-        Não é possível desfazer nem recuperar as varreduras depois.
-      </app-check>
-
-      <div *ngIf="deleteError" class="alert alert-error" role="alert">{{ deleteError }}</div>
-
-      <div class="actions">
-        <button class="button button-danger" type="button" (click)="deleteAccount()" [disabled]="!canDelete">
-          <span *ngIf="isDeleting" class="spinner" aria-hidden="true"></span>
-          Excluir minha conta
-        </button>
-      </div>
-    </div>
-  </section>
 </app-shell>

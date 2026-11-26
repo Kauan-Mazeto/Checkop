@@ -1,10 +1,15 @@
 <app-shell>
-  <header class="page-header">
+  <!-- ===== saudação e ações ===== -->
+  <header class="d-head">
     <div>
-      <h1>Visão geral</h1>
-      <p>Olá, {{ firstName }}. Segurança simples para decisões mais claras.</p>
+      <h1>Olá, {{ firstName }}</h1>
+      <p class="d-who">
+        <span class="chip">Perfil {{ roleLabel[user?.role ?? 'STUDENT'] }}</span>
+        <span class="chip" [class.chip-premium]="plan.id === 'PREMIUM'">Plano {{ plan.name }}</span>
+        <span class="meta-text">O perfil escolhe o seu painel; o plano, os recursos liberados.</span>
+      </p>
     </div>
-    <div class="actions">
+    <div class="d-actions">
       <!-- exportação consolidada de todas as varreduras -->
       <details *ngIf="plan.canExportReports; else exportLocked" class="export-menu" #exportMenu>
         <summary class="button button-outline">{{ isExporting ? 'Exportando...' : 'Exportar' }}</summary>
@@ -23,126 +28,123 @@
       <ng-template #exportLocked>
         <a class="button button-outline" routerLink="/plans">Exportar <span class="badge badge-pro">PRO</span></a>
       </ng-template>
-      <a class="button button-outline" routerLink="/targets">Verificar domínio</a>
-      <a class="button button-primary" routerLink="/scans/new">+ Nova varredura</a>
+      <a class="button button-primary" routerLink="/scans/new">Nova varredura</a>
     </div>
   </header>
-
-  <div class="hint-bar">Seu perfil ({{ roleLabel[user?.role ?? 'STUDENT'] }}) define o painel. Seu plano ({{ plan.name }}) define os recursos liberados.</div>
 
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
   <div *ngIf="exportError" class="alert alert-error" role="alert">{{ exportError }}</div>
 
-  <!-- Indicadores -->
-  <section class="grid grid-4" aria-label="Indicadores">
-    <article class="card kpi">
-      <span class="kpi-label">{{ plan.canViewHistory ? 'Total de varreduras' : 'Varredura visível' }}</span>
-      <span class="kpi-value">{{ isLoading ? '–' : scans.length }}</span>
-      <span class="kpi-hint">{{ runningScans > 0 ? runningScans + ' em execução' : (plan.canViewHistory ? 'na sua conta' : 'o Free mostra só a última') }}</span>
-    </article>
-    <article class="card kpi">
-      <span class="kpi-label">Críticas e altas</span>
-      <span class="kpi-value" [class.text-danger]="highRiskFindings > 0">{{ isLoading ? '–' : highRiskFindings }}</span>
-      <span class="kpi-hint">prioridade de correção</span>
-    </article>
-    <article class="card kpi">
-      <span class="kpi-label">Domínios verificados</span>
-      <span class="kpi-value">{{ isLoading ? '–' : verifiedTargets }}</span>
-      <span class="kpi-hint"><a class="link" routerLink="/targets">gerenciar domínios</a></span>
-    </article>
-    <article class="card kpi">
-      <span class="kpi-label">Varreduras restantes hoje</span>
+  <!-- ===== números ===== -->
+  <section class="kpis" aria-label="Indicadores">
+    <div class="kpi">
+      <span class="meta-text">{{ plan.canViewHistory ? 'Varreduras' : 'Varredura visível' }}</span>
+      <strong>{{ isLoading ? '–' : scans.length }}</strong>
+      <small>{{ runningScans > 0 ? runningScans + ' em execução agora' : (plan.canViewHistory ? 'na sua conta' : 'o Free mostra só a última') }}</small>
+    </div>
+    <div class="kpi" [class.kpi-alert]="highRiskFindings > 0">
+      <span class="meta-text">Críticas e altas</span>
+      <strong>{{ isLoading ? '–' : highRiskFindings }}</strong>
+      <small>{{ highRiskFindings > 0 ? 'corrigir primeiro' : 'nenhuma em aberto' }}</small>
+    </div>
+    <div class="kpi">
+      <span class="meta-text">Domínios verificados</span>
+      <strong>{{ isLoading ? '–' : verifiedTargets }}</strong>
+      <small><a class="link" routerLink="/targets">gerenciar domínios</a></small>
+    </div>
+    <div class="kpi" [class.kpi-alert]="remainingToday === 0">
+      <span class="meta-text">Restantes hoje</span>
       <ng-container *ngIf="remainingToday !== null; else unlimited">
-        <span class="kpi-value" [class.text-danger]="remainingToday === 0">{{ isLoading ? '–' : remainingToday }}</span>
-        <span class="kpi-hint">{{ remainingToday === 0 ? 'limite diário do plano ' + plan.name + ' atingido' : 'de ' + plan.dailyScanLimit + ' por dia no plano ' + plan.name }}</span>
+        <strong>{{ isLoading ? '–' : remainingToday }}</strong>
+        <small>{{ remainingToday === 0 ? 'limite do plano ' + plan.name + ' atingido' : 'de ' + plan.dailyScanLimit + ' por dia' }}</small>
       </ng-container>
       <ng-template #unlimited>
-        <span class="kpi-value">Ilimitado</span>
-        <span class="kpi-hint">plano {{ plan.name }}</span>
+        <strong>∞</strong>
+        <small>sem limite no plano {{ plan.name }}</small>
       </ng-template>
-    </article>
+    </div>
   </section>
 
-  <!-- Gráficos (Chart.js, proposta do TCC 7.1) -->
-  <section class="grid grid-2">
-    <article class="card">
-      <header class="card-header">
-        <div><h2>Falhas por severidade</h2><p>{{ plan.canViewHistory ? 'Todas as varreduras' : 'Varredura mais recente' }}</p></div>
-      </header>
-      <div class="card-body">
-        <app-chart type="doughnut" [data]="severityChart" [options]="doughnutOptions" [empty]="chartTotal(severityChart) === 0" ariaLabel="Falhas por severidade" />
-      </div>
-    </article>
-
-    <article class="card">
-      <header class="card-header">
-        <div><h2>Categorias OWASP Top 10</h2><p>Onde estão as falhas</p></div>
-      </header>
-      <div class="card-body">
-        <app-chart type="bar" [data]="owaspChart" [options]="barOptions" [empty]="chartTotal(owaspChart) === 0" ariaLabel="Achados por categoria OWASP" />
-      </div>
-    </article>
-  </section>
-
-  <!-- Painel do perfil (RF-11): só um destes aparece -->
-  <ng-container [ngSwitch]="panel">
-    <app-qa-panel *ngSwitchCase="'qa'" [scans]="scans" [findings]="findings" [plan]="plan" />
-    <app-dev-panel *ngSwitchCase="'dev'" [scans]="scans" [findings]="findings" [plan]="plan" />
-    <app-pentester-panel *ngSwitchCase="'pentester'" [scans]="scans" [findings]="findings" [plan]="plan" />
-    <app-student-panel *ngSwitchCase="'student'" [findings]="findings" [plan]="plan" />
-  </ng-container>
-
-  <!-- Varreduras recentes -->
-  <section class="card">
-    <header class="card-header">
-      <div>
+  <!-- ===== bento ===== -->
+  <div class="bento">
+    <!-- varreduras recentes (bloco grande) -->
+    <section class="tile tile-recent" aria-label="Varreduras recentes">
+      <header class="tile-head">
         <h2>{{ plan.canViewHistory ? 'Varreduras recentes' : 'Último scan' }}</h2>
-        <p>{{ plan.canViewHistory ? 'As seis mais recentes da sua conta.' : 'Acompanhe aqui o andamento do seu scan mais recente.' }}</p>
+        <a class="link" routerLink="/scans">{{ plan.canViewHistory ? 'Ver histórico →' : 'Abrir →' }}</a>
+      </header>
+
+      <div *ngIf="!isLoading && scans.length === 0" class="tile-empty">
+        <strong>Nenhuma varredura ainda</strong>
+        <p>Aplicações em <span class="mono">localhost</span> podem ser testadas direto. Para um site público, verifique o domínio antes.</p>
+        <a class="button button-primary button-sm" routerLink="/scans/new">Criar a primeira varredura</a>
       </div>
-      <a class="link" routerLink="/scans">{{ plan.canViewHistory ? 'Ver histórico' : 'Abrir' }}</a>
-    </header>
 
-    <div *ngIf="!isLoading && scans.length === 0" class="empty">
-      <strong>Nenhuma varredura ainda</strong>
-      <p>Aplicações em <code>localhost</code> podem ser testadas direto. Para um site público, verifique o domínio antes.</p>
-      <a class="button button-primary button-sm" routerLink="/scans/new">Criar a primeira varredura</a>
-    </div>
+      <ul *ngIf="scans.length > 0" class="rows">
+        <li *ngFor="let scan of recentScans; trackBy: trackById">
+          <a class="row" [routerLink]="['/scans', scan.id]" [attr.data-status]="scan.status">
+            <span class="dot" [attr.aria-label]="statusLabel[scan.status]"></span>
+            <span class="row-main">
+              <span class="mono row-url">{{ scan.targetUrl }}</span>
+              <span class="row-sub">{{ scan.objectiveLabel }} · {{ environmentLabel[scan.environment] }}</span>
+            </span>
+            <span class="row-status">{{ statusLabel[scan.status] }}</span>
+            <span class="row-num">
+              <ng-container *ngIf="hasResults(scan); else dash"><strong>{{ scan.findingsCount }}</strong> achados</ng-container>
+              <ng-template #dash>–</ng-template>
+            </span>
+            <span class="row-meta mono">{{ scan.createdAt | date: 'dd/MM HH:mm' }}</span>
+          </a>
+        </li>
+      </ul>
 
-    <div class="table-wrap" *ngIf="scans.length > 0">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Aplicação</th>
-            <th>Ambiente</th>
-            <th>Status</th>
-            <th>Data</th>
-            <th>Modo</th>
-            <th>Achados</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let scan of recentScans" class="clickable" [routerLink]="['/scans', scan.id]">
-            <td><span class="cell-url">{{ scan.targetUrl }}</span><small class="cell-sub">{{ scan.objectiveLabel }}</small></td>
-            <td><span class="badge env" [attr.data-env]="scan.environment">{{ environmentLabel[scan.environment] }}</span></td>
-            <td><span class="badge badge-dot status" [attr.data-status]="scan.status">{{ statusLabel[scan.status] }}</span></td>
-            <td class="muted">{{ scan.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
-            <td class="muted">{{ scan.safeMode ? 'Modo Seguro' : 'Modo Verboso' }}</td>
-            <td>{{ scan.status === 'COMPLETED' || scan.status === 'CANCELED' ? scan.findingsCount : '–' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <p *ngIf="!plan.canViewHistory && scans.length > 0" class="tile-note">
+        No plano {{ plan.name }} você vê só o último scan. <a class="link" routerLink="/plans">Histórico completo no Premium</a>
+      </p>
+    </section>
 
-    <div *ngIf="!plan.canViewHistory && scans.length > 0" class="card-body">
-      <div class="locked-card">
-        <div>
-          <strong>Histórico completo e exportação de relatório no Premium</strong>
-          <p>No plano {{ plan.name }} você vê apenas o seu último scan.</p>
-        </div>
-        <a class="button button-outline button-sm" routerLink="/plans">Ver planos</a>
-      </div>
-    </div>
+    <!-- severidade -->
+    <section class="tile" aria-label="Falhas por severidade">
+      <header class="tile-head">
+        <h2>Falhas por severidade</h2>
+        <span class="meta-text">{{ plan.canViewHistory ? 'todas as varreduras' : 'varredura mais recente' }}</span>
+      </header>
+      <app-chart type="doughnut" [data]="severityChart" [options]="doughnutOptions" [empty]="chartTotal(severityChart) === 0" ariaLabel="Falhas por severidade" />
+    </section>
+
+    <!-- OWASP -->
+    <section class="tile tile-wide" aria-label="Categorias OWASP Top 10">
+      <header class="tile-head">
+        <h2>Categorias OWASP Top 10</h2>
+        <span class="meta-text">onde estão as falhas</span>
+      </header>
+      <app-chart type="bar" [data]="owaspChart" [options]="barOptions" [empty]="chartTotal(owaspChart) === 0" ariaLabel="Achados por categoria OWASP" />
+    </section>
+
+    <!-- atalhos -->
+    <section class="tile" aria-label="Atalhos">
+      <header class="tile-head"><h2>Atalhos</h2></header>
+      <nav class="shortcuts">
+        <a routerLink="/scans/new"><strong>Nova varredura</strong><span>Escolha o alvo e o tipo de falha</span></a>
+        <a routerLink="/targets"><strong>Verificar domínio</strong><span>Libera a varredura de um site público</span></a>
+        <a routerLink="/code-analysis"><strong>Analisar código</strong><span>Cole um arquivo e veja as falhas</span></a>
+        <a routerLink="/account"><strong>Trocar de perfil</strong><span>Dev, QA, Pentester ou Estudante</span></a>
+      </nav>
+    </section>
+  </div>
+
+  <!-- ===== painel do perfil (RF-11): só um destes aparece ===== -->
+  <section class="role-zone" aria-label="Painel do seu perfil">
+    <h2 class="section-title">Seu painel · {{ roleLabel[user?.role ?? 'STUDENT'] }}</h2>
+    <ng-container [ngSwitch]="panel">
+      <app-qa-panel *ngSwitchCase="'qa'" [scans]="scans" [findings]="findings" [plan]="plan" />
+      <app-dev-panel *ngSwitchCase="'dev'" [scans]="scans" [findings]="findings" [plan]="plan" />
+      <app-pentester-panel *ngSwitchCase="'pentester'" [scans]="scans" [findings]="findings" [plan]="plan" />
+      <app-student-panel *ngSwitchCase="'student'" [findings]="findings" [plan]="plan" />
+    </ng-container>
   </section>
 
-  <app-plans-panel [plan]="plan" />
+  <section class="role-zone">
+    <app-plans-panel [plan]="plan" />
+  </section>
 </app-shell>
