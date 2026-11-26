@@ -19,9 +19,7 @@ import {
   exportFileName,
   filterBySeverity,
   groupCompliance,
-  EvidenceGroup,
   EvidenceItem,
-  evidenceGroups,
   evidenceItems,
   filterByStatus,
   filterFindings,
@@ -32,11 +30,12 @@ import {
   locationsOf,
   pathOf,
   sortBySeverity,
+  stripEvidenceMarks,
   ViewerLine,
 } from './scan-detail.logic';
 
-// 'evidence' some quando a tela nova (painéis) entrar: a evidência passa a ficar no detalhe do achado
-type Tab = 'overview' | 'findings' | 'evidence' | 'compliance' | 'compare';
+// a evidência fica dentro do achado (sub-aba do painel central), não numa aba própria
+type Tab = 'overview' | 'findings' | 'compliance' | 'compare';
 /** sub-abas do detalhe do achado (painel central) */
 export type DetailTab = 'fix' | 'evidence' | 'locations' | 'compliance';
 /** abas do visor de evidência */
@@ -128,7 +127,6 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   protected tab: Tab = 'overview';
   protected severityFilter: FindingSeverity | 'ALL' = 'ALL';
-  protected expanded = new Set<string>();
 
   // ---------- painel de achados: lista | detalhe | metadados ----------
   protected query = '';
@@ -236,9 +234,6 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     return null;
   }
 
-  protected get visibleFindings(): Finding[] {
-    return filterBySeverity(this.sortedFindings, this.severityFilter);
-  }
 
   // ---------- painel de achados ----------
 
@@ -252,6 +247,11 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   /** Texto cru da aba aberta no visor (botão "Copiar"). */
   protected get viewerText(): string {
+    return stripEvidenceMarks(this.rawViewerText);
+  }
+
+  /** Texto como veio do motor, com a evidência marcada (>>> <<<): base do destaque. */
+  private get rawViewerText(): string {
     const e = this.currentEvidence;
     if (!e) return '';
     if (this.viewerTab === 'response') return e.rawResponse ?? '';
@@ -388,13 +388,8 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
 
   /** Linhas numeradas do visor, com a linha que prova a falha marcada. */
   private buildViewer(): void {
-    this.viewerLines = highlightedLines(this.viewerText, this.selected?.title ?? '', this.currentEvidence?.attack);
+    this.viewerLines = highlightedLines(this.rawViewerText, this.selected?.title ?? '', this.currentEvidence?.attack);
   }
-
-  // calculada uma vez por carga (em derive). Como getter, gerava objetos novos a
-  // cada verificação do Angular e o *ngFor recriava todos os cartões de PoC sem
-  // parar, travando a aba
-  protected evidenceFindings: EvidenceGroup[] = [];
 
   protected get elapsedTime(): string {
     return elapsed(this.scan?.startedAt ?? null, this.now);
@@ -435,10 +430,6 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  protected toggle(finding: Finding): void {
-    this.expanded.has(finding.id) ? this.expanded.delete(finding.id) : this.expanded.add(finding.id);
-  }
-
   protected countOf(severity: FindingSeverity): number {
     return this.scan?.summary.severityCounts[severity] ?? 0;
   }
@@ -449,7 +440,6 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
    */
   protected exportPdf(): void {
     if (!this.isPremium) return; // relatório é recurso Premium (shared/ui/plans.ts)
-    this.expanded = new Set(this.sortedFindings.map((f) => f.id));
     setTimeout(() => window.print());
   }
 
@@ -491,13 +481,9 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     if (scan.role) this.view = roleView(scan.role);
     if (this.viewApplied || !hasResults(scan.status)) return;
     this.viewApplied = true;
-    const wantsEvidence = this.view.defaultTab === 'evidence';
-    // evidência só faz sentido se o plano e o perfil a recebem e se ela existe
-    this.tab = wantsEvidence && !scan.findings.some(hasEvidence) ? 'findings' : this.view.defaultTab;
-    if (this.view.expandHighRisk) {
-      this.expanded = new Set(scan.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').map((f) => f.id));
-    }
-    // painel: abre o achado mais grave, na sub-aba que o perfil prioriza
+    // QA abre no resumo; os demais no painel de achados, com o mais grave aberto na
+    // sub-aba do perfil (Pentester na evidência, os outros na correção)
+    this.tab = this.view.defaultTab === 'overview' ? 'overview' : 'findings';
     this.select(this.filteredFindings[0] ?? null, false);
   }
 
@@ -509,7 +495,6 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     const again = this.filteredFindings.find((f) => f.id === selectedId);
     if (again) this.select(again);
     else if (this.viewApplied) this.select(this.filteredFindings[0] ?? null, false);
-    this.evidenceFindings = evidenceGroups(this.sortedFindings);
     this.complianceGroups = groupCompliance(scan.findings);
     this.severityChart = severityDoughnut(scan.summary.severityCounts) as ChartData;
     this.toolChart = countBar(countBy(scan.findings, (f) => f.tool)) as ChartData;

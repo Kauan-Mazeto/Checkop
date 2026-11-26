@@ -105,9 +105,20 @@ export class DashboardPageComponent implements OnInit {
     if (completed.length === 0) return;
 
     // uma varredura que falhar ao carregar não derruba os painéis
-    forkJoin(completed.map((s) => this.scanService.getScan(s.id).pipe(catchError(() => of(null))))).subscribe(
-      (details) => (this.findings = details.flatMap((d) => d?.findings ?? []))
-    );
+    forkJoin(completed.map((s) => this.scanService.getScan(s.id).pipe(catchError(() => of(null))))).subscribe((details) => {
+      // a mesma falha no mesmo site, vista em várias varreduras, entra uma vez só: a da
+      // mais recente (a lista de varreduras já vem da mais nova para a mais antiga).
+      // Em sites diferentes são problemas diferentes e continuam separados.
+      const seen = new Set<string>();
+      this.findings = details.flatMap((detail) =>
+        (detail?.findings ?? []).filter((finding) => {
+          const key = `${detail!.targetUrl}::${finding.title.trim().toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      );
+    });
   }
 
   // exportação consolidada (Premium)

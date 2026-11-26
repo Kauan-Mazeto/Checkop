@@ -306,7 +306,10 @@ def _merge_same_location(findings: list[Finding]) -> list[Finding]:
     located = []
     for finding in findings:
         loc = _location(finding)
-        if loc is None or "ocorrências)" in finding.title or loc[2] - loc[1] >= _MERGE_MAX_SPAN:
+        # erro de sintaxe e boa prática ficam no próprio card: não são "outra falha" do
+        # mesmo trecho de segurança (antes o erro de sintaxe sumia dentro do card de SSTI)
+        separate = finding.category in ("SYNTAX", "QUALITY")
+        if separate or loc is None or "ocorrências)" in finding.title or loc[2] - loc[1] >= _MERGE_MAX_SPAN:
             alone.append(finding)
         else:
             located.append((loc, finding))
@@ -444,6 +447,31 @@ def _edits_of(result: dict) -> list[dict]:
     return []
 
 
+_BLOCK_CONTEXT_MAX = 6
+
+
+def _block_start(lines: list[str], first: int) -> int:
+    """Primeira linha a mostrar no trecho corrigido: sobe até o começo do bloco.
+
+    Sem contexto, "else desnecessário depois de return" mostrava só o "return" que sobrou.
+    Sobe pelas linhas do mesmo nível de indentação e inclui o cabeçalho do bloco (o "if"),
+    até _BLOCK_CONTEXT_MAX linhas acima. Por indentação, vale para qualquer linguagem.
+    """
+    indent = lambda text: len(text) - len(text.lstrip(" \t"))
+    if not (1 <= first <= len(lines)):
+        return first
+    base = indent(lines[first - 1])
+    start = first
+    while start > 1 and first - start < _BLOCK_CONTEXT_MAX:
+        previous = lines[start - 2]
+        if not previous.strip():
+            break
+        start -= 1
+        if indent(previous) < base:  # o cabeçalho do bloco (if/for/def...): inclui e para
+            break
+    return start
+
+
 def _fixed_code(content: str | None, edits: list[dict], line: int | None, end_line: int | None) -> str | None:
     """Linhas do achado já com a correção aplicada, ou None se não houver edição válida."""
     if not content or not edits:
@@ -467,6 +495,7 @@ def _fixed_code(content: str | None, edits: list[dict], line: int | None, end_li
         last_start = begin
     first = min([line or 1] + [e["sl"] for e in edits])
     last = max([end_line or line or 1] + [e["el"] for e in edits])
+    first = _block_start(lines, first)
     delta = fixed.count("\n") - content.count("\n")
     before = "\n".join(lines[first - 1:last])
     after = "\n".join(fixed.split("\n")[first - 1:max(last + delta, first)])

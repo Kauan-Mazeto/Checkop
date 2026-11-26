@@ -135,6 +135,10 @@ export interface ComparedScan {
 export interface PersistentFinding extends Finding {
   previousSeverity: FindingSeverity;
   trend: 'WORSE' | 'BETTER' | 'SAME';
+  /** locais onde a falha sumiu desde a varredura anterior */
+  fixedLocations?: number;
+  /** locais onde ela apareceu agora */
+  newLocations?: number;
 }
 
 export interface ScanComparison {

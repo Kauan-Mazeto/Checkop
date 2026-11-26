@@ -1,6 +1,7 @@
 import prisma from './prisma.js';
 import { isMailConfigured, sendScanFinishedEmail } from './mailer.js';
 import { SCAN_OBJECTIVES } from '../constants/scan_objectives.js';
+import { groupFindings } from './finding_groups.js';
 
 // RF-22 - avisa o dono da varredura por e-mail quando ela termina (concluída ou
 // com falha), destacando falhas críticas e altas. Só a contagem por severidade
@@ -25,12 +26,13 @@ export const notifyScanFinished = async (scanId) => {
     });
     if (!scan?.user?.notifyScanEmail) return false;
 
-    const grouped = await prisma.finding.groupBy({
-      by: ['severity'],
+    // contagem por FALHA (como na tela), não por local: o mesmo cabeçalho em 8 páginas conta 1
+    const rows = await prisma.finding.findMany({
       where: { scanId },
-      _count: { _all: true },
+      select: { title: true, severity: true, cvssScore: true },
     });
-    const counts = Object.fromEntries(grouped.map((row) => [row.severity, row._count._all]));
+    const counts = {};
+    for (const group of groupFindings(rows)) counts[group.severity] = (counts[group.severity] ?? 0) + 1;
 
     await sendScanFinishedEmail(scan.user.email, {
       name: scan.user.name,

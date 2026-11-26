@@ -203,7 +203,20 @@ _RUFF_TITLES = {
     "B006": "Argumento padrão mutável", "B007": "Variável do laço não usada", "B008": "Chamada de função como valor padrão",
     "B011": "assert False (some com -O)", "B015": "Comparação sem efeito", "B018": "Expressão sem efeito",
     "B023": "Função dentro do laço captura variável do laço", "B904": "Exceção relançada sem 'from'",
+    # boa prática (o código funciona igual; é legibilidade)
+    "RET501": "return None explícito desnecessário", "RET502": "return sem valor numa função que retorna valor",
+    "RET503": "Falta return explícito no fim da função", "RET504": "Variável criada só para ser retornada",
+    "RET505": "else desnecessário depois de return", "RET506": "else desnecessário depois de raise",
+    "RET507": "else desnecessário depois de continue", "RET508": "else desnecessário depois de break",
+    "SIM201": "not a == b no lugar de a != b", "SIM202": "not a != b no lugar de a == b",
+    "SIM208": "Dupla negação (not not)", "SIM210": "True if cond else False no lugar de bool(cond)",
+    "SIM211": "False if cond else True no lugar de not cond", "SIM212": "Condição do ternário invertida",
+    "B007": "Variável do laço não usada", "B009": "getattr com nome fixo (use o atributo direto)",
+    "B010": "setattr com nome fixo (atribua direto)", "B905": "zip() sem strict=",
 }
+
+# do bugbear (B), mas é estilo: o código funciona igual
+_RUFF_STYLE_RULES = {"B007", "B009", "B010", "B027", "B904", "B905"}
 
 
 async def run_ruff(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> None:
@@ -230,16 +243,18 @@ async def run_ruff(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> Non
     for item in items:
         rule = item.get("code") or "syntax-error"
         message = item.get("message", "")
-        syntax = rule == "syntax-error" or rule.startswith("E9") or message.startswith("SyntaxError")
+        # o Ruff antigo chamava de "syntax-error"/E999; o novo, de "invalid-syntax"
+        syntax = rule in ("syntax-error", "invalid-syntax") or rule.startswith("E9") or message.startswith("SyntaxError")
         if syntax:
             category, severity, title = "SYNTAX", "WARNING", "Erro de sintaxe"
         elif rule.startswith(("F82", "F7", "F63", "F811", "PLE")):
             category, severity = "LOGIC", "WARNING"
             title = _RUFF_TITLES.get(rule, f"Erro de lógica em Python ({rule})")
-        elif rule.startswith(("B", "PLW", "ASYNC", "BLE", "TRY", "RET5", "SIM2", "PLC2", "RUF006")):
+        elif rule.startswith(("B", "PLW", "ASYNC", "BLE", "RUF006")) and rule not in _RUFF_STYLE_RULES:
+            # comportamento que costuma dar errado ao rodar (bugbear, avisos do pylint, async, except genérico)
             category, severity, title = "LOGIC", "INFO", _RUFF_TITLES.get(rule, f"Padrão propenso a bug ({rule})")
-        else:  # só no modo completo: estilo, complexidade, modernização, performance, nomes...
-            category, severity, title = "QUALITY", "INFO", f"Boa prática em Python ({rule})"
+        else:  # estilo, legibilidade, simplificação, convenções (RET5, SIM2, TRY, PLC2, nomes...)
+            category, severity, title = "QUALITY", "INFO", _RUFF_TITLES.get(rule, f"Boa prática em Python ({rule})")
         results_path = _abs(item.get("filename", ""), tmp_dir)
         out.results.append(make_result(
             "Ruff", rule, results_path, item.get("location", {}).get("row"), item.get("end_location", {}).get("row"),

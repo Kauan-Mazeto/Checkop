@@ -207,8 +207,11 @@ class NucleiReachabilityTest(unittest.TestCase):
 
     def test_alvo_descartado_vira_aviso(self):
         stderr = '[INF] Skipped localhost:3000 from target list as found unresponsive permanently: cause="no address found for host"'
-        self.assertIsNotNone(nuclei_runner.unreachable_warning(stderr))
-        self.assertIsNone(nuclei_runner.unreachable_warning("[INF] Scan completed in 2s. No results found."))
+        self.assertIsNotNone(nuclei_runner.unreachable_warning(stderr, "http://localhost:3000"))
+        self.assertIsNone(nuclei_runner.unreachable_warning("[INF] Scan completed in 2s. No results found.", "http://localhost:3000"))
+        # outra porta do mesmo host (template de produto específico) não é o alvo fora do ar
+        other_port = '[INF] Skipped localhost:5814 from target list as found unresponsive permanently: cause="port closed or filtered"'
+        self.assertIsNone(nuclei_runner.unreachable_warning(other_port, "http://localhost:3000"))
 
 
 class NucleiRuleIdTest(unittest.TestCase):

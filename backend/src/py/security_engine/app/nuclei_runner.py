@@ -1,9 +1,12 @@
 import asyncio
 import json
 import os
+import re
 import time
+from urllib.parse import urlsplit
 
 from .cvss import score_finding
+from .evidence import mark_evidence
 from .mapping import (
     INTRUSIVE_TAGS,
     map_to_owasp_category,
@@ -107,6 +110,16 @@ def _parse_line(raw_line: str) -> Finding | None:
     if not remediation and references:
         remediation = "Referências: " + ", ".join(references[:3])
 
+    # o que o template capturou (versão, segredo, caminho...) marcado onde aparece:
+    # na resposta, ou na requisição quando a prova está nela
+    response, request = entry.get("response"), entry.get("request")
+    for extracted in _as_list(entry.get("extracted-results")):
+        response, found = mark_evidence(response, str(extracted))
+        if not found:
+            request, found = mark_evidence(request, str(extracted))
+        if found:
+            break
+
     return Finding(
         title=info.get("name") or entry.get("template-id") or "Achado do Nuclei",
         description=info.get("description"),
@@ -122,15 +135,35 @@ def _parse_line(raw_line: str) -> Finding | None:
         confidence="CONFIRMED" if severity != "INFO" else None,
         # o Nuclei já devolve o comando curl equivalente à requisição que confirmou a falha
         reproduction=entry.get("curl-command"),
-        rawRequest=entry.get("request"),
-        rawResponse=entry.get("response"),
+        rawRequest=request,
+        rawResponse=response,
         remediation=remediation,
         owaspUrl=map_to_owasp_category(tags, cwe_ids),  # RF-47
     )
 
-def unreachable_warning(stderr: str) -> str | None:
-    """O Nuclei descarta o alvo que não responde e sai com código 0: vira aviso."""
-    if "unresponsive" not in stderr and "no address found for host" not in stderr:
+def _target_hostport(target_url: str) -> tuple[str, str]:
+    """("localhost", "localhost:3000") do alvo, com a porta padrão quando a URL não traz."""
+    parsed = urlsplit(target_url)
+    host = (parsed.hostname or "").lower()
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    return host, f"{host}:{port}"
+
+
+_SKIPPED_HOST = re.compile(r"Skipped\s+(\S+)\s+from target list as found unresponsive", re.IGNORECASE)
+_NO_ADDRESS = re.compile(r"no address found for host\s*[\"']?([^\s\"']+)", re.IGNORECASE)
+
+
+def unreachable_warning(stderr: str, target_url: str) -> str | None:
+    """O Nuclei descarta o alvo que não responde e sai com código 0: vira aviso.
+
+    Só vale para o PRÓPRIO alvo: vários templates testam outras portas do mesmo host
+    (ex.: localhost:5814/autopass de um produto específico); porta fechada ali é o
+    esperado e não quer dizer que o site está fora do ar.
+    """
+    host, hostport = _target_hostport(target_url)
+    skipped = {match.lower() for match in _SKIPPED_HOST.findall(stderr)}
+    unresolved = {match.lower().rstrip(".:") for match in _NO_ADDRESS.findall(stderr)}
+    if hostport not in skipped and host not in unresolved:
         return None
     return (
         "O Nuclei não conseguiu acessar o alvo e foi interrompido; os achados dele podem estar faltando. "
@@ -204,7 +237,7 @@ async def run_nuclei_scan(
     elif process.returncode != 0 and not findings:
         raise NucleiExecutionError(stderr.decode(errors="replace") or "Falha ao executar o Nuclei.")
 
-    warning = unreachable_warning(stderr.decode(errors="replace"))
+    warning = unreachable_warning(stderr.decode(errors="replace"), target_url)
     return findings, duration, [warning] if warning else []
 
 TEMPLATE_UPDATE_TIMEOUT_SECONDS = int(os.getenv("NUCLEI_TEMPLATE_UPDATE_TIMEOUT_SECONDS", "600"))

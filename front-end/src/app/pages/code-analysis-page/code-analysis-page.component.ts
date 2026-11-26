@@ -12,6 +12,7 @@ import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { DOUGHNUT_OPTIONS, severityCountsFrom, severityDoughnut } from '../../shared/ui/chart-data';
 import { SEVERITY_LABEL, SEVERITY_ORDER } from '../../shared/ui/labels';
 import { highlightCode } from './highlight';
+import { languageMismatch } from './language-detect';
 import { CodeLanguage, CodeLine, DiffRow, LANGUAGES, LANGUAGE_GROUPS, buildCodeView, codeWindow, isAcceptedFile, sideBySideDiff } from './code-view';
 
 type InputMode = 'paste' | 'upload';
@@ -167,6 +168,18 @@ export class CodeAnalysisPageComponent implements OnInit {
     this.drafts.save<CodeDraft>(DRAFT_KEY, { filename: this.filename, code: this.code, depth: this.depth });
   }
 
+  /** Linguagem detectada quando a análise foi barrada por não bater com a escolhida. */
+  protected languageSuggestion: CodeLanguage | null = null;
+
+  /** Botão do aviso: troca para a linguagem detectada (a análise continua manual). */
+  protected useSuggestedLanguage(): void {
+    if (!this.languageSuggestion) return;
+    this.filename = this.languageSuggestion.filename;
+    this.languageSuggestion = null;
+    this.error = null;
+    this.saveDraft();
+  }
+
   protected loadExample(): void {
     this.code = this.language.example;
     this.saveDraft();
@@ -243,6 +256,23 @@ export class CodeAnalysisPageComponent implements OnInit {
     if (Object.keys(files).length === 0) {
       this.error = this.mode === 'paste' ? 'Cole um trecho de código ou carregue o exemplo.' : 'Selecione ao menos um arquivo.';
       return;
+    }
+
+    // a linguagem escolhida decide quais ferramentas rodam: código Python analisado como
+    // JavaScript não passa pelo Ruff/Bandit e o resultado sai pobre. Bloqueia e avisa.
+    this.languageSuggestion = null;
+    if (this.mode === 'paste') {
+      const detected = languageMismatch(this.code, this.filename);
+      const suggestion = detected ? LANGUAGES.find((l) => l.filename === detected) ?? null : null;
+      if (suggestion) {
+        this.languageSuggestion = suggestion;
+        this.needsPremium = false;
+        this.error =
+          `O código parece ser ${suggestion.label}, mas a linguagem selecionada é ${this.language.label}. ` +
+          'Com a linguagem errada, as ferramentas certas não rodam e o resultado sai incompleto. ' +
+          'Troque a linguagem e analise de novo.';
+        return;
+      }
     }
 
     this.isAnalyzing = true;

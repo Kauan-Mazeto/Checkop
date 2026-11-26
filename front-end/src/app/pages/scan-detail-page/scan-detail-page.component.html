@@ -3,28 +3,27 @@
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
 
   <ng-container *ngIf="scan as s">
-    <!-- Cabeçalho -->
-    <header class="page-header">
-      <div class="heading">
+    <!-- Cabeçalho: alvo em destaque, o resto numa linha de metadados -->
+    <header class="scan-head">
+      <div class="scan-head-main">
         <nav class="breadcrumb no-print"><a routerLink="/scans">Varreduras</a><span>/</span><span>{{ s.objectiveLabel }}</span></nav>
-        <h1 class="mono target">{{ s.targetUrl }}</h1>
-        <div class="meta">
-          <span class="badge">{{ s.objectiveLabel }}</span>
-          <span class="badge env" [attr.data-env]="s.environment">{{ environmentLabel[s.environment] }}</span>
-          <span class="badge badge-dot status" [attr.data-status]="s.status">{{ statusLabel[s.status] }}</span>
-          <span *ngIf="s.safeMode" class="badge">Modo Seguro</span>
-          <span *ngIf="s.activeScanConfirmedAt" class="badge badge-brand">Ataque autorizado</span>
-          <span class="hint">Criada em {{ s.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+        <h1 class="mono scan-target">{{ s.targetUrl }}</h1>
+        <div class="scan-meta">
+          <span class="tag env" [attr.data-env]="s.environment">{{ environmentLabel[s.environment] }}</span>
+          <span class="tag status" [attr.data-status]="s.status">{{ statusLabel[s.status] }}<ng-container *ngIf="s.status === 'CANCELED'"> · parcial</ng-container></span>
+          <span *ngIf="s.safeMode" class="tag">Modo Seguro</span>
+          <span *ngIf="s.activeScanConfirmedAt" class="tag tag-brand">Ataque autorizado</span>
+          <span class="meta-text">{{ s.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
         </div>
       </div>
-      <div class="actions no-print" *ngIf="hasResults(s.status)">
+      <div class="scan-head-actions no-print" *ngIf="hasResults(s.status)">
         <ng-container *ngIf="isPremium; else exportLocked">
-          <button class="button button-secondary" type="button" (click)="exportJson()">Exportar JSON</button>
-          <button class="button button-secondary" type="button" (click)="exportPdf()">Exportar PDF</button>
+          <button class="button button-outline" type="button" (click)="exportJson()">Exportar JSON</button>
+          <button class="button button-outline" type="button" (click)="exportPdf()">Exportar PDF</button>
         </ng-container>
         <ng-template #exportLocked>
-          <a class="button button-secondary" routerLink="/plans" title="Relatório em PDF e JSON é um recurso Premium">
-            Relatório PDF/JSON <span class="badge badge-pro">PRO</span>
+          <a class="button button-outline" routerLink="/plans" title="Relatório em PDF e JSON é um recurso Premium">
+            Exportar relatório <span class="badge badge-pro">PRO</span>
           </a>
         </ng-template>
         <a class="button button-primary" routerLink="/scans/new" [queryParams]="{ url: s.targetUrl }">Nova varredura</a>
@@ -141,36 +140,11 @@
 
     <!-- ===== Resultado ===== -->
     <ng-container *ngIf="hasResults(s.status)">
-      <div *ngIf="s.status === 'CANCELED'" class="alert alert-warning no-print" role="status">
-        <span><strong>Varredura cancelada.</strong> O resultado abaixo é parcial: mostra só o que foi verificado até o cancelamento.</span>
-      </div>
-      <section class="grid verdict-grid">
-        <!-- espec.txt 2.2: card de status rápido + veredito -->
-        <article class="card verdict" [attr.data-severity]="worstSeverity">
-          <div class="card-body">
-            <span class="badge sev" [attr.data-severity]="worstSeverity">{{ s.summary.badge.label }}</span>
-            <p class="verdict-text">{{ s.summary.verdict }}</p>
-            <div class="sev-row">
-              <div *ngFor="let sev of severityOrder" class="sev-cell" [attr.data-severity]="sev">
-                <strong>{{ countOf(sev) }}</strong>
-                <span>{{ severityLabel[sev] }}</span>
-              </div>
-            </div>
-          </div>
-        </article>
-        <article class="card">
-          <div class="card-body">
-            <app-chart type="doughnut" [data]="severityChart!" [options]="doughnutOptions" [height]="180"
-              [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por severidade" />
-          </div>
-        </article>
-      </section>
-
-      <div *ngIf="s.engineWarnings.length" class="alert alert-warning">
-        <span><strong>Avisos da varredura</strong><br /><span *ngFor="let w of s.engineWarnings">• {{ w }}<br /></span></span>
-      </div>
-      <div *ngIf="s.safeMode" class="alert alert-info">
-        Modo Seguro (produção): requisições e respostas ficam ocultas no relatório para proteger dados reais.
+      <!-- avisos numa faixa só, sem um cartão para cada -->
+      <div *ngIf="s.status === 'CANCELED' || s.engineWarnings.length || s.safeMode" class="notices no-print" role="status">
+        <p *ngIf="s.status === 'CANCELED'" class="notice notice-warning"><strong>Cancelada.</strong> O resultado é parcial: mostra só o que foi verificado até o cancelamento.</p>
+        <p *ngFor="let w of s.engineWarnings" class="notice">{{ w }}</p>
+        <p *ngIf="s.safeMode" class="notice">Modo Seguro (produção): requisições e respostas ficam ocultas para proteger dados reais.</p>
       </div>
       <div *ngIf="!isPremium" class="paywall no-print">
         <div>
@@ -180,158 +154,250 @@
         <a class="button button-secondary button-sm" routerLink="/plans">Desbloquear análise avançada</a>
       </div>
 
-      <div class="hint-bar no-print">
-        {{ view.intro }} <a class="link" routerLink="/account">Trocar de perfil</a>
+      <div class="page-tabs no-print">
+        <nav class="tabs" role="tablist">
+          <button type="button" role="tab" [class.active]="tab === 'findings'" [attr.aria-selected]="tab === 'findings'" (click)="tab = 'findings'">Achados <span class="tab-count">{{ sortedFindings.length }}</span></button>
+          <button type="button" role="tab" [class.active]="tab === 'overview'" [attr.aria-selected]="tab === 'overview'" (click)="tab = 'overview'">Resumo</button>
+          <button type="button" role="tab" [class.active]="tab === 'compliance'" [attr.aria-selected]="tab === 'compliance'" (click)="tab = 'compliance'">Conformidade <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
+          <button *ngIf="s.status === 'COMPLETED'" type="button" role="tab" [class.active]="tab === 'compare'" [attr.aria-selected]="tab === 'compare'" (click)="openCompare()">Comparação <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
+        </nav>
+        <span class="view-hint">Visão de {{ view.label }} · <a class="link" routerLink="/account">trocar perfil</a></span>
       </div>
 
-      <nav class="tabs no-print" role="tablist">
-        <button type="button" role="tab" [class.active]="tab === 'overview'" (click)="tab = 'overview'">Resumo</button>
-        <button type="button" role="tab" [class.active]="tab === 'findings'" (click)="tab = 'findings'">Achados ({{ sortedFindings.length }})</button>
-        <button type="button" role="tab" [class.active]="tab === 'evidence'" (click)="tab = 'evidence'">Evidências / PoC <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
-        <button type="button" role="tab" [class.active]="tab === 'compliance'" (click)="tab = 'compliance'">Compliance <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
-        <button *ngIf="s.status === 'COMPLETED'" type="button" role="tab" [class.active]="tab === 'compare'" (click)="openCompare()">Comparação <span *ngIf="!isPremium" class="badge badge-pro">PRO</span></button>
-      </nav>
-
-      <!-- Resumo -->
-      <section *ngIf="tab === 'overview'" class="grid grid-2 no-print">
-        <article class="card">
-          <header class="card-header"><h2>Por ferramenta</h2></header>
-          <div class="card-body"><app-chart type="bar" [data]="toolChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por ferramenta" /></div>
-        </article>
-        <article class="card">
-          <header class="card-header"><h2>Categorias OWASP Top 10</h2></header>
-          <div class="card-body"><app-chart type="bar" [data]="owaspChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por categoria OWASP" /></div>
-        </article>
-        <article *ngIf="sortedFindings.length === 0" class="card span-2">
-          <div class="empty">
-            <strong>Nenhuma falha encontrada para este tipo</strong>
-            <p>Isso não garante que o site está seguro: experimente outros tipos de falha ou a varredura completa.</p>
+      <!-- ===== Achados: lista | detalhe | metadados ===== -->
+      <section *ngIf="tab === 'findings'" class="workspace no-print">
+        <aside class="pane pane-list" aria-label="Lista de achados">
+          <div class="list-tools">
+            <label class="search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <input type="search" name="findingQuery" [ngModel]="query" (ngModelChange)="setQuery($event)" placeholder="Buscar nome, URL ou CVE" aria-label="Buscar achado" />
+            </label>
+            <div class="sev-filter" role="group" aria-label="Filtrar por severidade">
+              <button type="button" class="filter-chip" [class.active]="severityFilter === 'ALL'" (click)="setSeverityFilter('ALL')">Todos</button>
+              <ng-container *ngFor="let sev of severityOrder">
+                <button *ngIf="countOf(sev) > 0" type="button" class="filter-chip" [class.active]="severityFilter === sev" (click)="setSeverityFilter(sev)">
+                  <span class="sev-dot" [attr.data-severity]="sev" aria-hidden="true"></span>{{ countOf(sev) }}<span class="sr-only"> {{ severityLabel[sev] }}</span>
+                </button>
+              </ng-container>
+            </div>
+            <label class="status-select">
+              <span>Mostrar</span>
+              <select name="statusFilter" [ngModel]="statusFilter" (ngModelChange)="setStatusFilter($event)">
+                <option value="ALL">Todos ({{ sortedFindings.length }})</option>
+                <option value="OPEN">Abertos ({{ countByStatus('OPEN') }})</option>
+                <option value="FIXED">Corrigidos ({{ countByStatus('FIXED') }})</option>
+                <option value="FALSE_POSITIVE">Falso positivo ({{ countByStatus('FALSE_POSITIVE') }})</option>
+                <option value="IGNORED">Ignorados ({{ countByStatus('IGNORED') }})</option>
+              </select>
+            </label>
           </div>
-        </article>
-      </section>
 
-      <!-- Achados -->
-      <section *ngIf="tab === 'findings'" class="stack no-print">
-        <div class="chips" role="group" aria-label="Filtrar por severidade">
-          <button type="button" class="chip" [class.active]="severityFilter === 'ALL'" (click)="severityFilter = 'ALL'">Todos ({{ sortedFindings.length }})</button>
-          <ng-container *ngFor="let sev of severityOrder">
-            <button *ngIf="countOf(sev) > 0" type="button" class="chip" [class.active]="severityFilter === sev" (click)="severityFilter = sev">
-              {{ severityLabel[sev] }} ({{ countOf(sev) }})
-            </button>
-          </ng-container>
-        </div>
+          <p *ngIf="sortedFindings.length === 0" class="pane-empty">Nenhuma falha encontrada para este tipo de varredura. Isso não garante que o site está seguro: experimente a varredura completa.</p>
+          <p *ngIf="sortedFindings.length > 0 && filteredFindings.length === 0" class="pane-empty">Nenhum achado com esse filtro.</p>
 
-        <div *ngIf="visibleFindings.length === 0" class="card"><div class="empty"><p>Nenhum achado neste filtro.</p></div></div>
+          <ul class="finding-rows">
+            <li *ngFor="let f of filteredFindings; trackBy: trackById">
+              <button type="button" class="finding-row" [class.active]="selected?.id === f.id" [class.closed]="findingStatusOf(f) !== 'OPEN'"
+                [attr.aria-current]="selected?.id === f.id ? 'true' : null" (click)="select(f)">
+                <span class="sev-dot" [attr.data-severity]="f.severity" aria-hidden="true"></span>
+                <span class="row-text">
+                  <span class="row-title">{{ f.title }}</span>
+                  <span class="row-meta">
+                    <span class="sr-only">{{ severityLabel[f.severity] }} · </span>
+                    <span class="mono">{{ locationsOf(f).length > 1 ? locationsOf(f).length + ' locais' : pathOf(f.affectedUrl) }}</span>
+                    <span *ngIf="findingStatusOf(f) !== 'OPEN'" class="row-status">· {{ findingStatusLabel[findingStatusOf(f)] }}</span>
+                  </span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </aside>
 
-        <article *ngFor="let f of visibleFindings" class="card finding" [attr.data-severity]="f.severity">
-          <button type="button" class="finding-head" (click)="toggle(f)" [attr.aria-expanded]="expanded.has(f.id)">
-            <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
-            <span class="finding-title">{{ f.title }}</span>
-            <span *ngIf="locationsOf(f).length > 1" class="badge">{{ locationsOf(f).length }} locais</span>
-            <span class="hint">{{ toolLabel[f.tool] || f.tool }}</span>
-            <span *ngIf="f.cvssScore !== null" class="hint">CVSS {{ f.cvssScore | number: '1.1-1' }}</span>
-            <span class="chevron" aria-hidden="true">{{ expanded.has(f.id) ? '−' : '+' }}</span>
-          </button>
-
-          <div *ngIf="expanded.has(f.id)" class="finding-body">
-            <dl class="facts">
-              <ng-container *ngIf="locationsOf(f).length === 1">
-                <div *ngIf="f.affectedUrl"><dt>Onde ocorre</dt><dd class="mono">{{ f.affectedUrl }}</dd></div>
-                <div *ngIf="f.parameter"><dt>Parâmetro</dt><dd class="mono">{{ f.parameter }}</dd></div>
-              </ng-container>
-              <div *ngIf="f.cvssScore !== null && f.severity !== 'INFO'">
-                <dt>Nota CVSS 3.1</dt>
-                <dd>
-                  <strong>{{ f.cvssScore | number: '1.1-1' }}</strong> ({{ severityLabel[f.severity] }})
-                  <span *ngIf="f.cvssSource" class="hint"> · {{ cvssSourceLabel[f.cvssSource] }}</span>
-                </dd>
+        <ng-container *ngIf="selected as f; else nothingSelected">
+          <div class="pane pane-detail">
+            <div class="detail-head">
+              <div class="detail-tags">
+                <span class="sev-pill" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+                <span *ngIf="findingStatusOf(f) !== 'OPEN'" class="status-pill">{{ findingStatusLabel[findingStatusOf(f)] }}</span>
+                <span *ngIf="f.owaspUrl" class="meta-text">{{ f.owaspUrl.split(' ')[0] }}</span>
+                <span *ngIf="f.cveId" class="meta-text mono">{{ f.cveId }}</span>
+                <span class="meta-text">{{ toolsOf(f) }}</span>
               </div>
-              <div *ngIf="f.confidence"><dt>Confiança</dt><dd>{{ confidenceLabel[f.confidence] }}</dd></div>
-              <div *ngIf="f.owaspUrl"><dt>OWASP Top 10</dt><dd>{{ f.owaspUrl }}</dd></div>
-              <div *ngIf="f.cveId"><dt>CVE</dt><dd class="mono">{{ f.cveId }}</dd></div>
-              <ng-container *ngIf="view.technicalDetails">
-                <div><dt>Ferramenta</dt><dd>{{ toolLabel[f.tool] || f.tool }}</dd></div>
-                <div *ngIf="f.ruleId"><dt>Regra</dt><dd class="mono">{{ f.ruleId }}</dd></div>
-                <div *ngIf="f.cvssVector"><dt>Vetor CVSS</dt><dd class="mono">{{ f.cvssVector }}</dd></div>
-              </ng-container>
-            </dl>
+              <h2>{{ f.title }}</h2>
+              <p *ngIf="f.description" class="prose detail-desc">{{ f.description }}</p>
+            </div>
 
-            <div *ngIf="locationsOf(f).length > 1" class="locations">
-              <h3>Onde ocorre ({{ locationsOf(f).length }} locais)</h3>
-              <ul class="plain">
-                <li *ngFor="let l of locationsOf(f)">
-                  <span class="mono">{{ l.affectedUrl || '—' }}</span>
-                  <span *ngIf="l.parameter" class="hint"> · parâmetro: <span class="mono">{{ l.parameter }}</span></span>
-                  <span *ngIf="l.severity !== f.severity" class="badge sev" [attr.data-severity]="l.severity">{{ severityLabel[l.severity] }}</span>
+            <div *ngIf="isStudent && owaspExplanation(f.owaspUrl) as explanation" class="explain">
+              <strong>Entenda a falha</strong>
+              <p>{{ explanation }}</p>
+            </div>
+
+            <nav class="detail-tabs" role="tablist" aria-label="Detalhes do achado">
+              <button type="button" role="tab" [class.active]="detailTab === 'fix'" [attr.aria-selected]="detailTab === 'fix'" (click)="setDetailTab('fix')">Como corrigir</button>
+              <button type="button" role="tab" [class.active]="detailTab === 'evidence'" [attr.aria-selected]="detailTab === 'evidence'" (click)="setDetailTab('evidence')">
+                Evidência <span *ngIf="isPremium && selectedEvidence.length" class="tab-count">{{ selectedEvidence.length }}</span><span *ngIf="!isPremium" class="badge badge-pro">PRO</span>
+              </button>
+              <button type="button" role="tab" [class.active]="detailTab === 'locations'" [attr.aria-selected]="detailTab === 'locations'" (click)="setDetailTab('locations')">Ocorrências <span class="tab-count">{{ locationsOf(f).length }}</span></button>
+              <button *ngIf="f.compliance.length" type="button" role="tab" [class.active]="detailTab === 'compliance'" [attr.aria-selected]="detailTab === 'compliance'" (click)="setDetailTab('compliance')">Conformidade</button>
+            </nav>
+
+            <!-- Como corrigir -->
+            <div *ngIf="detailTab === 'fix'" class="detail-body">
+              <div *ngIf="f.premiumLocked" class="paywall">
+                <div><strong>Correção e evidência no Premium</strong><p>O plano Free mostra o diagnóstico; a correção exata e a prova ficam no Premium.</p></div>
+                <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+              </div>
+              <div *ngIf="f.remediation" class="fix-block">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <p class="prose">{{ f.remediation }}</p>
+              </div>
+              <p *ngIf="!f.remediation && !f.premiumLocked" class="pane-empty">A ferramenta não trouxe uma correção para este achado.</p>
+              <button *ngIf="isPremium && selectedEvidence.length" type="button" class="link" (click)="setDetailTab('evidence')">Ver a prova (requisição e resposta) →</button>
+            </div>
+
+            <!-- Evidência: uma ocorrência por vez, com a linha que prova a falha marcada -->
+            <div *ngIf="detailTab === 'evidence'" class="detail-body">
+              <div *ngIf="!isPremium" class="paywall">
+                <div><strong>Prova de conceito é um recurso Premium</strong><p>Mostra a requisição enviada e o comportamento do servidor que confirma a falha.</p></div>
+                <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
+              </div>
+              <ng-container *ngIf="isPremium">
+                <div *ngIf="selectedEvidence.length === 0" class="pane-empty">
+                  <p *ngIf="view.explanations">No modo estudo os payloads de ataque ficam ocultos. Para vê-los, troque o perfil em <a class="link" routerLink="/account">Conta</a>.</p>
+                  <p *ngIf="!view.explanations && s.safeMode">Em produção o Modo Seguro oculta requisições e respostas para não expor dados reais.</p>
+                  <p *ngIf="!view.explanations && !s.safeMode">A ferramenta não retornou requisição e resposta para este achado.</p>
+                </div>
+
+                <ng-container *ngIf="currentEvidence as e">
+                  <div class="occurrence-bar">
+                    <span class="mono occurrence-url">{{ e.affectedUrl }}<ng-container *ngIf="e.parameter"> · {{ e.parameter }}</ng-container></span>
+                    <span class="meta-text">{{ occurrenceIndex + 1 }} de {{ selectedEvidence.length }}</span>
+                    <span class="occurrence-nav" *ngIf="selectedEvidence.length > 1">
+                      <button type="button" class="icon-button" aria-label="Ocorrência anterior" (click)="stepOccurrence(-1)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+                      </button>
+                      <button type="button" class="icon-button" aria-label="Próxima ocorrência" (click)="stepOccurrence(1)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+                      </button>
+                    </span>
+                  </div>
+                  <p *ngIf="e.attack" class="attack-line"><span class="meta-text">Ataque usado</span> <code class="mono">{{ e.attack }}</code></p>
+
+                  <div class="viewer">
+                    <div class="viewer-tabs" role="tablist" aria-label="Conteúdo da evidência">
+                      <button *ngIf="e.rawResponse" type="button" role="tab" [class.active]="viewerTab === 'response'" [attr.aria-selected]="viewerTab === 'response'" (click)="setViewerTab('response')">Resposta</button>
+                      <button *ngIf="e.rawRequest" type="button" role="tab" [class.active]="viewerTab === 'request'" [attr.aria-selected]="viewerTab === 'request'" (click)="setViewerTab('request')">Requisição</button>
+                      <button *ngIf="e.reproduction" type="button" role="tab" [class.active]="viewerTab === 'curl'" [attr.aria-selected]="viewerTab === 'curl'" (click)="setViewerTab('curl')">curl</button>
+                      <button type="button" class="viewer-copy" (click)="copyText(viewerText, 'viewer')">{{ copiedKey === 'viewer' ? 'Copiado' : 'Copiar' }}</button>
+                    </div>
+                    <pre class="viewer-code mono"><span *ngFor="let line of viewerLines" class="viewer-line" [class.hit]="line.hit"><span class="viewer-ln" aria-hidden="true">{{ line.number }}</span><ng-container *ngFor="let seg of line.segments"><mark *ngIf="seg.mark; else plain" class="viewer-mark">{{ seg.text }}</mark><ng-template #plain>{{ seg.text }}</ng-template></ng-container></span></pre>
+                  </div>
+                </ng-container>
+              </ng-container>
+            </div>
+
+            <!-- Ocorrências: todos os locais da mesma falha -->
+            <div *ngIf="detailTab === 'locations'" class="detail-body">
+              <ul class="location-rows">
+                <li *ngFor="let l of locationsOf(f)" class="location-row">
+                  <span class="mono location-url">{{ l.affectedUrl || '—' }}</span>
+                  <span *ngIf="l.parameter" class="meta-text">parâmetro <span class="mono">{{ l.parameter }}</span></span>
+                  <span *ngIf="l.severity !== f.severity" class="sev-pill" [attr.data-severity]="l.severity">{{ severityLabel[l.severity] }}</span>
+                  <button *ngIf="isPremium && hasEvidenceFor(l.id)" type="button" class="link location-open" (click)="openOccurrence(l.id)">Ver evidência</button>
                 </li>
               </ul>
             </div>
 
-            <div *ngIf="f.description"><h3>Descrição</h3><p class="prose">{{ f.description }}</p></div>
-
-            <div *ngIf="isStudent && owaspExplanation(f.owaspUrl) as explanation" class="alert alert-info">
-              <span><strong>Entenda a falha</strong><br />{{ explanation }}</span>
+            <!-- Conformidade do achado -->
+            <div *ngIf="detailTab === 'compliance'" class="detail-body">
+              <ul class="location-rows">
+                <li *ngFor="let c of f.compliance" class="location-row">
+                  <span class="tag">{{ c.law }} · {{ c.reference }}</span>
+                  <span>{{ c.message }}</span>
+                </li>
+              </ul>
             </div>
-
-            <div *ngIf="f.remediation" class="fix"><h3>Como corrigir</h3><p class="prose">{{ f.remediation }}</p></div>
-            <div *ngIf="f.premiumLocked" class="paywall">
-              <div><strong>Correção e evidência no Premium</strong><p>O plano Free mostra o diagnóstico; a correção exata e a prova ficam no Premium.</p></div>
-              <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
-            </div>
-
-            <div *ngIf="f.compliance.length">
-              <h3>Impacto em conformidade</h3>
-              <ul class="plain"><li *ngFor="let c of f.compliance"><span class="badge">{{ c.law }} · {{ c.reference }}</span> {{ c.message }}</li></ul>
-            </div>
-
-            <button *ngIf="hasEvidence(f)" type="button" class="link" (click)="tab = 'evidence'">Ver evidência (PoC) →</button>
           </div>
-        </article>
+
+          <!-- metadados e triagem -->
+          <aside class="pane pane-meta" aria-label="Dados do achado">
+            <div class="triage">
+              <ng-container *ngIf="findingStatusOf(f) === 'OPEN'; else reopen">
+                <button type="button" class="button triage-fixed button-block" (click)="setFindingStatus('FIXED')" [disabled]="!!statusSaving">
+                  <span *ngIf="statusSaving === 'FIXED'" class="spinner" aria-hidden="true"></span>Marcar como corrigido
+                </button>
+                <div class="triage-row">
+                  <button type="button" class="button triage-fp button-sm" (click)="setFindingStatus('FALSE_POSITIVE')" [disabled]="!!statusSaving">Falso positivo</button>
+                  <button type="button" class="button triage-ignore button-sm" (click)="setFindingStatus('IGNORED')" [disabled]="!!statusSaving">Ignorar</button>
+                </div>
+              </ng-container>
+              <ng-template #reopen>
+                <p class="triage-state" [attr.data-status]="findingStatusOf(f)">Marcado como <strong>{{ findingStatusLabel[findingStatusOf(f)] }}</strong>.</p>
+                <button type="button" class="button button-outline button-block" (click)="setFindingStatus('OPEN')" [disabled]="!!statusSaving">Reabrir</button>
+              </ng-template>
+              <p *ngIf="statusError" class="triage-error" role="alert">{{ statusError }}</p>
+            </div>
+
+            <div *ngIf="f.cvssScore !== null && f.severity !== 'INFO'" class="cvss">
+              <span class="meta-text">CVSS 3.1</span>
+              <div class="cvss-score"><strong>{{ f.cvssScore | number: '1.1-1' }}</strong><span class="meta-text">de 10</span></div>
+              <div class="cvss-track"><div class="cvss-fill" [attr.data-severity]="f.severity" [style.width.%]="f.cvssScore * 10"></div></div>
+              <span *ngIf="f.cvssSource" class="meta-text">{{ cvssSourceLabel[f.cvssSource] }}</span>
+              <span *ngIf="view.technicalDetails && f.cvssVector" class="mono cvss-vector">{{ f.cvssVector }}</span>
+            </div>
+
+            <dl class="kv">
+              <div><dt>Severidade</dt><dd>{{ severityLabel[f.severity] }}</dd></div>
+              <div *ngIf="f.confidence"><dt>Confiança</dt><dd>{{ confidenceLabel[f.confidence] }}</dd></div>
+              <div *ngIf="f.owaspUrl"><dt>OWASP</dt><dd>{{ f.owaspUrl }}</dd></div>
+              <div *ngIf="f.cveId"><dt>CVE</dt><dd class="mono">{{ f.cveId }}</dd></div>
+              <div><dt>Ocorrências</dt><dd>{{ locationsOf(f).length }}</dd></div>
+              <ng-container *ngIf="view.technicalDetails">
+                <div><dt>Ferramenta</dt><dd>{{ toolsOf(f) }}</dd></div>
+                <div *ngIf="f.ruleId"><dt>Regra</dt><dd class="mono">{{ f.ruleId }}</dd></div>
+              </ng-container>
+            </dl>
+
+            <button *ngIf="isPremium && selectedEvidence[0]?.reproduction" type="button" class="button button-ghost button-block" (click)="copyText(selectedEvidence[0].reproduction, 'curl')">
+              {{ copiedKey === 'curl' ? 'Comando copiado' : 'Copiar comando curl' }}
+            </button>
+          </aside>
+        </ng-container>
+        <ng-template #nothingSelected>
+          <div class="pane pane-detail"><p class="pane-empty">Selecione um achado na lista.</p></div>
+        </ng-template>
       </section>
 
-      <!-- Evidências / PoC (espec.txt 3.1) -->
-      <section *ngIf="tab === 'evidence'" class="stack no-print">
-        <div *ngIf="!isPremium" class="card"><div class="empty">
-          <strong>Prova de conceito é um recurso Premium</strong>
-          <p>Mostra exatamente a requisição enviada e o comportamento do servidor que confirma a falha.</p>
-          <a class="button button-secondary button-sm" routerLink="/plans">Ver planos</a>
-        </div></div>
-
-        <div *ngIf="isPremium && evidenceFindings.length === 0" class="card"><div class="empty">
-          <strong>Sem evidências para exibir</strong>
-          <p *ngIf="view.explanations">No modo estudo os payloads de ataque ficam ocultos. Para vê-los, troque o perfil em <a class="link" routerLink="/account">Conta</a>.</p>
-          <p *ngIf="s.safeMode">Em produção o Modo Seguro oculta requisições e respostas para não expor dados reais.</p>
-          <p *ngIf="!s.safeMode">As ferramentas não retornaram requisição/resposta para estes achados.</p>
-        </div></div>
-
-        <!-- uma falha por bloco, fechado por padrão; a seta abre as ocorrências -->
-        <details *ngFor="let g of evidenceFindings" class="card evidence-group">
-          <summary class="card-header">
-            <div class="evidence-summary">
-              <span class="badge sev" [attr.data-severity]="g.severity">{{ severityLabel[g.severity] }}</span>
-              <h2>{{ g.title }}</h2>
-              <span class="badge">{{ g.items.length }} {{ g.items.length === 1 ? 'ocorrência' : 'ocorrências' }}</span>
+      <!-- ===== Resumo: veredito e números numa faixa, gráficos abaixo ===== -->
+      <section *ngIf="tab === 'overview'" class="overview no-print">
+        <div class="summary-strip">
+          <div class="summary-main">
+            <span class="meta-text">Veredito</span>
+            <strong class="verdict-label" [attr.data-severity]="worstSeverity">{{ s.summary.badge.label }}</strong>
+            <p>{{ s.summary.verdict }}</p>
+            <div *ngIf="sortedFindings.length" class="sev-bar" aria-hidden="true">
+              <ng-container *ngFor="let sev of severityOrder">
+                <span *ngIf="countOf(sev) > 0" class="sev-seg" [attr.data-severity]="sev" [style.flex-grow]="countOf(sev)"></span>
+              </ng-container>
             </div>
-            <span class="evidence-arrow" aria-hidden="true"></span>
-          </summary>
-          <div class="card-body evidence-items">
-            <article *ngFor="let e of g.items" class="evidence-item">
-              <p class="mono evidence-where">{{ e.affectedUrl }}<ng-container *ngIf="e.parameter"> · parâmetro: {{ e.parameter }}</ng-container></p>
-              <p *ngIf="e.attack" class="evidence-attack"><strong>Ataque usado:</strong> <code class="mono">{{ e.attack }}</code></p>
-              <div *ngIf="e.reproduction" class="evidence-repro">
-                <div class="evidence-repro-head">
-                  <h3>Como reproduzir</h3>
-                  <button type="button" class="button button-secondary button-sm" (click)="copyText(e.reproduction, e.id)">{{ copiedKey === e.id ? 'Copiado' : 'Copiar comando' }}</button>
-                </div>
-                <pre class="code">{{ e.reproduction }}</pre>
-              </div>
-              <div class="grid grid-2">
-                <div *ngIf="e.rawRequest"><h3>Requisição enviada</h3><pre class="code">{{ e.rawRequest }}</pre></div>
-                <div *ngIf="e.rawResponse"><h3>Evidência na resposta</h3><pre class="code">{{ e.rawResponse }}</pre></div>
-              </div>
-            </article>
           </div>
-        </details>
+          <div *ngFor="let sev of severityOrder" class="summary-num">
+            <span class="meta-text"><span class="sev-dot" [attr.data-severity]="sev" aria-hidden="true"></span>{{ severityLabel[sev] }}</span>
+            <strong>{{ countOf(sev) }}</strong>
+          </div>
+        </div>
+
+        <div class="overview-charts">
+          <section>
+            <h2>Por ferramenta</h2>
+            <app-chart type="bar" [data]="toolChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por ferramenta" />
+          </section>
+          <section>
+            <h2>Categorias OWASP Top 10</h2>
+            <app-chart type="bar" [data]="owaspChart!" [options]="barOptions" [empty]="sortedFindings.length === 0" emptyText="Nenhuma falha encontrada." ariaLabel="Achados por categoria OWASP" />
+          </section>
+        </div>
+        <p *ngIf="sortedFindings.length === 0" class="pane-empty">Nenhuma falha encontrada para este tipo. Isso não garante que o site está seguro: experimente outros tipos de falha ou a varredura completa.</p>
       </section>
 
       <!-- Compliance (espec.txt 3.3) -->
@@ -402,7 +468,7 @@
               <div *ngIf="!comparison!.fixed?.length" class="empty"><p>Nenhuma falha corrigida desde a varredura anterior.</p></div>
               <ul class="list" *ngIf="comparison!.fixed?.length">
                 <li *ngFor="let f of comparison!.fixed" class="list-row">
-                  <span><s>{{ f.title }}</s><br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span><s>{{ f.title }}</s><br /><span class="mono hint">{{ locationsOf(f).length > 1 ? locationsOf(f).length + ' locais' : f.affectedUrl }}</span></span>
                   <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
                 </li>
               </ul>
@@ -413,7 +479,7 @@
               <div *ngIf="!comparison!.added?.length" class="empty"><p>Nenhuma falha nova.</p></div>
               <ul class="list" *ngIf="comparison!.added?.length">
                 <li *ngFor="let f of comparison!.added" class="list-row">
-                  <span>{{ f.title }}<br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span>{{ f.title }}<br /><span class="mono hint">{{ locationsOf(f).length > 1 ? locationsOf(f).length + ' locais' : f.affectedUrl }}</span></span>
                   <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
                 </li>
               </ul>
@@ -424,7 +490,12 @@
               <div *ngIf="!comparison!.persistent?.length" class="empty"><p>Nenhuma falha persistente.</p></div>
               <ul class="list" *ngIf="comparison!.persistent?.length">
                 <li *ngFor="let f of comparison!.persistent" class="list-row">
-                  <span>{{ f.title }}<br /><span class="mono hint">{{ f.affectedUrl }}</span></span>
+                  <span>
+                    {{ f.title }}<br />
+                    <span class="mono hint">{{ locationsOf(f).length > 1 ? locationsOf(f).length + ' locais' : f.affectedUrl }}</span>
+                    <span *ngIf="f.fixedLocations" class="hint"> · corrigida em {{ f.fixedLocations }} {{ f.fixedLocations === 1 ? 'local' : 'locais' }}</span>
+                    <span *ngIf="f.newLocations" class="hint"> · {{ f.newLocations }} {{ f.newLocations === 1 ? 'local novo' : 'locais novos' }}</span>
+                  </span>
                   <span class="compare-trend">
                     <span *ngIf="f.trend !== 'SAME'" class="hint">
                       {{ f.trend === 'WORSE' ? 'piorou' : 'melhorou' }} (era {{ severityLabel[f.previousSeverity] }})

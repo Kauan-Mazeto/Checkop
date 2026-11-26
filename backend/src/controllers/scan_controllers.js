@@ -4,14 +4,14 @@ import { detectEnvironment, ScanValidationError } from '../lib/environment_detec
 import { runNucleiScan, runZapScan, runSubdomainEnum, cancelEngineJob, SecurityEngineError } from '../lib/py/security_engine_client.js';
 import { serializeFindings } from '../lib/py/finding_serializer.js';
 import { translateFindings, warmTranslations } from '../lib/finding_translation.js';
-import { groupFindings } from '../lib/finding_groups.js';
+import { countGroupedByScan, groupFindings, groupPerScan } from '../lib/finding_groups.js';
 import { EXPORT_FORMATS, exportFileName, exportJson, findingsCsv, scansCsv } from '../lib/scan_export.js';
 import { getDomain } from 'tldts';
 import { SCAN_OBJECTIVES, filterFindingsByObjective, listObjectives } from '../constants/scan_objectives.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
 import { findVerifiedTargetForUrl, refreshTargetVerification } from '../lib/target_ownership.js';
 import { SEVERITY_RANK, findingKey } from '../lib/finding_identity.js';
-import { compareFindings } from '../lib/scan_compare.js';
+import { compareGroups } from '../lib/scan_compare.js';
 import { notifyScanFinished } from '../lib/scan_notifications.js';
 import { DAILY_LIMIT_CODE, PREMIUM_REQUIRED_CODE, isObjectiveAllowed, planRules, startOfToday } from '../constants/plans.js';
 
@@ -305,14 +305,21 @@ const listScans = async (req, res) => {
         createdAt: true,
         startedAt: true,
         finishedAt: true,
-        _count: { select: { findings: true } },
       },
     });
 
-    const serialized = scans.map(({ _count, ...scan }) => ({
+    // número de FALHAS (como no detalhe), não de locais: o mesmo cabeçalho ausente
+    // em 8 páginas conta 1. Só os campos que o agrupamento usa.
+    const rows = await prisma.finding.findMany({
+      where: { scanId: { in: scans.map((scan) => scan.id) } },
+      select: { scanId: true, title: true, severity: true, cvssScore: true },
+    });
+    const counts = countGroupedByScan(rows);
+
+    const serialized = scans.map((scan) => ({
       ...scan,
       objectiveLabel: SCAN_OBJECTIVES[scan.objective]?.label ?? scan.objective,
-      findingsCount: _count.findings,
+      findingsCount: counts[scan.id] ?? 0,
       resolvedIps: deserializeIps(scan.resolvedIps),
     }));
 
@@ -365,10 +372,11 @@ const getScanStats = async (req, res) => {
       select: { id: true, status: true, objective: true, environment: true, createdAt: true },
     });
 
-    const findings = await prisma.finding.findMany({
+    // uma entrada por falha em cada varredura (como no detalhe), não uma por local
+    const findings = groupPerScan(await prisma.finding.findMany({
       where: { scan: scanWhere },
-      select: { severity: true, tool: true, owaspUrl: true, status: true, createdAt: true },
-    });
+      select: { scanId: true, title: true, severity: true, cvssScore: true, tool: true, owaspUrl: true, status: true, createdAt: true },
+    }));
 
     const countBy = (items, key) =>
       items.reduce((acc, item) => {
@@ -505,30 +513,27 @@ const compareScans = async (req, res) => {
       prisma.finding.findMany({ where: { scanId: base.id } }),
       prisma.finding.findMany({ where: { scanId: current.id } }),
     ]);
-    const diff = compareFindings(previousFindings, currentFindings);
-
-    // traduz depois de comparar: a identidade do achado usa o texto original
-    const persistentFindings = diff.persistent.map((item) => item.finding);
-    const localized = await translateFindings([...diff.added, ...diff.fixed, ...persistentFindings], req.userLanguage);
-    const added = localized.slice(0, diff.added.length);
-    const fixed = localized.slice(diff.added.length, diff.added.length + diff.fixed.length);
-    const persistent = localized.slice(diff.added.length + diff.fixed.length);
-
-    // cada achado segue o Modo Seguro da varredura de onde veio (RF-08)
-    const serializeFrom = (scan) => (list) => serializeFindings(list, { safeMode: scan.safeMode, plan: req.userPlan, role: req.userRole });
+    // Agrupa cada varredura do mesmo jeito que o detalhe (traduz, aplica o Modo Seguro da
+    // varredura de onde veio — RF-08 — e junta os locais da mesma falha) e compara falha
+    // com falha: cada uma cai numa lista só (nova, corrigida ou persistente)
+    const groupsOf = async (scan, findings) =>
+      groupFindings(serializeFindings(await translateFindings(findings, req.userLanguage), {
+        safeMode: scan.safeMode, plan: req.userPlan, role: req.userRole,
+      }));
+    const [previousGroups, currentGroups] = await Promise.all([
+      groupsOf(base, previousFindings),
+      groupsOf(current, currentFindings),
+    ]);
+    const diff = compareGroups(previousGroups, currentGroups);
 
     return res.status(200).json({
       current: pick(current),
       base: pick(base),
       candidates: candidates.map(pick),
       summary: diff.summary,
-      added: serializeFrom(current)(added),
-      fixed: serializeFrom(base)(fixed),
-      persistent: diff.persistent.map((item, index) => ({
-        ...serializeFrom(current)([persistent[index]])[0],
-        previousSeverity: item.previousSeverity,
-        trend: item.trend,
-      })),
+      added: diff.added,
+      fixed: diff.fixed,
+      persistent: diff.persistent,
     });
   } catch (error) {
     console.error('Erro ao comparar varreduras:', error);
@@ -553,19 +558,22 @@ const executeScan = async (scan, runOptions = {}) => {
   try {
     const config = SCAN_OBJECTIVES[scan.objective] ?? SCAN_OBJECTIVES.FULL_SCAN;
     const jobs = [];
+    // nome de cada ferramenta, na mesma ordem de jobs (para dizer qual falhou)
+    const jobTools = [];
     const warnings = [];
 
     if (config.engines.includes('NUCLEI') && config.nuclei) {
       // activeTags (ex.: tentativa de login padrão) só com ataque autorizado
       const extraTags = runOptions.activeScan ? (config.nuclei.activeTags ?? []) : [];
+      jobTools.push('O Nuclei');
       jobs.push(
         runNucleiScan({
           targetUrl: scan.targetUrl,
           // sem opt-in de ataque, os templates intrusivos ficam de fora (RF-52)
           safeMode: !runOptions.activeScan,
           // alvo público: 10 req/s para não sobrecarregar o site de alguém. Local (localhost,
-          // lab): o padrão do Nuclei; a 10 req/s os ~14 mil templates passavam de meia hora
-          rateLimit: requiresVerifiedTarget(scan.environment) ? 10 : 150,
+          // lab): 100 req/s; a 10 req/s os ~14 mil templates passavam de meia hora
+          rateLimit: requiresVerifiedTarget(scan.environment) ? 10 : 100, // 100 = teto aceito pelo motor (schemas.py)
           tags: [...config.nuclei.tags, ...extraTags],
           jobId: scan.id,
         }).then((r) => ({ tool: 'NUCLEI', ...r }))
@@ -573,6 +581,7 @@ const executeScan = async (scan, runOptions = {}) => {
     }
 
     if (config.engines.includes('ZAP') && config.zap) {
+      jobTools.push('O OWASP ZAP');
       jobs.push(
         runZapScan({
           targetUrl: scan.targetUrl,
@@ -590,6 +599,7 @@ const executeScan = async (scan, runOptions = {}) => {
       // subdomínios são do domínio registrável (www.loja.com.br -> loja.com.br)
       const domain = getDomain(new URL(scan.targetUrl).hostname);
       if (domain && !cancelRequested.has(scan.id)) {
+        jobTools.push('O Subfinder');
         jobs.push(runSubdomainEnum({ domain }).then((r) => ({ tool: 'SUBFINDER', ...r })));
       } else if (!domain) {
         warnings.push('Enumeração de subdomínios não se aplica a localhost ou endereço IP.');
@@ -599,15 +609,16 @@ const executeScan = async (scan, runOptions = {}) => {
     const outcomes = await Promise.allSettled(jobs);
 
     const rawFindings = [];
-    outcomes.forEach((outcome) => {
+    outcomes.forEach((outcome, index) => {
       if (outcome.status === 'fulfilled') {
         rawFindings.push(...outcome.value.findings);
         warnings.push(...(outcome.value.warnings ?? []));
       } else {
-        // mensagem genérica ao usuário; o detalhe técnico fica só no log (RNF-25)
-        warnings.push('Uma das ferramentas de varredura não pôde ser executada; o resultado pode estar incompleto.');
+        // diz QUAL ferramenta falhou; o detalhe técnico fica só no log (RNF-25)
+        const tool = jobTools[index] ?? 'Uma das ferramentas';
+        warnings.push(`${tool} não pôde ser executado nesta varredura; o resultado pode estar incompleto (as outras ferramentas rodaram normalmente).`);
         // falha parcial: uma ferramenta caiu, mas as outras continuam valendo
-        console.error(`[scan ${scan.id}] falha em uma ferramenta:`, outcome.reason?.message ?? outcome.reason);
+        console.error(`[scan ${scan.id}] falha em ${tool}:`, outcome.reason?.message ?? outcome.reason);
       }
     });
 

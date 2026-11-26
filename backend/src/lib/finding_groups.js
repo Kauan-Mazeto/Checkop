@@ -22,6 +22,28 @@ const LOCATION_FIELDS = ['id', 'affectedUrl', 'parameter', 'attack', 'reproducti
 const toLocation = (finding) =>
   Object.fromEntries(LOCATION_FIELDS.filter((field) => field in finding).map((field) => [field, finding[field]]));
 
+/**
+ * Agrupa varredura por varredura (a mesma falha em duas varreduras continua sendo duas
+ * entradas, uma em cada). Para contadores e gráficos de várias varreduras: o número
+ * bate com o que o usuário vê ao abrir cada uma.
+ */
+export const groupPerScan = (findings) => {
+  const byScan = new Map();
+  for (const finding of findings) {
+    const list = byScan.get(finding.scanId) ?? [];
+    list.push(finding);
+    byScan.set(finding.scanId, list);
+  }
+  return [...byScan.values()].flatMap((list) => groupFindings(list));
+};
+
+/** Quantas falhas (não locais) cada varredura tem: { scanId: total }. */
+export const countGroupedByScan = (findings) =>
+  groupPerScan(findings).reduce((acc, group) => {
+    acc[group.scanId] = (acc[group.scanId] ?? 0) + 1;
+    return acc;
+  }, {});
+
 export const groupFindings = (findings) => {
   const groups = new Map();
 

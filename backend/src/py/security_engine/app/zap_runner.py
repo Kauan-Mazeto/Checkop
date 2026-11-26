@@ -8,6 +8,7 @@ from urllib.parse import quote
 import httpx
 
 from .cvss import CONFIDENCE_MAP, score_finding
+from .evidence import MARK_CLOSE, MARK_OPEN, is_marked, mark_evidence
 from .mapping import map_to_owasp_category
 from .schemas import Finding, ZapAuthConfig
 
@@ -149,7 +150,7 @@ def _response_excerpt(body: str, evidence: str | None) -> str:
     if at < 0:
         return _clip(body, POC_BODY_HEAD)
     start, end = max(0, at - POC_BODY_WINDOW), min(len(body), at + len(evidence) + POC_BODY_WINDOW)
-    excerpt = body[start:at] + ">>> " + evidence + " <<<" + body[at + len(evidence):end]
+    excerpt = body[start:at] + MARK_OPEN + evidence + MARK_CLOSE + body[at + len(evidence):end]
     return ("[...]\n" if start > 0 else "") + excerpt + ("\n[...]" if end < len(body) else "")
 
 
@@ -222,11 +223,19 @@ def _poc_fields(alert: dict) -> dict:
     if request_body:
         request += "\n\n" + _clip(request_body, POC_REQUEST_BODY_MAX)
     response = response_header.rstrip()
-    excerpt = _response_excerpt(response_body, evidence)
+    excerpt = _response_excerpt(response_body, evidence)  # já marca se a evidência está no corpo
+    marked = is_marked(excerpt)
+    # a evidência pode estar nos cabeçalhos da resposta (X-Powered-By, Set-Cookie sem
+    # SameSite...) ou na própria requisição (senha na URL): marca onde estiver
+    if not marked:
+        response, marked = mark_evidence(response, evidence)
     if excerpt:
         response += "\n\n" + excerpt
-    elif evidence and evidence not in response:
-        response += f"\n\nEvidência: {evidence}"
+    if not marked:
+        request, marked = mark_evidence(request, evidence)
+    if not marked and evidence:
+        # não aparece em nenhum dos dois (ex.: cabeçalho de sessão ocultado): mostra à parte
+        response += f"\n\nEvidência: {MARK_OPEN}{evidence}{MARK_CLOSE}"
     return {"rawRequest": request, "rawResponse": response, "reproduction": _curl_command(request_header, request_body)}
 
 

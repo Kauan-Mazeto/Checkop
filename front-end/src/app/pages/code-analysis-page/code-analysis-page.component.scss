@@ -695,3 +695,9 @@ h3 {
     font-weight: 600;
   }
 }
+
+// botão do aviso de linguagem errada (análise barrada)
+.alert .language-switch {
+  flex-shrink: 0;
+  margin-left: auto;
+}

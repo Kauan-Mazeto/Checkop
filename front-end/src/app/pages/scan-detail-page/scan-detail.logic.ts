@@ -172,31 +172,69 @@ export const pathOf = (url: string | null | undefined): string => {
   }
 };
 
+/** Pedaço de uma linha do visor; `mark` = é o trecho exato que prova a falha. */
+export interface ViewerSegment {
+  text: string;
+  mark: boolean;
+}
+
 /** Linha do visor de requisição/resposta; `hit` = a linha que prova a falha. */
 export interface ViewerLine {
   number: number;
-  text: string;
+  segments: ViewerSegment[];
   hit: boolean;
 }
 
 /** Acima disso o visor mostra só o começo (o JSON exportado leva tudo). */
 export const VIEWER_MAX_LINES = 400;
 
+// o motor marca a evidência como ">>> trecho <<<" (backend: security_engine/app/evidence.py)
+const MARK_OPEN = '>>> ';
+const MARK_CLOSE = ' <<<';
+
+/** Texto sem os marcadores de evidência (para copiar). */
+export const stripEvidenceMarks = (text: string): string => text.replace(/>>> ([\s\S]*?) <<</g, '$1');
+
+/** Separa a linha em pedaços normais e marcados; `inside` = a marcação veio aberta da linha anterior. */
+const splitMarks = (line: string, inside: boolean): { segments: ViewerSegment[]; inside: boolean } => {
+  const segments: ViewerSegment[] = [];
+  let cursor = 0;
+  while (cursor <= line.length) {
+    const token = inside ? MARK_CLOSE : MARK_OPEN;
+    const at = line.indexOf(token, cursor);
+    const piece = line.slice(cursor, at < 0 ? undefined : at);
+    if (piece) segments.push({ text: piece, mark: inside });
+    if (at < 0) break;
+    inside = !inside;
+    cursor = at + token.length;
+  }
+  return { segments, inside };
+};
+
 /**
- * Numera o texto e marca as linhas que provam a falha: as que contêm o payload usado
- * no ataque e, em falha de cabeçalho, a linha do cabeçalho citado entre aspas no título
- * (“X-Powered-By” → "X-Powered-By: Express 4.16.0").
+ * Numera o texto e marca o que prova a falha:
+ *  1. o trecho que o motor marcou (>>> <<<), destacado na própria linha, sem os marcadores;
+ *  2. sem marcação (varreduras antigas): as linhas com o payload do ataque ou com o
+ *     cabeçalho citado entre aspas no título (“X-Powered-By” → "X-Powered-By: Express").
  */
 export const highlightedLines = (text: string, title: string, attack: string | null | undefined): ViewerLine[] => {
   if (!text) return [];
+  const lines = text.split('\n').slice(0, VIEWER_MAX_LINES);
+
+  if (text.includes(MARK_OPEN) && text.includes(MARK_CLOSE)) {
+    let inside = false;
+    return lines.map((line, index) => {
+      const split = splitMarks(line, inside);
+      inside = split.inside;
+      return { number: index + 1, segments: split.segments, hit: split.segments.some((s) => s.mark) };
+    });
+  }
+
   const headers = [...title.matchAll(/[“"'‘]([A-Za-z][\w-]{2,})[”"'’]/g)].map((m) => m[1].toLowerCase());
   const payload = attack && attack.trim().length >= 3 ? attack.trim() : null;
-  return text
-    .split('\n')
-    .slice(0, VIEWER_MAX_LINES)
-    .map((line, index) => {
-      const lower = line.toLowerCase();
-      const header = headers.some((h) => lower.startsWith(`${h}:`));
-      return { number: index + 1, text: line, hit: header || Boolean(payload && line.includes(payload)) };
-    });
+  return lines.map((line, index) => {
+    const lower = line.toLowerCase();
+    const hit = headers.some((h) => lower.startsWith(`${h}:`)) || Boolean(payload && line.includes(payload));
+    return { number: index + 1, segments: [{ text: line, mark: false }], hit };
+  });
 };

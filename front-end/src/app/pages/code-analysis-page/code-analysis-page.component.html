@@ -2,7 +2,7 @@
   <header class="page-header">
     <div>
       <h1>Análise de código <span class="badge badge-pro">PRO</span></h1>
-      <p>Procuramos padrões inseguros no código informado. Nada fica salvo.</p>
+      <p>Procuramos padrões inseguros no código informado.</p>
     </div>
   </header>
 
@@ -81,6 +81,10 @@
 
         <div *ngIf="error" class="alert alert-error" role="alert">
           <span>{{ error }} <a *ngIf="needsPremium" class="link" routerLink="/plans">Ver planos</a></span>
+          <!-- análise barrada: linguagem escolhida não é a do código -->
+          <button *ngIf="languageSuggestion" type="button" class="button button-secondary button-sm language-switch" (click)="useSuggestedLanguage()">
+            Trocar para {{ languageSuggestion.label }}
+          </button>
         </div>
 
         <!-- profundidade: completa (todas as regras) ou essencial (só o mais importante) -->
