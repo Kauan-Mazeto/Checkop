@@ -4,7 +4,7 @@ import { ApiError } from '../../core/http/api-error';
 import { AccountService } from '../../core/services/account.service';
 import { AuthService, UserPlan } from '../../core/services/auth.service';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
-import { PLAN_FEATURES } from '../../shared/ui/plans';
+import { ENTERPRISE_FEATURES, PLAN_FEATURES } from '../../shared/ui/plans';
 
 @Component({
   selector: 'app-plans-page',
@@ -18,6 +18,9 @@ export class PlansPageComponent {
   private readonly account = inject(AccountService);
 
   protected readonly features = PLAN_FEATURES;
+  protected readonly enterpriseFeatures = ENTERPRISE_FEATURES;
+  /** contato comercial do plano Empresarial (preço e condições combinados com a empresa) */
+  protected readonly salesEmail = 'comercial@checkop.com.br';
   protected readonly freeFeatures = PLAN_FEATURES.filter((f) => f.free);
   protected plan: UserPlan = this.auth.getCachedUser()?.plan ?? 'FREE';
   protected isChanging = false;

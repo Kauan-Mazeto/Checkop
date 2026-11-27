@@ -24,7 +24,7 @@
     <div class="cell head premium top">
       <span class="ribbon">{{ isPremium ? 'Seu plano' : 'Recomendado' }}</span>
       <h2>Premium</h2>
-      <p class="price"><strong>R$ 149.99</strong><span>/mês · sem cobrança na demonstração</span></p>
+      <p class="price"><strong>R$ 149,99</strong><span>/mês · sem cobrança na demonstração</span></p>
       <p class="tagline">Para corrigir de verdade e provar conformidade.</p>
       <button class="button button-primary button-block" type="button" [disabled]="isPremium || isChanging" (click)="choose('PREMIUM')">
         <span *ngIf="isChanging" class="spinner" aria-hidden="true"></span>
@@ -32,8 +32,15 @@
       </button>
     </div>
 
+    <div class="cell head enterprise">
+      <h2>Empresarial</h2>
+      <p class="price"><strong>Sob consulta</strong></p>
+      <p class="tagline">Para empresas e times: preço e condições alinhados com a empresa.</p>
+      <a class="button button-outline button-block" [href]="'mailto:' + salesEmail + '?subject=Plano%20Empresarial%20Checkop'">Falar com vendas</a>
+    </div>
+
     <!-- Vantagens, linha a linha -->
-    <ng-container *ngFor="let f of features; let last = last">
+    <ng-container *ngFor="let f of features">
       <div class="cell feature">
         <strong>{{ f.label }}</strong>
         <span>{{ f.detail }}</span>
@@ -42,14 +49,24 @@
         <span *ngIf="f.free" class="yes" aria-label="Incluso">✓</span>
         <span *ngIf="!f.free" class="no" aria-label="Não incluso">—</span>
       </div>
-      <div class="cell mark premium" [class.bottom]="last">
+      <div class="cell mark premium">
+        <span class="yes" aria-label="Incluso">✓</span>
+      </div>
+      <div class="cell mark enterprise">
         <span class="yes" aria-label="Incluso">✓</span>
       </div>
     </ng-container>
-  </section>
 
-  <p class="footnote">
-    Sem cobrança: a troca de plano é demonstrativa nesta versão do TCC (seção 6.3). Em sites de produção, o Modo Seguro
-    continua ocultando requisições e respostas em qualquer plano.
-  </p>
+    <!-- só no Empresarial: combinado em contrato -->
+    <div class="cell group-label">Só no Empresarial</div>
+    <ng-container *ngFor="let f of enterpriseFeatures">
+      <div class="cell feature">
+        <strong>{{ f.label }}</strong>
+        <span>{{ f.detail }}</span>
+      </div>
+      <div class="cell mark"><span class="no" aria-label="Não incluso">—</span></div>
+      <div class="cell mark premium"><span class="no" aria-label="Não incluso">—</span></div>
+      <div class="cell mark enterprise"><span class="yes" aria-label="Incluso">✓</span></div>
+    </ng-container>
+  </section>
 </app-shell>

@@ -23,6 +23,7 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 | 08 | [Análise de código: novas ferramentas e medição de acerto](08-analise-de-codigo-novas-ferramentas/README.md) | Implementado (ferramentas); medição pendente | 2026-11-23 |
 | 09 | [Alertas antigos do ZAP e uma varredura por usuário](09-alertas-do-zap-e-limite-por-usuario/README.md) | Implementado e testado | 2026-11-22 |
 | 10 | [Novo aceite dos Termos e "Baixar meus dados"](10-novo-aceite-dos-termos-e-baixar-meus-dados/README.md) | Implementado e testado | 2026-11-22 |
+| 11 | [ZAP que não subia no iniciar.cmd](11-zap-preso-ao-iniciar/README.md) | Implementado e testado | 2026-11-26 |
 
 ## Como rodar os testes
 

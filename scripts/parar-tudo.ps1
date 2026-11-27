@@ -22,6 +22,15 @@ foreach ($nome in $servicos.Keys) {
   Write-Host "[encerrado]  $nome (:$porta)" -ForegroundColor Green
 }
 
+# ZAP que ainda estava subindo (ou travou) não escuta a porta, mas segura a pasta
+# %USERPROFILE%\ZAP e impede o próximo de abrir: encerra pelo jar
+Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.CommandLine -match 'zap-[\d.]+\.jar' } |
+  ForEach-Object {
+    & taskkill /PID $_.ProcessId /T /F | Out-Null
+    Write-Host "[encerrado]  ZAP sem porta (pid $($_.ProcessId))" -ForegroundColor Green
+  }
+
 # janelas do PowerShell que o iniciar-tudo.ps1 abriu (pelo título)
 $titulos = 'ZAP :8091', 'Motor :8010', 'Backend :8080', 'Front :4200', 'Lab :3000'
 Get-Process powershell -ErrorAction SilentlyContinue |

@@ -38,7 +38,7 @@ export const PLAN_DEFINITIONS: Record<UserPlan, PlanDefinition> = {
     id: 'PREMIUM',
     name: 'Premium',
     // valor de vitrine definido pela equipe (branch front); sem cobrança no MVP
-    priceLabel: 'R$ 149.99/mês',
+    priceLabel: 'R$ 149,99/mês',
     dailyScanLimit: null,
     canChooseObjective: true,
     defaultObjective: 'FULL_SCAN',
@@ -98,7 +98,7 @@ export const PLAN_CARDS: PlanCard[] = [
   {
     id: 'PREMIUM',
     name: 'Premium',
-    price: 'R$ 149.99',
+    price: 'R$ 149,99',
     period: '/mês',
     included: [
       'Scans ilimitados',
@@ -141,4 +141,16 @@ export const PLAN_FEATURES: PlanFeature[] = [
   { label: 'Prova de conceito (PoC)', detail: 'A requisição enviada e a resposta que confirma a falha', free: false, premium: true },
   { label: 'Painel de compliance', detail: 'Impacto em LGPD (art. 46) e PCI-DSS (req. 6.2.4)', free: false, premium: true },
   { label: 'Análise de código-fonte (SAST)', detail: 'Arquivo com a linha vulnerável destacada e a correção ao lado', free: false, premium: true },
+];
+
+/**
+ * Plano Empresarial: tudo do Premium + o que é combinado em contrato com a empresa.
+ * Não é ativado pela tela (preço e condições sob consulta); só aparece na página de planos.
+ */
+export const ENTERPRISE_FEATURES: { label: string; detail: string }[] = [
+  { label: 'Equipes e vários usuários', detail: 'Contas para o time, com o perfil de cada um (Dev, QA, Pentester)' },
+  { label: 'Limites sob medida', detail: 'Domínios, varreduras simultâneas e créditos de IA conforme o contrato' },
+  { label: 'Suporte dedicado e SLA', detail: 'Atendimento prioritário e prazo de resposta combinado' },
+  { label: 'Instalação na infraestrutura da empresa', detail: 'Checkop rodando na rede interna (Docker), sem os dados saírem da empresa' },
+  { label: 'Integrações e relatórios personalizados', detail: 'Pipeline de CI/CD, ferramentas de tickets e relatórios com a marca da empresa' },
 ];

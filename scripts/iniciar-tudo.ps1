@@ -44,7 +44,21 @@ if (-not $zapBat) {
 }
 if (-not $zapBat) { throw "ZAP não encontrado (nem em backend\tools\zap nem em Arquivos de Programas). Rode scripts\baixar-ferramentas.ps1." }
 
-Abrir 'ZAP :8091'     8091 $zapBat.DirectoryName                         "& '.\zap.bat' -daemon -host 127.0.0.1 -port 8091 -config api.key=$key"
+# Só um ZAP pode usar a pasta %USERPROFILE%\ZAP. Um ZAP que sobrou de outra execução
+# (travado antes de abrir a porta, ou o ZAP com janela aberto à mão) faz o novo morrer na hora.
+if (-not (Test-Porta 8091)) {
+  Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe' OR Name='ZAP.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq 'ZAP.exe' -or $_.CommandLine -match 'zap-[\d.]+\.jar' } |
+    ForEach-Object {
+      Write-Host "[fechando]   ZAP antigo que estava preso (pid $($_.ProcessId))" -ForegroundColor DarkYellow
+      & taskkill /PID $_.ProcessId /T /F | Out-Null
+    }
+}
+
+# a saída do ZAP também vai para um arquivo, para mostrar o erro aqui se ele não subir
+$zapSaida = Join-Path $env:TEMP 'checkop-zap.log'
+Remove-Item $zapSaida -ErrorAction SilentlyContinue
+Abrir 'ZAP :8091'     8091 $zapBat.DirectoryName                         "& '.\zap.bat' -daemon -host 127.0.0.1 -port 8091 -config api.key=$key 2>&1 | Out-String -Stream | Tee-Object -FilePath '$zapSaida'"
 Abrir 'Motor :8010'   8010 (Join-Path $backend 'src\py\security_engine') 'python -m uvicorn app.main:app --host 127.0.0.1 --port 8010'
 Abrir 'Backend :8080' 8080 $backend                                      'npm start'
 Abrir 'Front :4200'   4200 (Join-Path $root 'front-end')                 'npx ng serve'
@@ -70,6 +84,10 @@ while ($pendentes.Count -gt 0 -and (Get-Date) -lt $limite) {
 }
 foreach ($nome in $pendentes) {
   Write-Host "[!]  $nome não respondeu em 3 min: veja a janela '$nome' para o erro." -ForegroundColor Yellow
+  if ($nome -eq 'ZAP' -and (Test-Path $zapSaida)) {
+    Write-Host '     Últimas linhas do ZAP:' -ForegroundColor Yellow
+    Get-Content $zapSaida -Tail 15 | ForEach-Object { Write-Host "     $_" -ForegroundColor DarkYellow }
+  }
 }
 
 if (-not $SemNavegador -and (Test-Porta 4200)) {
