@@ -40,21 +40,21 @@ export class RegisterPageComponent {
 
   // Espelha o enum Role do backend (backend/src/constants/enums.js), exceto
   // ADM, que o próprio registerSchema não permite escolher no cadastro.
-  protected readonly roles: { id: SelectableRole; label: string }[] = [
-    { id: 'QA', label: 'QA' },
-    { id: 'DEV', label: 'Dev' },
-    { id: 'PENTESTER', label: 'Pentester' },
-    { id: 'STUDENT', label: 'Estudante' },
+  protected readonly roles: { id: SelectableRole; label: string; hint: string }[] = [
+    { id: 'QA', label: 'QA', hint: 'Evidência pronta para abrir o chamado' },
+    { id: 'DEV', label: 'Dev', hint: 'A linha do problema e a correção' },
+    { id: 'PENTESTER', label: 'Pentester', hint: 'Payload, requisição crua e PoC' },
+    { id: 'STUDENT', label: 'Estudante', hint: 'Explicação e referências da OWASP' },
   ];
 
   // Os mesmos cartões da landing (shared/ui/plans.ts). O Enterprise aparece,
   // mas ainda não pode ser escolhido (a definir pela equipe).
   protected readonly plans: PlanCard[] = PLAN_CARDS;
 
-  protected readonly steps: { id: RegisterStep; label: string }[] = [
-    { id: 1, label: 'Conta' },
-    { id: 2, label: 'Perfil' },
-    { id: 3, label: 'Plano' },
+  protected readonly steps: { id: RegisterStep; label: string; hint: string }[] = [
+    { id: 1, label: 'Conta', hint: 'Nome, e-mail e senha' },
+    { id: 2, label: 'Perfil', hint: 'QA, Dev, Pentester ou Estudante' },
+    { id: 3, label: 'Plano', hint: 'Free ou Premium' },
   ];
 
   protected currentStep: RegisterStep = 1;

@@ -12,6 +12,7 @@ import { scanHistoryPageRoute } from './pages/scan-history-page/scan-history-pag
 import { accountPageRoute } from './pages/account-page/account-page.route';
 import { privacyPageRoute, termsPageRoute } from './pages/legal-page/legal-page.route';
 import { plansPageRoute } from './pages/plans-page/plans-page.route';
+import { aiHelpPageRoute } from './pages/ai-help-page/ai-help-page.route';
 
 export const routes: Routes = [
   {
@@ -30,6 +31,7 @@ export const routes: Routes = [
   newScanPageRoute,
   scanDetailPageRoute,
   codeAnalysisPageRoute,
+  aiHelpPageRoute,
   accountPageRoute,
   plansPageRoute,
   termsPageRoute,

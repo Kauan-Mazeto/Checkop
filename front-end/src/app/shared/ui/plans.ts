@@ -114,9 +114,9 @@ export const PLAN_CARDS: PlanCard[] = [
   {
     id: 'ENTERPRISE',
     name: 'Enterprise',
-    price: 'A definir',
-    period: 'em breve',
-    included: ['Tudo do Premium', 'API dedicada', 'Suporte prioritário', 'White-label'],
+    price: 'A definir com a necessidade da empresa.',
+    period: '',
+    included: ['Tudo do Premium', 'API dedicada', 'Suporte prioritário', 'Valor sob quantidade de usuários'],
     excluded: [],
     available: false,
   },

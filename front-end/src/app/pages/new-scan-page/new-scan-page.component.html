@@ -19,7 +19,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg>
         </span>
         <input type="url" name="targetUrl" [(ngModel)]="targetUrl" (ngModelChange)="saveDraft()" aria-label="URL da aplicação"
-          placeholder="https://meusite.com.br  ou  http://localhost:3000" autocomplete="url" spellcheck="false" />
+          placeholder="https://meusite.com.br ou http://localhost:3000" autocomplete="url" spellcheck="false" />
         <span *ngIf="targetKind === 'local'" class="kind kind-local">Ambiente local</span>
         <span *ngIf="targetKind === 'public'" class="kind kind-public">Site público</span>
       </label>

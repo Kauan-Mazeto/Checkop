@@ -170,11 +170,44 @@ def _span(result: dict) -> tuple[int, int]:
     return start, result.get("end", {}).get("line") or start
 
 
+# Falhas de fluxo: uma regra aponta onde o valor entra no texto (String sql = "..." + nome)
+# e outra onde ele é executado (jdbc.query(sql)), em linhas vizinhas. É a mesma falha.
+_FLOW_CLASSES = {"sqli", "cmd", "code", "xss", "path", "ssrf", "redirect", "deserialization"}
+_FLOW_SLACK = 2
+
+
+# Regras de "segredo no código" que olham só o texto entre aspas (ex.: HARD_CODE_KEY-3 do
+# findsecbugs acusa qualquer String com "senha"/"password") apontam o SQL que só CITA a
+# coluna senha: "INSERT INTO usuarios (nome, senha) VALUES (?, ?)". Comando SQL não é
+# segredo; um segredo de verdade (String senha = "123456") continua sendo apontado.
+_SQL_STATEMENT = re.compile(
+    r"""["'`][^"'`]*\b(select\s+.+?\s+from|insert\s+into|update\s+\S+\s+set|delete\s+from)\b""", re.I | re.S
+)
+
+
+# valor fixo dentro do próprio SQL ("... VALUES ('admin', 'admin123')", "SET senha = '123'"):
+# aí sim tem senha no código, e o achado fica
+_SQL_LITERAL_VALUE = re.compile(r"""(values\s*\([^)]*'[^'?]+'|\bset\b[^;]*=\s*'[^'?]+')""", re.I)
+
+
+def _sql_mistaken_for_secret(result: dict, base_dir: str, contents: dict[str, str]) -> bool:
+    # as regras do Checkop já distinguem SQL de segredo (ex.: checkop-insert-senha-fixa)
+    if result.get("check_id", "").split(".")[-1].startswith("checkop-") or vulnerability_class(result) != "secret":
+        return False
+    lines = result.get("extra", {}).get("lines") or ""
+    if not lines or lines == "requires login":
+        # regras do registro sem login no Semgrep não trazem o trecho: lê do arquivo enviado
+        start, end = _span(result)
+        lines = _extract_snippet(contents.get(_relative_to(result.get("path", ""), base_dir)), start, end)
+    return bool(_SQL_STATEMENT.search(lines)) and not _SQL_LITERAL_VALUE.search(lines)
+
+
 def _dedupe_results(results: list[dict]) -> list[dict]:
     """Uma falha por (arquivo, classe, trecho). Regras de pacotes diferentes que
     apontam a mesma vulnerabilidade em linhas iguais ou sobrepostas (ex.: SQLi
     marcado nas linhas 8-11 por uma e na 11 por outras quatro) viram um achado
-    só: o mais grave e, empatando, o de trecho mais preciso."""
+    só: o mais grave e, empatando, o de trecho mais preciso. Nas falhas de fluxo
+    (injeção), linhas vizinhas também: montar o SQL e executá-lo é uma falha só."""
     buckets: dict[tuple, list[list[dict]]] = {}
     for result in sorted(results, key=_span):
         key = (result.get("path"), vulnerability_class(result))
@@ -186,7 +219,7 @@ def _dedupe_results(results: list[dict]) -> list[dict]:
             # linhas sobrepostas; erro de sintaxe também em linha vizinha (o javac aponta o ; que
             # falta na linha 15, o PMD aponta a linha 16 onde tropeçou: é o mesmo erro)
             # vazamento: o Semgrep aponta a linha do malloc, o cppcheck o fim da função (até "}")
-            slack = 1 if key[1] == "syntax" else 4 if key[1] == "memleak" else 0
+            slack = 1 if key[1] == "syntax" else 4 if key[1] == "memleak" else _FLOW_SLACK if key[1] in _FLOW_CLASSES else 0
             if start <= g_end + slack and end >= g_start - slack:
                 group.append(result)
                 break
@@ -203,8 +236,20 @@ def _dedupe_results(results: list[dict]) -> list[dict]:
             sources = sorted({(r.get("extra", {}).get("metadata", {}) or {}).get("checkop_tool") or "Semgrep" for r in group})
             # a correção pronta (edição da ferramenta) vale para o grupo, mesmo que venha de outra regra
             with_edits = next((r for r in [best, *group] if _edits_of(r)), None)
+            # o card mostra o trecho do grupo inteiro (ex.: linhas 10-11: monta o SQL e executa)
+            g_start = min(_span(r)[0] for r in group)
+            g_end = max(_span(r)[1] for r in group)
+            span_update = {}
+            if (g_start, g_end) != _span(best):
+                span_update = {
+                    "start": {**best.get("start", {}), "line": g_start},
+                    "end": {**best.get("end", {}), "line": g_end},
+                    # o trecho do Semgrep é só da linha da regra escolhida: recalcula pelo arquivo
+                    "extra": {**best.get("extra", {}), "lines": ""},
+                }
             unique.append({
                 **best,
+                **span_update,
                 "_edits": _edits_of(with_edits) if with_edits else [],
                 "_rule_count": len({r.get("check_id") for r in group}),
                 "_class": vulnerability_class(best),
@@ -321,6 +366,21 @@ def _merge_same_location(findings: list[Finding]) -> list[Finding]:
                 break
         else:
             groups.append((file_path, start, end, [finding]))
+
+    # Boa prática que cai na MESMA linha de uma falha de segurança/lógica (ex.: "variável não
+    # usada" bem na linha do SQL montado) entra no card dessa falha, não num card à parte
+    still_alone: list[Finding] = []
+    for finding in alone:
+        loc = _location(finding)
+        host = None
+        if finding.category == "QUALITY" and loc and "ocorrências)" not in finding.title:
+            host = next((items for g_file, g_start, g_end, items in groups
+                         if g_file == loc[0] and loc[1] <= g_end and loc[2] >= g_start), None)
+        if host is not None:
+            host.append(finding)
+        else:
+            still_alone.append(finding)
+    alone = still_alone
 
     merged: list[Finding] = []
     for *_, items in groups:
@@ -580,15 +640,20 @@ def _parse_result(result: dict, base_dir: str, contents: dict[str, str], transla
 
 # Modo completo: além dos pacotes gerais, os pacotes oficiais por linguagem do registro
 # (só os conferidos que existem: um pacote inexistente derruba a análise inteira).
+# Inclui os pacotes dos frameworks principais de cada linguagem que existem no registro
+# (conferidos em 2026-11-26): Spring/Jakarta (findsecbugs), Express e Node (expressjs,
+# nodejsscan), React, Django/Flask/FastAPI, Rails (brakeman), Go/Gin/Echo (gosec) e PHP
+# (phpcs-security-audit). Spring MVC, Laravel, NestJS, Next.js e ASP.NET Core não têm
+# pacote (ou o pacote vem vazio): ficam com as regras do Checkop (rules/checkop/frameworks.yaml).
 SEMGREP_LANGUAGE_PACKS = {
-    (".py",): ["p/python", "p/flask", "p/django"],
-    (".js", ".mjs", ".cjs", ".jsx"): ["p/javascript", "p/nodejs"],
-    (".ts", ".tsx"): ["p/typescript", "p/nodejs"],
-    (".java",): ["p/java"],
+    (".py",): ["p/python", "p/flask", "p/django", "p/fastapi"],
+    (".js", ".mjs", ".cjs", ".jsx"): ["p/javascript", "p/nodejs", "p/expressjs", "p/nodejsscan", "p/react"],
+    (".ts", ".tsx"): ["p/typescript", "p/nodejs", "p/expressjs", "p/nodejsscan", "p/react"],
+    (".java",): ["p/java", "p/findsecbugs"],
     (".kt", ".kts"): ["p/kotlin"],
-    (".php",): ["p/php"],
-    (".rb",): ["p/ruby"],
-    (".go",): ["p/golang"],
+    (".php",): ["p/php", "p/phpcs-security-audit"],
+    (".rb",): ["p/ruby", "p/brakeman"],
+    (".go",): ["p/golang", "p/gosec"],
     (".cs",): ["p/csharp"],
     (".rs",): ["p/rust"],
     (".c", ".h", ".cpp", ".cc", ".hpp"): ["p/c"],
@@ -599,13 +664,21 @@ SEMGREP_LANGUAGE_PACKS = {
 }
 
 
+# Pacotes por tema, válidos para várias linguagens (cada um traz regras de vários frameworks)
+SEMGREP_TOPIC_PACKS = ["p/sql-injection", "p/command-injection", "p/xss", "p/jwt"]
+
+
 def _semgrep_configs(files: dict[str, str], complete: bool) -> list[str]:
     configs = list(SAST_RULESETS)
     if complete:
         names = [name.lower() for name in files]
+        has_code = False
         for extensions, packs in SEMGREP_LANGUAGE_PACKS.items():
             if any(name.endswith(extensions) for name in names):
                 configs += [pack for pack in packs if pack not in configs]
+                has_code = has_code or extensions not in ((".tf", ".hcl"), (".yaml", ".yml"))
+        if has_code:
+            configs += [pack for pack in SEMGREP_TOPIC_PACKS if pack not in configs]
         if any(name.split("/")[-1] in ("dockerfile", "containerfile") or "dockerfile" in name.split("/")[-1] for name in names):
             configs.append("p/dockerfile")
     return configs
@@ -720,7 +793,7 @@ async def run_sast_scan(files: dict[str, str], language: str = "pt-BR", complete
         covered = {ext for tool, exts in _SYNTAX_TOOLS.items() if tool in extra.used for ext in exts}
         generic_syntax = [r for r in semgrep_syntax_results(payload) if not str(r.get("path", "")).lower().endswith(tuple(covered))]
         results = payload.get("results", []) + generic_syntax + extra.results
-        results = _dedupe_results(results)
+        results = _dedupe_results([r for r in results if not _sql_mistaken_for_secret(r, tmp_dir, contents)])
         texts = {_rule_name(r.get("check_id", "")) for r in results}
         texts |= {r.get("extra", {}).get("message", "") for r in results}
         translations = await translate_many(texts, language)

@@ -376,6 +376,13 @@ h3 {
   }
 }
 
+// "Limpar resultado" alinhado à esquerda, como o resto do cartão
+.clear-result {
+  align-self: flex-start;
+  padding-left: 0;
+  text-align: left;
+}
+
 .depth-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -386,26 +393,35 @@ h3 {
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border: 1.5px solid var(--border-strong);
   border-radius: 10px;
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text);
   text-align: left;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 
   span {
-    color: var(--text-2);
+    color: var(--muted);
     font-size: 12.5px;
   }
 
-  // escolhida: branca, como as abas e botões escolhidos das outras telas
+  &:hover:not(:disabled):not(.selected) {
+    border-color: var(--muted);
+  }
+
+  // escolhida: verde; a outra fica preta (padrão)
   &.selected {
-    border-color: #fff;
-    background: #fff;
-    color: var(--bg);
+    border-color: var(--success);
+    background: var(--success-soft);
+    box-shadow: 0 0 0 1px var(--success) inset;
+
+    strong {
+      color: var(--success);
+    }
 
     span {
-      color: #3a3a3f;
+      color: var(--text-2);
     }
   }
 

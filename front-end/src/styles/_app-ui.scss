@@ -166,12 +166,13 @@
     gap: 2px;
   }
 
+  // títulos das seções do menu (Varreduras, Segurança, Conta): em destaque
   .nav-label {
-    padding: 0 10px 6px;
-    color: var(--faint);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    padding: 0 10px 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
   }
 
@@ -494,7 +495,7 @@
   // =========================================================
   // contorno branco: o estilo das telas refeitas (detalhe, nova varredura, histórico...)
   .card {
-    border: 1.5px solid #fff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     background: var(--surface);
     box-shadow: var(--shadow);
@@ -833,7 +834,7 @@
     min-height: 38px;
     padding: 8px 12px;
     // contorno branco nos campos, como nas telas refeitas
-    border: 1.5px solid rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 8px;
     outline: 0;
     background: var(--bg);
@@ -1577,6 +1578,359 @@
     details p {
       margin: 8px 0 0;
       white-space: pre-line;
+    }
+  }
+
+  // ---------- blocos do Painel (visão geral e painéis por perfil) ----------
+  // Planos e leves: fundo um tom acima, borda de 1px sutil, sem cartão dentro de cartão
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    gap: 14px;
+  }
+
+  .dash-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .dash-span-2 {
+    grid-column: span 2;
+
+    @media (max-width: 760px) {
+      grid-column: auto;
+    }
+  }
+
+  .dash-span-all {
+    grid-column: 1 / -1;
+  }
+
+  .dash-tile-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 12px;
+
+    h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    > span {
+      color: var(--faint);
+      font-size: 12px;
+    }
+  }
+
+  .dash-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+
+    strong {
+      color: var(--text);
+    }
+  }
+
+  // aba Riscos: lista "Corrigir primeiro"
+  .rank-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li + li {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    a {
+      display: grid;
+      grid-template-columns: 22px auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 6px;
+      border-radius: 8px;
+      color: var(--text-2);
+      text-decoration: none;
+
+      &:hover {
+        background: var(--surface-2);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--info);
+        outline-offset: -2px;
+      }
+    }
+  }
+
+  .rank-n {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+  }
+
+  .rank-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    strong,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    small {
+      color: var(--faint);
+      font-size: 12px;
+    }
+  }
+
+  .rank-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  // Dev: "Como corrigir os que mais se repetem"
+  .fix-guide {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    p {
+      margin: 0;
+      color: var(--text-2);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    a {
+      margin-top: auto;
+      font-size: 12.5px;
+    }
+  }
+
+  .fix-guide-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    strong {
+      font-size: 13.5px;
+    }
+  }
+
+  // Estudante: o que é cada severidade
+  .severity-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      color: var(--text-2);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      justify-self: start;
+    }
+
+    small {
+      display: block;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+  }
+
+  // Estudante: falhas já corrigidas
+  .chips-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  // aba Alvos: tabela de sites
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .target-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--faint);
+      font-size: 11.5px;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    a {
+      color: var(--text);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    .meta {
+      color: var(--faint);
+    }
+  }
+
+  .delta {
+    font-weight: 600;
+
+    &.worse {
+      color: var(--sev-critical);
+    }
+
+    &.better {
+      color: var(--success);
+    }
+  }
+
+  // painel do Estudante: conceitos e achados recolhidos, separados em partes curtas
+  .learn-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+
+  .learn-item {
+    summary {
+      font-size: 14px;
+    }
+
+    > p {
+      margin: 10px 0 0;
+    }
+  }
+
+  .learn-part {
+    margin-top: 12px;
+
+    h4 {
+      margin: 0 0 6px;
+      color: var(--faint);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    > p {
+      margin: 0;
+      color: var(--text-2);
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+  }
+
+  .learn-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .learn-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+  }
+
+  .learn-full {
+    margin-top: 10px;
+
+    summary {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    p {
+      max-height: 260px;
+      overflow-y: auto;
+      color: var(--muted);
+      font-size: 12px;
     }
   }
 

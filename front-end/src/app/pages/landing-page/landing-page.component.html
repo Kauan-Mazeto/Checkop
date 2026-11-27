@@ -1,625 +1,281 @@
-<div class="checkop">
-  <div class="grid-background"></div>
-  <div class="scanline-overlay"></div>
-
-  <main class="app-view" [class.is-hidden]="currentView !== 'landing'">
-    <nav class="navbar fade-up fade-delay-1">
-      <a class="brand" routerLink="/landing" fragment="top" aria-label="Checkop">
-        <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-        <span class="brand-name">Checkop</span>
+<div class="pub">
+  <!-- navegação -->
+  <header class="nav">
+    <div class="pub-wrap nav__inner">
+      <a class="pub-brand" routerLink="/landing" fragment="top" aria-label="Checkop, início da página">
+        <img src="/checkop-logo.png" alt="" />
+        Checkop
       </a>
-
-      <div class="navbar-links">
-        <a class="nav-link" routerLink="/landing" fragment="features">Recursos</a>
-        <a class="nav-link" routerLink="/landing" fragment="audiences">Público</a>
-        <a class="nav-link" routerLink="/landing" fragment="pricing">Planos</a>
-
-        <button class="button button-outline" type="button" routerLink="/login">Entrar</button>
+      <nav class="nav__links" aria-label="Seções">
+        <a routerLink="/landing" fragment="como-funciona">Como funciona</a>
+        <a routerLink="/landing" fragment="ferramentas">Ferramentas</a>
+        <a routerLink="/landing" fragment="planos">Planos</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="pub-btn pub-btn--ghost" routerLink="/login">Entrar</a>
+        <a class="pub-btn pub-btn--primary" routerLink="/register">Criar conta grátis</a>
       </div>
+    </div>
+  </header>
 
-      <button class="mobile-menu-button" type="button" aria-label="Abrir login">☰</button>
-    </nav>
-
-    <section class="hero section-container" id="top">
-      <div class="hero-content">
-        <div class="environment-label fade-up fade-delay-2">
-          <span class="environment-tag environment-tag-dev">DEV</span>
-          <span class="environment-plus">+</span>
-          <span class="environment-tag environment-tag-prod">PROD</span>
-          <span class="environment-description">ambientes inteligentes</span>
-        </div>
-
-        <h1 class="hero-title fade-up fade-delay-3">
-          Teste a segurança da sua<br />
-          aplicação
-          <span class="accent-text">sem complicação</span>
-        </h1>
-
-        <p class="hero-description fade-up fade-delay-4">
-          Escaneie vulnerabilidades, gere relatórios e proteja suas aplicações web. Para QAs, Devs,
-          Pentesters e Estudantes.
-        </p>
-
-        <div class="hero-actions fade-up fade-delay-5">
-          <button class="button button-primary" type="button" routerLink="/register">
-            Começar gratuitamente
-          </button>
-
-          <a class="text-link" routerLink="/landing" fragment="features">
-            Ver como funciona
-          </a>
-        </div>
-
-        <div class="terminal-preview fade-up fade-delay-6">
-          <div class="terminal-header">
-            <span class="terminal-dot terminal-dot-red"></span>
-            <span class="terminal-dot terminal-dot-yellow"></span>
-            <span class="terminal-dot terminal-dot-green"></span>
-            <span class="terminal-title">Checkop — scan</span>
-          </div>
-
-          <div class="terminal-body">
-            <div>
-              <span class="terminal-prompt">$</span>
-              Checkop scan --url https://meuapp.com
-            </div>
-            <div class="terminal-muted">
-              → Detectando ambiente...
-              <span class="terminal-warning">produção</span>
-            </div>
-            <div class="terminal-muted">→ Executando o scan escolhido (25 tipos de teste)...</div>
-            <div class="terminal-error">✗ SQL Injection detectado em /api/users</div>
-            <div class="terminal-error">✗ XSS refletido em /search?q=</div>
-            <div class="terminal-success">✓ Headers de segurança configurados</div>
-            <div class="terminal-success">✓ CSRF tokens válidos</div>
-            <div class="terminal-muted">→ Relatório: 2 críticos, 0 médios, 12 seguros</div>
-            <div>
-              <span class="terminal-prompt">$</span>
-              <span class="terminal-cursor"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="stats-section">
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-ring"><span>14</span></div>
-          <span class="stat-label">Vetores</span>
-        </div>
-
-        <div class="stat-item">
-          <div class="stat-ring"><span>&lt;5s</span></div>
-          <span class="stat-label">Scan time</span>
-        </div>
-
-        <div class="stat-item">
-          <div class="stat-ring"><span>2</span></div>
-          <span class="stat-label">Ambientes</span>
-        </div>
-
-        <div class="stat-item">
-          <div class="stat-ring"><span>R$0</span></div>
-          <span class="stat-label">Para começar</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="content-section section-container" id="features">
-      <div class="section-heading">
-        <span class="section-kicker">Recursos</span>
-        <h2>Como funciona o Checkop</h2>
-      </div>
-
-      <div class="environment-cards">
-        <article class="surface-card audience-card">
-          <div class="card-heading">
-            <span class="environment-tag environment-tag-dev">DEV</span>
-            <h3>Ambiente de desenvolvimento</h3>
-          </div>
-
+  <main>
+    <!-- topo -->
+    <section id="top" class="hero pub-grid-bg">
+      <div class="pub-wrap hero__inner">
+        <div class="hero__copy">
+          <span class="pub-kicker">Varredura de segurança para aplicações web</span>
+          <h1>Ache as falhas do seu site <span class="accent">antes de um atacante.</span></h1>
           <p>
-            Retorno completo com detalhes técnicos — email, IDs, nomes de campos e stack traces.
-            Ideal para debug rápido durante o desenvolvimento.
+            O Checkop junta OWASP ZAP, Nuclei, Semgrep e outras ferramentas abertas, entende se o alvo é local,
+            homologação ou produção e entrega cada falha com a prova e a correção.
           </p>
-
-          <code class="code-preview code-preview-dev">
-            {{ '{ "vuln": "sqli", "field": "email", "trace": "db.query:42" }' }}
-          </code>
-        </article>
-
-        <article class="surface-card audience-card">
-          <div class="card-heading">
-            <span class="environment-tag environment-tag-prod">PROD</span>
-            <h3>Ambiente de produção</h3>
+          <div class="hero__ctas">
+            <a class="pub-btn pub-btn--primary pub-btn--lg" routerLink="/register">Começar grátis</a>
+            <a class="pub-btn pub-btn--ghost pub-btn--lg" routerLink="/landing" fragment="como-funciona">Ver como funciona</a>
           </div>
+          <span class="hero__note">Plano Free: 1 varredura por dia, sem cartão.</span>
+        </div>
 
-          <p>
-            Retorno seguro e limitado — tipo da falha e como prevenir. Nunca expõe dados
-            confidenciais ou internos do sistema.
-          </p>
-
-          <code class="code-preview code-preview-prod">
-            {{ '{ "vuln": "sqli", "severity": "critical", "fix": "Parameterized queries" }' }}
-          </code>
-        </article>
-      </div>
-    </section>
-
-    <section class="content-section section-container section-divider" id="audiences">
-      <div class="section-heading">
-        <span class="section-kicker">Público</span>
-        <h2>Uma ferramenta, vários perfis</h2>
-      </div>
-
-      <div class="audience-grid">
-        <article class="surface-card audience-card">
-          <span class="audience-icon audience-icon-blue">▥</span>
-          <h3>QA Engineers</h3>
-          <p>Interface simples, gráficos visuais e relatórios exportáveis.</p>
-        </article>
-
-        <article class="surface-card audience-card">
-          <span class="audience-icon audience-icon-red">⌘</span>
-          <h3>Desenvolvedores</h3>
-          <p>Documentação integrada, alertas automatizados e modo debug.</p>
-        </article>
-
-        <article class="surface-card audience-card">
-          <span class="audience-icon audience-icon-orange">›_</span>
-          <h3>Pentesters</h3>
-          <p>Logs técnicos completos, payloads específicos e análise profunda.</p>
-        </article>
-
-        <article class="surface-card audience-card">
-          <span class="audience-icon audience-icon-yellow">◇</span>
-          <h3>Estudantes</h3>
-          <p>Tutoriais guiados e sandbox seguro para aprender na prática.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="content-section section-container section-divider" id="pricing">
-      <div class="section-heading">
-        <span class="section-kicker">Planos</span>
-        <h2>Segurança acessível para todos</h2>
-        <p>Comece gratuitamente e evolua conforme a necessidade do seu projeto.</p>
-      </div>
-
-      <!-- planos: shared/ui/plans.ts (PLAN_CARDS), os mesmos do cadastro -->
-      <div class="pricing-grid">
-        <article
-          *ngFor="let plan of planCards"
-          class="surface-card pricing-card"
-          [class.pricing-card-featured]="plan.id === 'PREMIUM'"
-          [class.pricing-card-soon]="!plan.available"
-        >
-          <span class="plan-name" [class.accent-text]="plan.id === 'PREMIUM'">{{ plan.name | uppercase }}</span>
-          <strong class="plan-price" [class.accent-text]="plan.id === 'PREMIUM'">{{ plan.price }}</strong>
-          <span class="plan-period">{{ plan.period }}</span>
-
-          <ul class="plan-features">
-            <li *ngFor="let feature of plan.included">✓ {{ feature }}</li>
-            <li *ngFor="let feature of plan.excluded" class="disabled">✗ {{ feature }}</li>
+        <!-- prévia do produto (achados do laboratório de testes) -->
+        <figure class="preview pub-card" aria-label="Exemplo de resultado de varredura">
+          <div class="preview__bar">
+            <span class="mono">http://localhost:3000</span>
+            <span class="preview__env">LOCAL</span>
+            <span class="preview__status">Varredura completa · concluída</span>
+          </div>
+          <div class="preview__counts">
+            <div><strong class="sev-high">3</strong><span>Alto</span></div>
+            <div><strong class="sev-medium">6</strong><span>Médio</span></div>
+            <div><strong>5</strong><span>Baixo</span></div>
+            <div><strong class="sev-info">3</strong><span>Info</span></div>
+          </div>
+          <ul class="preview__list">
+            @for (finding of sampleFindings; track finding.title; let first = $first) {
+              <li [class.is-active]="first">
+                <span class="sev" [class.sev--high]="finding.severity === 'Alto'" [class.sev--medium]="finding.severity === 'Médio'">
+                  {{ finding.severity }}
+                </span>
+                <span class="preview__title">{{ finding.title }}</span>
+                <span class="mono preview__path">{{ finding.path }}</span>
+              </li>
+            }
           </ul>
-
-          <a *ngIf="plan.available" class="button" [class.button-primary]="plan.id === 'PREMIUM'"
-            [class.button-secondary]="plan.id !== 'PREMIUM'" routerLink="/register">
-            {{ plan.id === 'PREMIUM' ? 'Assinar Premium' : 'Começar grátis' }}
-          </a>
-          <a *ngIf="!plan.available" class="button button-secondary" routerLink="/landing" fragment="contato">Fale com a equipe</a>
-        </article>
+          <figcaption class="preview__fix">
+            <span>Como corrigir a injeção de SQL</span>
+            <code class="mono">db.query('SELECT * FROM item WHERE id = ?', [id])</code>
+          </figcaption>
+        </figure>
       </div>
     </section>
 
-    <footer class="site-footer" id="contato">
-      <div class="footer-grid section-container">
-        <div class="footer-brand">
-          <a class="brand" routerLink="/landing" aria-label="Checkop">
-            <img class="brand-logo" src="/checkop-logo.png" alt="" />
-            <span class="brand-name">Checkop</span>
-          </a>
-          <p>
-            Testes de segurança automatizados para aplicações web, com verificação de propriedade do domínio e
-            relatórios adaptados a cada perfil.
-          </p>
+    <!-- como funciona -->
+    <section id="como-funciona" class="section">
+      <div class="pub-wrap section__inner">
+        <div class="section__head">
+          <span class="pub-kicker">Como funciona</span>
+          <h2>Do login ao relatório, em seis etapas.</h2>
+          <p>As etapas 2 e 3 são o que separa o Checkop de um scanner aberto: ninguém varre um site que não é seu.</p>
         </div>
+        <ol class="grid grid--wide">
+          @for (step of steps; track step.title; let i = $index) {
+            <li class="pub-card step" [class.step--key]="step.key">
+              <span class="mono step__num">0{{ i + 1 }}</span>
+              <strong>{{ step.title }}</strong>
+              <span>{{ step.text }}</span>
+            </li>
+          }
+        </ol>
+      </div>
+    </section>
 
-        <nav class="footer-column" aria-label="Produto">
-          <h3>Produto</h3>
-          <a routerLink="/landing" fragment="features">Como funciona</a>
-          <a routerLink="/landing" fragment="audiences">Perfis</a>
-          <a routerLink="/landing" fragment="pricing">Planos</a>
-          <a routerLink="/register">Criar conta</a>
-          <a routerLink="/login">Entrar</a>
-        </nav>
-
-        <nav class="footer-column" aria-label="Legal">
-          <h3>Legal</h3>
-          <a routerLink="/terms">Termos de uso</a>
-          <a routerLink="/privacy">Política de privacidade</a>
-          <span>Dados tratados conforme a LGPD</span>
-        </nav>
-
-        <!-- contatos: trocar pelos definitivos antes de publicar -->
-        <div class="footer-column footer-contact">
-          <h3>Contato</h3>
-          <a href="mailto:contato@checkop.com.br">contato&#64;checkop.com.br</a>
-          <a href="mailto:suporte@checkop.com.br">suporte&#64;checkop.com.br</a>
-          <span class="footer-note">Enterprise: planos sob medida para empresas, fale com a equipe.</span>
-          <a href="https://github.com/Kauan-Mazeto/Checkop" target="_blank" rel="noopener noreferrer">GitHub do projeto</a>
+    <!-- ambientes -->
+    <section class="section">
+      <div class="pub-wrap section__inner">
+        <div class="section__head">
+          <span class="pub-kicker">Feito para o ambiente certo</span>
+          <h2>Completo no seu computador. Cuidadoso em produção.</h2>
         </div>
-
-        <div class="footer-column">
-          <h3>Equipe</h3>
-          <span><strong>Luidi Augusto</strong>Backend e segurança</span>
-          <span><strong>Kauan Mazeto</strong>Front-end e experiência</span>
+        <div class="grid grid--half">
+          <article class="pub-card env">
+            <span class="env__tag env__tag--dev">LOCAL · HOMOLOGAÇÃO</span>
+            <h3>Varredura completa, com todos os detalhes</h3>
+            <p>Ataques de verdade, requisição e resposta completas e o comando para reproduzir. Ideal para depurar antes do deploy.</p>
+            <pre class="mono">GET /item?id=1' HTTP/1.1
+→ 500 You have an error in your SQL syntax…
+curl "http://localhost:3000/item?id=1%27"</pre>
+          </article>
+          <article class="pub-card env">
+            <span class="env__tag env__tag--prod">PRODUÇÃO</span>
+            <h3>Modo seguro, sem testes agressivos</h3>
+            <p>Só verificações que não derrubam nem alteram o site, e o relatório mascara dados sensíveis da resposta.</p>
+            <pre class="mono">Cookie de sessão sem HttpOnly
+Set-Cookie: sessionid=••••••; Path=/
+Correção: HttpOnly; Secure; SameSite=Lax</pre>
+          </article>
         </div>
       </div>
+    </section>
 
-      <div class="footer-bottom section-container">
-        <span>© 2026 Checkop. Projeto acadêmico (TCC).</span>
-        <span>Use apenas em sistemas que você tem autorização para testar (art. 154-A do Código Penal).</span>
+    <!-- ferramentas -->
+    <section id="ferramentas" class="section">
+      <div class="pub-wrap section__inner">
+        <div class="section__head">
+          <span class="pub-kicker">Ferramentas</span>
+          <h2>O melhor do código aberto, num lugar só.</h2>
+          <p>Você não precisa instalar nem configurar nenhuma delas. O Checkop decide qual rodar, como e quando.</p>
+        </div>
+        <div class="grid grid--narrow">
+          @for (tool of tools; track tool.name) {
+            <div class="pub-card tool">
+              <strong>{{ tool.name }}</strong>
+              <span>{{ tool.text }}</span>
+            </div>
+          }
+        </div>
       </div>
-    </footer>
+    </section>
+
+    <!-- público -->
+    <section class="section">
+      <div class="pub-wrap section__inner">
+        <div class="section__head">
+          <span class="pub-kicker">Para quem</span>
+          <h2>O relatório muda conforme quem lê.</h2>
+          <p>No cadastro você escolhe seu perfil, e o Checkop ajusta o painel e o formato do relatório.</p>
+        </div>
+        <div class="grid grid--narrow">
+          @for (audience of audiences; track audience.name) {
+            <article class="pub-card audience">
+              @switch (audience.icon) {
+                @case ('qa') {
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"></path><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg>
+                }
+                @case ('dev') {
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"></path><path d="m8 6-6 6 6 6"></path></svg>
+                }
+                @case ('pentester') {
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg>
+                }
+                @default {
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5Z"></path><path d="M6 12v5c3 2 9 2 12 0v-5"></path></svg>
+                }
+              }
+              <strong>{{ audience.name }}</strong>
+              <span>{{ audience.text }}</span>
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- planos: shared/ui/plans.ts (PLAN_CARDS), os mesmos do cadastro -->
+    <section id="planos" class="section">
+      <div class="pub-wrap section__inner">
+        <div class="section__head">
+          <span class="pub-kicker">Planos</span>
+          <h2>Comece de graça. Cresça quando precisar.</h2>
+        </div>
+        <div class="grid grid--plans">
+          @for (plan of planCards; track plan.id) {
+            <article class="pub-card plan" [class.plan--featured]="plan.id === 'PREMIUM'">
+              <div class="plan__head">
+                <div class="plan__name">
+                  <strong [class.accent]="plan.id === 'PREMIUM'">{{ plan.name }}</strong>
+                  @if (plan.badge) {
+                    <span class="plan__badge">{{ plan.badge }}</span>
+                  }
+                </div>
+                @if (plan.available) {
+                  <div class="plan__price"><span>{{ plan.price }}</span><small>{{ plan.period }}</small></div>
+                } @else {
+                  <div class="plan__price plan__price--text"><span>Sob consulta</span></div>
+                }
+              </div>
+              <ul class="plan__features">
+                @for (feature of plan.included; track feature) {
+                  <li>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                    {{ feature }}
+                  </li>
+                }
+                @for (feature of plan.excluded; track feature) {
+                  <li class="is-off">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                    {{ feature }}
+                  </li>
+                }
+              </ul>
+              @if (!plan.available) {
+                <a class="pub-btn pub-btn--ghost plan__cta" routerLink="/landing" fragment="contato">Fale com a equipe</a>
+              } @else if (plan.id === 'PREMIUM') {
+                <a class="pub-btn pub-btn--primary plan__cta" routerLink="/register">Assinar o Premium</a>
+              } @else {
+                <a class="pub-btn pub-btn--ghost plan__cta" routerLink="/register">Começar grátis</a>
+              }
+            </article>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- chamada final -->
+    <section class="cta pub-grid-bg">
+      <div class="pub-wrap cta__inner">
+        <h2>Descubra hoje o que um atacante veria no seu site.</h2>
+        <p>Crie a conta, informe a URL e acompanhe a varredura ao vivo.</p>
+        <a class="pub-btn pub-btn--primary pub-btn--lg" routerLink="/register">Começar grátis</a>
+      </div>
+    </section>
   </main>
 
-  <main class="dashboard-view" [class.is-hidden]="currentView !== 'dashboard'">
-    <aside class="dashboard-sidebar">
-      <a class="brand dashboard-brand" href="#">
-        <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-        <span class="brand-name">Checkop</span>
-      </a>
+  <!-- rodapé -->
+  <footer id="contato" class="footer">
+    <div class="pub-wrap footer__grid">
+      <div class="footer__brand">
+        <a class="pub-brand" routerLink="/landing" fragment="top" aria-label="Checkop, início da página">
+          <img src="/checkop-logo.png" alt="" />
+          Checkop
+        </a>
+        <p>
+          Testes de segurança automatizados para aplicações web, com verificação de propriedade do domínio e
+          relatórios adaptados a cada perfil.
+        </p>
+      </div>
 
-      <nav class="dashboard-navigation">
-        <button
-          [class.active]="dashboardTab === 'overview'"
-          type="button"
-          (click)="switchDashboardTab('overview')"
-        >
-          <span>▦</span>
-          Overview
-        </button>
-
-        <button
-          [class.active]="dashboardTab === 'scans'"
-          type="button"
-          (click)="switchDashboardTab('scans')"
-        >
-          <span>⌕</span>
-          Scans
-        </button>
-
-        <button
-          [class.active]="dashboardTab === 'reports'"
-          type="button"
-          (click)="switchDashboardTab('reports')"
-        >
-          <span>▤</span>
-          Relatórios
-        </button>
-
-        <button
-          [class.active]="dashboardTab === 'logs'"
-          type="button"
-          (click)="switchDashboardTab('logs')"
-        >
-          <span>›_</span>
-          Logs
-        </button>
+      <nav class="footer__col" aria-label="Produto">
+        <h3>Produto</h3>
+        <a routerLink="/landing" fragment="como-funciona">Como funciona</a>
+        <a routerLink="/landing" fragment="ferramentas">Ferramentas</a>
+        <a routerLink="/landing" fragment="planos">Planos</a>
+        <a routerLink="/register">Criar conta</a>
+        <a routerLink="/login">Entrar</a>
       </nav>
 
-      <button class="dashboard-logout" type="button" (click)="navigateTo('landing')">⇥ Sair</button>
-    </aside>
+      <nav class="footer__col" aria-label="Legal">
+        <h3>Legal</h3>
+        <a routerLink="/terms">Termos de uso</a>
+        <a routerLink="/privacy">Política de privacidade</a>
+        <span>Dados tratados conforme a LGPD</span>
+      </nav>
 
-    <section class="dashboard-content">
-      <header class="dashboard-header">
-        <div>
-          <h1>Dashboard</h1>
-          <p>Bem-vindo de volta</p>
-        </div>
+      <!-- contatos: trocar pelos definitivos antes de publicar -->
+      <div class="footer__col">
+        <h3>Contato</h3>
+        <a href="mailto:contato@checkop.com.br">contato&#64;checkop.com.br</a>
+        <a href="mailto:suporte@checkop.com.br">suporte&#64;checkop.com.br</a>
+        <a href="https://github.com/Kauan-Mazeto/Checkop" target="_blank" rel="noopener noreferrer">GitHub do projeto</a>
+      </div>
 
-        <button class="button button-primary" type="button" (click)="openNewScan()">
-          + Novo scan
-        </button>
-      </header>
+      <div class="footer__col">
+        <h3>Equipe</h3>
+        <span><strong>Luidi Augusto</strong>Backend e segurança</span>
+        <span><strong>Kauan Mazeto</strong>Front-end e experiência</span>
+      </div>
+    </div>
 
-      <section *ngIf="dashboardTab === 'overview'" class="dashboard-tab">
-        <div class="dashboard-stats">
-          <article class="surface-card dashboard-stat-card">
-            <span>Total scans</span>
-            <strong>24</strong>
-            <small class="text-success">↑ 12% este mês</small>
-          </article>
-
-          <article class="surface-card dashboard-stat-card">
-            <span>Vulneráveis</span>
-            <strong class="text-danger">7</strong>
-            <small class="text-danger">3 críticas</small>
-          </article>
-
-          <article class="surface-card dashboard-stat-card">
-            <span>Corrigidas</span>
-            <strong class="text-success">18</strong>
-            <small>75% taxa de fix</small>
-          </article>
-
-          <article class="surface-card dashboard-stat-card">
-            <span>Score</span>
-            <strong class="text-warning">B+</strong>
-            <small>melhorando</small>
-          </article>
-        </div>
-
-        <article class="surface-card dashboard-card">
-          <div class="card-title-row">
-            <h2>Scans recentes</h2>
-          </div>
-
-          <div class="table-wrapper">
-            <table class="scan-table">
-              <thead>
-                <tr>
-                  <th>URL</th>
-                  <th>ENV</th>
-                  <th>STATUS</th>
-                  <th>VULNS</th>
-                  <th>DATA</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                <tr *ngFor="let scan of recentScans">
-                  <td>{{ scan.url }}</td>
-                  <td>
-                    <span
-                      class="environment-tag"
-                      [class.environment-tag-dev]="scan.environment === 'DEV'"
-                      [class.environment-tag-prod]="scan.environment === 'PROD'"
-                    >
-                      {{ scan.environment }}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      class="status-badge"
-                      [class.status-critical]="scan.statusType === 'critical'"
-                      [class.status-medium]="scan.statusType === 'medium'"
-                      [class.status-safe]="scan.statusType === 'safe'"
-                    >
-                      {{ scan.status }}
-                    </span>
-                  </td>
-                  <td>{{ scan.vulnerabilities }}</td>
-                  <td>{{ scan.date }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <div class="dashboard-columns">
-          <article class="surface-card dashboard-card">
-            <h2>Vulnerabilidades por tipo</h2>
-
-            <div class="progress-list">
-              <div class="progress-item">
-                <div>
-                  <span>SQL Injection</span>
-                  <strong>3</strong>
-                </div>
-                <div class="progress-track">
-                  <span class="progress-bar progress-bar-danger" style="width: 60%"></span>
-                </div>
-              </div>
-
-              <div class="progress-item">
-                <div>
-                  <span>XSS</span>
-                  <strong class="text-warning">2</strong>
-                </div>
-                <div class="progress-track">
-                  <span class="progress-bar progress-bar-warning" style="width: 40%"></span>
-                </div>
-              </div>
-
-              <div class="progress-item">
-                <div>
-                  <span>CORS</span>
-                  <strong class="text-blue">1</strong>
-                </div>
-                <div class="progress-track">
-                  <span class="progress-bar progress-bar-blue" style="width: 20%"></span>
-                </div>
-              </div>
-
-              <div class="progress-item">
-                <div>
-                  <span>CSRF</span>
-                  <strong class="text-success">1</strong>
-                </div>
-                <div class="progress-track">
-                  <span class="progress-bar progress-bar-success" style="width: 20%"></span>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="surface-card dashboard-card">
-            <h2>Atividade recente</h2>
-
-            <div class="activity-list">
-              <div class="activity-item">
-                <span class="activity-dot activity-dot-danger"></span>
-                <div>
-                  <p>SQLi detectado em <code>/api/users</code></p>
-                  <small>Hoje, 14:32</small>
-                </div>
-              </div>
-
-              <div class="activity-item">
-                <span class="activity-dot activity-dot-success"></span>
-                <div>
-                  <p>Scan completo — <span class="text-success">seguro</span></p>
-                  <small>Ontem, 09:15</small>
-                </div>
-              </div>
-
-              <div class="activity-item">
-                <span class="activity-dot activity-dot-warning"></span>
-                <div>
-                  <p>CORS misconfiguration em <code>loja.dev</code></p>
-                  <small>3 dias atrás</small>
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section *ngIf="dashboardTab === 'scans'" class="dashboard-tab">
-        <article class="surface-card dashboard-card">
-          <h2>Novo scan</h2>
-
-          <form class="scan-form" (ngSubmit)="runScan()">
-            <input
-              id="scan-url"
-              name="scanUrl"
-              type="url"
-              [(ngModel)]="scanUrl"
-              placeholder="https://sua-aplicacao.com"
-              required
-            />
-
-            <button class="button button-primary" type="submit" [disabled]="isScanning">
-              {{ isScanning ? 'Escaneando...' : '⌕ Escanear' }}
-            </button>
-          </form>
-
-          <div *ngIf="scanResult" class="scan-result">
-            <div class="result-environment">
-              <span>Ambiente detectado:</span>
-              <span
-                class="environment-tag"
-                [class.environment-tag-dev]="scanResult.environment === 'DEV'"
-                [class.environment-tag-prod]="scanResult.environment === 'PROD'"
-              >
-                {{ scanResult.environment }}
-              </span>
-            </div>
-
-            <div
-              *ngFor="let vulnerability of scanResult.vulnerabilities"
-              class="result-line result-line-danger"
-            >
-              ✗ {{ vulnerability.type }} em
-              <span>{{ vulnerability.path }}</span>
-              <small>→ {{ vulnerability.fix }}</small>
-            </div>
-
-            <div *ngFor="let pass of scanResult.passes" class="result-line result-line-success">
-              ✓ {{ pass }}
-            </div>
-
-            <div class="result-summary">
-              Resultado:
-              <span class="text-danger"> {{ scanResult.vulnerabilities.length }} críticas </span>
-              e
-              <span class="text-success"> {{ scanResult.passes.length }} seguros </span>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section *ngIf="dashboardTab === 'reports'" class="dashboard-tab">
-        <article class="surface-card dashboard-card">
-          <div class="card-title-row">
-            <h2>Relatórios disponíveis</h2>
-            <span>3 relatórios</span>
-          </div>
-
-          <div class="report-list">
-            <div class="report-item">
-              <div>
-                <strong>meuapp.com — Scan completo</strong>
-                <small>Hoje, 14:32 • 2 vulnerabilidades</small>
-              </div>
-
-              <button
-                class="button button-small button-secondary"
-                type="button"
-                (click)="downloadReport('meuapp')"
-              >
-                Download
-              </button>
-            </div>
-
-            <div class="report-item">
-              <div>
-                <strong>api.staging.io — Limpo</strong>
-                <small>Ontem • 0 vulnerabilidades</small>
-              </div>
-
-              <button
-                class="button button-small button-secondary"
-                type="button"
-                (click)="downloadReport('api')"
-              >
-                Download
-              </button>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section *ngIf="dashboardTab === 'logs'" class="dashboard-tab">
-        <article class="surface-card dashboard-card">
-          <div class="card-title-row">
-            <h2>Logs técnicos</h2>
-            <span class="environment-tag environment-tag-pentester"> PENTESTER </span>
-          </div>
-
-          <div class="logs-panel">
-            <div
-              *ngFor="let log of logLines; let index = index"
-              class="log-line"
-              [class.log-line-danger]="log.includes('VULN') || log.includes('Payload')"
-              [class.log-line-success]="log.includes('PASS')"
-            >
-              {{ log }}
-            </div>
-          </div>
-        </article>
-      </section>
-    </section>
-  </main>
-
-  <div *ngIf="isNewScanModalOpen" class="modal-backdrop" (click)="closeNewScan()">
-    <section class="auth-modal surface-card" (click)="$event.stopPropagation()">
-      <form class="auth-form" (ngSubmit)="startScanFromModal()">
-        <div class="modal-heading">
-          <div>
-            <h2>Novo scan</h2>
-            <p>inicie uma análise</p>
-          </div>
-
-          <button type="button" class="modal-close" (click)="closeNewScan()">×</button>
-        </div>
-
-        <label>
-          URL da aplicação
-          <input
-            type="url"
-            name="modalScanUrl"
-            [(ngModel)]="scanUrl"
-            placeholder="https://sua-aplicacao.com"
-            required
-          />
-        </label>
-
-        <button class="button button-primary button-full" type="submit">Iniciar scan</button>
-      </form>
-    </section>
-  </div>
+    <div class="pub-wrap footer__bottom">
+      <span>© 2026 Checkop. Segurança acessível e prática.</span>
+      <span>Use apenas em sistemas que você tem autorização para testar (art. 154-A do Código Penal).</span>
+    </div>
+  </footer>
 </div>

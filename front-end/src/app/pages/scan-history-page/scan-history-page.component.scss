@@ -123,7 +123,7 @@ $white-line: #fff;
   gap: 8px;
   height: 38px;
   padding: 0 12px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 9px;
   background: var(--surface);
   color: var(--muted);
@@ -183,7 +183,7 @@ $white-line: #fff;
   select {
     height: 34px;
     padding: 0 10px;
-    border: 1.5px solid $white-line;
+    border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 8px;
     outline: 0;
     background: var(--surface);
@@ -244,7 +244,7 @@ $white-line: #fff;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background: var(--surface);
   list-style: none;
@@ -343,7 +343,7 @@ $white-line: #fff;
   justify-content: space-between;
   gap: 16px;
   padding: 18px 20px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
 
   p {

@@ -1,12 +1,14 @@
 import { runSastScan } from '../lib/py/sast_client.js';
 import { AiFixError, fixWholeFile, isAiFixEnabled, suggestFix } from '../lib/ai_fix.js';
+import { aiProviderLabel } from '../lib/ai_provider.js';
 import { AI_CREDITS_REQUIRED_CODE, AI_CREDIT_PACKS, FULL_FIX_COST, findPack } from '../constants/ai_credits.js';
 import prisma from '../lib/prisma.js';
 import { logAudit, AUDIT_ACTIONS } from '../lib/audit_log.js';
+import { HISTORY_LIMIT, summarizeAnalysis, toHistoryItem } from '../lib/code_analysis_history.js';
 
-// Recebe { files: { "app.js": "conteúdo..." } } direto do usuário logado.
-// Por enquanto não persiste no banco (sem Prisma model próprio ainda),
-// devolve o resultado direto pro front montar o code diff.
+// Recebe { files: { "app.js": "conteúdo..." } } direto do usuário logado e devolve
+// o resultado para o front montar o code diff. O código não é gravado; do resultado
+// fica só o resumo no histórico (lib/code_analysis_history.js).
 const analyzeCode = async (req, res) => {
     try {
         const { files } = req.body;
@@ -18,7 +20,21 @@ const analyzeCode = async (req, res) => {
         }
 
         const result = await runSastScan({ files, language: req.userLanguage, depth });
-        return res.status(200).json(result);
+
+        // histórico: só o resumo (nomes, contagens, títulos e linhas), nunca o código.
+        // Se gravar falhar, a análise continua valendo para quem pediu.
+        let historyId = null;
+        try {
+            const saved = await prisma.codeAnalysis.create({
+                data: summarizeAnalysis({ userId: req.userId, files, depth, result }),
+                select: { id: true },
+            });
+            historyId = saved.id;
+        } catch (historyError) {
+            console.error('[sast] não foi possível salvar o histórico da análise:', historyError);
+        }
+
+        return res.status(200).json({ ...result, historyId });
     } catch (error) {
         console.error('Erro na análise SAST:', error);
         // B10: a mensagem do motor pode conter caminhos e stderr do Semgrep; fica só no log
@@ -32,6 +48,8 @@ const getAiConfig = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { aiCredits: true } });
     return res.status(200).json({
       enabled: isAiFixEnabled(),
+      // quem recebe o código na correção com IA (Anthropic ou Google)
+      provider: aiProviderLabel(),
       // correção do arquivo inteiro: paga à parte, com créditos
       credits: user?.aiCredits ?? 0,
       fullFixCost: FULL_FIX_COST,
@@ -54,7 +72,7 @@ const purchaseCredits = async (req, res) => {
     });
     await logAudit(req, { action: AUDIT_ACTIONS.AI_CREDITS_PURCHASED, details: { packId: pack.id, credits: pack.credits } });
     return res.status(200).json({
-      message: `${pack.credits} créditos adicionados (demonstração, sem cobrança).`,
+      message: `${pack.credits} créditos adicionados.`,
       credits: user.aiCredits,
     });
   } catch (error) {
@@ -118,4 +136,42 @@ const fixWithAi = async (req, res) => {
     }
 };
 
-export default { analyzeCode, getAiConfig, fixWithAi, purchaseCredits, fixFullFile };
+// Histórico das análises (só resumo), da mais nova para a mais antiga.
+const listHistory = async (req, res) => {
+  try {
+    const rows = await prisma.codeAnalysis.findMany({
+      where: { userId: req.userId },
+      orderBy: { createdAt: 'desc' },
+      take: HISTORY_LIMIT,
+    });
+    return res.status(200).json({ analyses: rows.map(toHistoryItem), limit: HISTORY_LIMIT });
+  } catch (error) {
+    console.error('Erro ao listar o histórico da análise de código:', error);
+    return res.status(500).json({ error: 'Erro interno ao carregar o histórico.' });
+  }
+};
+
+// Apaga uma análise do histórico (só as do próprio usuário).
+const deleteHistoryItem = async (req, res) => {
+  try {
+    const { count } = await prisma.codeAnalysis.deleteMany({ where: { id: req.params.id, userId: req.userId } });
+    if (count === 0) return res.status(404).json({ error: 'Análise não encontrada.' });
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Erro ao apagar a análise do histórico:', error);
+    return res.status(500).json({ error: 'Erro interno ao apagar a análise.' });
+  }
+};
+
+// Apaga o histórico inteiro do usuário.
+const clearHistory = async (req, res) => {
+  try {
+    const { count } = await prisma.codeAnalysis.deleteMany({ where: { userId: req.userId } });
+    return res.status(200).json({ deleted: count });
+  } catch (error) {
+    console.error('Erro ao limpar o histórico da análise de código:', error);
+    return res.status(500).json({ error: 'Erro interno ao limpar o histórico.' });
+  }
+};
+
+export default { analyzeCode, listHistory, deleteHistoryItem, clearHistory, getAiConfig, fixWithAi, purchaseCredits, fixFullFile };

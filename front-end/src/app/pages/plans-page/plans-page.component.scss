@@ -17,7 +17,7 @@ $premium-border: #e5484d;
   grid-template-columns: minmax(260px, 1.4fr) repeat(3, minmax(190px, 1fr));
   overflow: hidden;
   // contorno branco, como nas telas de varredura
-  border: 1.5px solid #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background: var(--surface);
 }
@@ -186,7 +186,7 @@ $premium-border: #e5484d;
   background: rgba(255, 255, 255, 0.03);
 
   &.head {
-    border-top: 3px solid #fff;
+    border-top: 3px solid rgba(255, 255, 255, 0.2);
   }
 
   .price strong {

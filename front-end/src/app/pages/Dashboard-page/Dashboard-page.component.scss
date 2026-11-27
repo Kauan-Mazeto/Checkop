@@ -80,7 +80,6 @@
 // =========================================================
 $hairline: rgba(255, 255, 255, 0.16);
 $hairline-soft: rgba(255, 255, 255, 0.07);
-$white-line: #fff;
 
 :host {
   --status-color: var(--faint);
@@ -195,31 +194,66 @@ $white-line: #fff;
   }
 }
 
-// ---------- bento ----------
-.bento {
+// ---------- abas do painel ----------
+.d-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid $hairline-soft;
+
+  button {
+    position: relative;
+    padding: 10px 14px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &.active {
+      color: var(--text);
+
+      &::after {
+        content: '';
+        position: absolute;
+        right: 10px;
+        bottom: -1px;
+        left: 10px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--brand);
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--info);
+      outline-offset: -2px;
+      border-radius: 6px;
+    }
+  }
+}
+
+// ---------- visão geral ----------
+// varreduras recentes à esquerda; severidade e tendência empilhadas à direita; OWASP embaixo
+.ov-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
   gap: 14px;
-  min-width: 0;
-  padding: 18px 20px;
-  border: 1.5px solid $white-line;
-  border-radius: 12px;
-  background: var(--surface);
 }
 
-.tile-recent {
+.ov-recent {
   grid-column: span 2;
   grid-row: span 2;
 }
 
-.tile-wide {
-  grid-column: span 2;
+.ov-wide {
+  grid-column: 1 / -1;
 }
 
 .tile-head {
@@ -334,73 +368,40 @@ $white-line: #fff;
   text-align: right;
 }
 
-// atalhos
-.shortcuts {
-  display: flex;
-  flex-direction: column;
-
-  a {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 11px 4px;
-    border-bottom: 1px solid $hairline-soft;
-    color: var(--text);
-    text-decoration: none;
-
-    &:last-child {
-      border-bottom: 0;
-    }
-
-    &:hover strong {
-      text-decoration: underline;
-      text-underline-offset: 3px;
-    }
-
-    strong {
-      font-size: 13.5px;
-      font-weight: 600;
-    }
-
-    span {
-      color: var(--faint);
-      font-size: 12px;
-    }
-
-    strong::after {
-      content: ' →';
-      color: var(--faint);
-    }
-  }
+// ---------- painel do perfil e planos: sem cartão por fora (um nível de caixa só) ----------
+.role-zone ::ng-deep > * > .card,
+.role-zone ::ng-deep .card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-// ---------- painel do perfil e planos: os cartões dos componentes ganham o contorno ----------
-.role-zone ::ng-deep .card {
-  border: 1.5px solid $white-line;
+.role-zone ::ng-deep .card > .card-header,
+.role-zone ::ng-deep .card > .card-body {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.role-zone ::ng-deep .subcard {
+  border-color: rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 @media (max-width: 1100px) {
-  .bento {
+  .ov-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .tile-recent,
-  .tile-wide {
-    grid-column: span 2;
+  .ov-recent {
+    grid-column: 1 / -1;
     grid-row: auto;
   }
 }
 
 @media (max-width: 700px) {
-  .bento {
+  .ov-grid {
     grid-template-columns: 1fr;
-  }
-
-  .tile-recent,
-  .tile-wide {
-    grid-column: auto;
   }
 
   .row {

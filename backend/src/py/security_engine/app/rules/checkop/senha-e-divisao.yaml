@@ -1,0 +1,335 @@
+# Regras do Checkop para dois erros comuns em APIs que os pacotes gratuitos não pegam:
+#   1. senha gravada como veio (sem hash) no banco, por SQL ou pelo ORM;
+#   2. divisão por um número que vem da requisição, sem conferir o zero.
+# Valem para os frameworks principais (Spring, NestJS/Express/Prisma/TypeORM/Sequelize,
+# Django/Flask/FastAPI, Laravel, ASP.NET Core). Conferidas contra exemplos vulneráveis e
+# as versões corrigidas (hash na mesma linha, hash numa variável antes, create_user do
+# Django, divisor checado antes): nenhum falso positivo nelas.
+rules:
+  # ======================= 1. senha sem hash =======================
+
+  # SQL que grava a coluna de senha com o valor da senha (INSERT ... VALUES ou UPDATE ... SET).
+  # O id não pode ter "sql": o sast_runner classificaria como SQL Injection e juntaria com ele.
+  - id: checkop-senha-gravada-sem-hash-insert
+    languages: [java, kotlin, csharp, javascript, typescript, python, php, go, ruby]
+    severity: ERROR
+    # sem "@fix:" na mensagem: ele vale para todas as linguagens. A correção sai do
+    # checkop_fix_<linguagem> do arquivo analisado (sast_runner._parse_result).
+    message: >-
+      A senha vai para o banco exatamente como o usuário digitou. Se o banco vazar, todas as senhas
+      vazam junto, e muita gente usa a mesma senha em outros sites.
+    patterns:
+      - pattern-regex: (?is)\b(insert\s+into\s+[\w."`\[\]]+\s*\([^)]*\b(senha|password|passwd|pwd)\b[^)]*\)\s*values|update\s+[\w."`\[\]]+\s+set\b[^;]*?\b(senha|password|passwd|pwd)\s*=)[^;]*?(get(senha|password)\s*\(\)|\.(senha|password)\b|\[\s*["'](senha|password)["']\s*\]|\$(senha|password)\b|\{\s*(senha|password)\s*\}|\+\s*(senha|password)\b|,\s*(senha|password)\s*[,)])
+      - pattern-not-regex: (?is)(encode|hash|bcrypt|argon2?|scrypt|pbkdf2|crypt|digest)\w*\s*\(
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+      checkop_fix_java: >-
+        Grave só o hash: passwordEncoder.encode(senha), com o BCryptPasswordEncoder (ou
+        Argon2PasswordEncoder) do Spring Security, e confira no login com passwordEncoder.matches(senha, hash).
+      checkop_fix_kotlin: >-
+        Grave só o hash: passwordEncoder.encode(senha), com o BCryptPasswordEncoder (ou
+        Argon2PasswordEncoder) do Spring Security, e confira no login com passwordEncoder.matches(senha, hash).
+      checkop_fix_javascript: >-
+        Grave só o hash: const hash = await bcrypt.hash(senha, 12) (ou argon2.hash(senha)) e confira
+        no login com bcrypt.compare(senha, hash).
+      checkop_fix_typescript: >-
+        Grave só o hash: const hash = await bcrypt.hash(senha, 12) (ou argon2.hash(senha)) e confira
+        no login com bcrypt.compare(senha, hash).
+      checkop_fix_python: >-
+        Grave só o hash: make_password(senha) no Django, generate_password_hash(senha) no Flask ou
+        passlib/bcrypt no FastAPI; confira no login com check_password / check_password_hash.
+      checkop_fix_php: >-
+        Grave só o hash: Hash::make($senha) no Laravel (ou password_hash($senha, PASSWORD_DEFAULT)) e
+        confira no login com Hash::check / password_verify.
+      checkop_fix_csharp: >-
+        Grave só o hash: BCrypt.Net.BCrypt.HashPassword(senha) ou o PasswordHasher do ASP.NET Identity;
+        confira no login com BCrypt.Verify(senha, hash).
+      checkop_fix_go: >-
+        Grave só o hash: bcrypt.GenerateFromPassword([]byte(senha), bcrypt.DefaultCost) (golang.org/x/crypto/bcrypt)
+        e confira no login com bcrypt.CompareHashAndPassword.
+      checkop_fix_ruby: >-
+        Grave só o hash: has_secure_password no model (Rails, com bcrypt) ou BCrypt::Password.create(senha);
+        confira no login com authenticate(senha).
+
+  # Java: entidade recebendo a senha pelo setter, sem hash (Spring Data, JPA, Hibernate)
+  - id: checkop-senha-gravada-sem-hash-java
+    languages: [java]
+    severity: ERROR
+    message: >-
+      $O.$SET($V) guarda a senha como veio: ao salvar a entidade, ela vai para o banco em texto puro.
+      @fix: $O.$SET(passwordEncoder.encode(...)) com um PasswordEncoder do Spring Security
+      (BCryptPasswordEncoder ou Argon2PasswordEncoder).
+    patterns:
+      - pattern: $O.$SET($V)
+      - metavariable-regex:
+          metavariable: $SET
+          regex: ^set(Senha|Password|Passwd|Pwd)$
+      - metavariable-regex:
+          metavariable: $V
+          regex: (?is)^(?!.*(hash|encod|crypt|argon|digest)).*(senha|password|passwd|pwd).*$
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://docs.spring.io/spring-security/reference/features/authentication/password-storage.html
+
+  # JS/TS: objeto com a senha crua passado para create/save/update do ORM (Prisma, TypeORM, Sequelize, Mongoose)
+  - id: checkop-senha-gravada-sem-hash-js
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      O campo $K recebe a senha como veio e vai para o banco pelo $M(...): fica em texto puro.
+      @fix: Gere o hash antes de gravar: const hash = await bcrypt.hash(senha, 12) (ou argon2.hash)
+      e grave { $K: hash }.
+    patterns:
+      - pattern-inside: $X.$M(...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(create|createMany|insert|insertOne|insertMany|save|update|updateOne|updateMany|upsert|build|findOneAndUpdate)$
+      - pattern: |
+          {..., $K: $V, ...}
+      - metavariable-regex:
+          metavariable: $K
+          regex: ^["']?(senha|password|passwd|pwd)["']?$
+      - metavariable-regex:
+          metavariable: $V
+          regex: (?is)^(?!.*(hash|encod|crypt|argon|digest)).*(senha|password|passwd|pwd).*$
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+
+  # Python: senha crua no model (Django, SQLAlchemy, Flask-SQLAlchemy, Tortoise...)
+  - id: checkop-senha-gravada-sem-hash-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A senha é guardada no model como veio ($V): ao salvar, vai para o banco em texto puro.
+      @fix: Guarde o hash: make_password(senha) ou user.set_password(senha) no Django,
+      generate_password_hash(senha) no Flask, passlib/bcrypt no FastAPI.
+    patterns:
+      - pattern-either:
+          - pattern: $C(..., $K=$V, ...)
+          - pattern: $OBJ.$K = $V
+      - metavariable-regex:
+          metavariable: $K
+          regex: ^(senha|password|passwd|pwd)$
+      - metavariable-regex:
+          metavariable: $V
+          regex: (?is)^(?!.*(hash|encod|crypt|argon|digest|make_password)).*(senha|password|passwd|pwd).*$
+      # funções que recebem a senha para conferir ou já gravam o hash sozinhas
+      - pattern-not: $X.create_user(...)
+      - pattern-not: $X.create_superuser(...)
+      - pattern-not: create_user(...)
+      - pattern-not: authenticate(...)
+      - pattern-not: $X.authenticate(...)
+      - pattern-not: login(...)
+      - pattern-not: $X.login(...)
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://docs.djangoproject.com/en/stable/topics/auth/passwords/
+
+  # PHP / Laravel: 'password' => $request->password no create/update/insert
+  - id: checkop-senha-gravada-sem-hash-php
+    languages: [php]
+    severity: ERROR
+    message: >-
+      O campo $K recebe a senha como veio ($V): ela vai para o banco em texto puro.
+      @fix: Use Hash::make($V) (ou bcrypt(...)); no Laravel 10+, o cast 'password' => 'hashed' no model faz isso sozinho.
+    patterns:
+      - pattern: |
+          [..., $K => $V, ...]
+      - metavariable-regex:
+          metavariable: $K
+          regex: ^["'](senha|password|passwd|pwd)["']$
+      - metavariable-regex:
+          metavariable: $V
+          regex: (?is)^(?!.*(hash|encod|crypt|argon|digest|bcrypt)).*(senha|password|passwd|pwd).*$
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://laravel.com/docs/hashing
+
+  # C# / ASP.NET Core: propriedade Senha/Password recebendo a senha crua (inicializador ou atribuição)
+  - id: checkop-senha-gravada-sem-hash-csharp
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      A propriedade de senha recebe o valor como veio: ao salvar a entidade, a senha vai para o banco em texto puro.
+      @fix: Grave o hash: BCrypt.Net.BCrypt.HashPassword(senha) ou o PasswordHasher do ASP.NET Identity.
+    patterns:
+      - pattern-regex: (?i)\b(senha|password|passwd|pwd)\s*=\s*(?![^,;}\n]*(hash|encod|crypt|argon|digest))[^,;}\n]*\b(senha|password|passwd|pwd)\b
+      - pattern-not-regex: (?i)==|!=
+    metadata:
+      cwe: ["CWE-256: Plaintext Storage of a Password"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Senha gravada sem hash"
+      checkop_url: https://learn.microsoft.com/aspnet/core/security/data-protection/consumer-apis/password-hashing
+
+  # ======================= 2. divisão por valor da requisição =======================
+
+  - id: checkop-divisao-por-valor-da-requisicao-java
+    languages: [java]
+    severity: WARNING
+    message: >-
+      $B vem da requisição e divide sem ninguém conferir se é zero: com $B = 0 a conta lança
+      ArithmeticException e a API responde 500.
+      @fix: Confira antes: if ($B == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "...");
+      ou valide o parâmetro (@Min(1) com @Validated no controller).
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              $RET $M(..., @$ANN(...) $T $B, ...) { ... }
+          - pattern-inside: |
+              $RET $M(..., @$ANN $T $B, ...) { ... }
+      - metavariable-regex:
+          metavariable: $ANN
+          regex: ^(RequestParam|PathVariable|RequestHeader)$
+      - metavariable-regex:
+          metavariable: $T
+          regex: ^(int|long|short|byte|Integer|Long|Short|Byte|BigInteger)$
+      - pattern-either:
+          - pattern: $A / $B
+          - pattern: $A % $B
+          - pattern: $A /= $B
+          - pattern: $A %= $B
+      - pattern-not-inside: |
+          if (<... $B ...>) { ... }
+          ...
+      - pattern-not-inside: |
+          if (<... $B ...>) $STMT;
+          ...
+      - pattern-not-inside: |
+          if (<... $B ...>) { ... }
+    metadata: &div_meta
+      cwe: ["CWE-369: Divide By Zero"]
+      category: correctness
+      checkop_category: LOGIC
+      checkop_title: "Divisão por zero"
+      confidence: HIGH
+      checkop_url: https://cwe.mitre.org/data/definitions/369.html
+
+  - id: checkop-divisao-por-valor-da-requisicao-python
+    languages: [python]
+    severity: WARNING
+    message: >-
+      $B vem da rota e divide sem ninguém conferir se é zero: com $B = 0 a conta lança
+      ZeroDivisionError e a API responde 500.
+      @fix: Confira antes (if $B == 0: responda 400) ou valide na entrada (FastAPI: $B: int = Path(..., gt=0)).
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              @$R.$VERB(...)
+              def $F(..., $B, ...):
+                ...
+          - pattern-inside: |
+              @$R.$VERB(...)
+              def $F(..., $B: $TYPE, ...):
+                ...
+          - pattern-inside: |
+              @$R.$VERB(...)
+              async def $F(..., $B: $TYPE, ...):
+                ...
+      - metavariable-regex:
+          metavariable: $VERB
+          regex: ^(route|get|post|put|patch|delete|api_route)$
+      - pattern-either:
+          - pattern: $A / $B
+          - pattern: $A // $B
+          - pattern: $A % $B
+      - pattern-not-inside: |
+          if <... $B ...>:
+            ...
+          ...
+      - pattern-not-inside: |
+          if <... $B ...>:
+            ...
+    metadata: *div_meta
+
+  - id: checkop-divisao-por-valor-da-requisicao-js
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      O divisor vem direto da requisição sem conferir se é zero: com 0 a conta dá Infinity (ou NaN)
+      e esse valor sai na resposta como null.
+      @fix: Converta para número, confira (if (!Number.isFinite(b) || b === 0) responda 400) e só então divida.
+    patterns:
+      - pattern-either:
+          - pattern: $A / $REQ.$P.$X
+          - pattern: $A / Number($REQ.$P.$X)
+          - pattern: $A / parseInt($REQ.$P.$X, ...)
+          - pattern: $A / parseFloat($REQ.$P.$X)
+          - pattern: $A % $REQ.$P.$X
+          - pattern: $A % Number($REQ.$P.$X)
+      - metavariable-regex:
+          metavariable: $P
+          regex: ^(params|query|body)$
+    metadata: *div_meta
+
+  - id: checkop-divisao-por-valor-da-requisicao-php
+    languages: [php]
+    severity: WARNING
+    message: >-
+      O divisor vem direto da requisição sem conferir se é zero: com 0 o PHP 8 lança
+      DivisionByZeroError e a resposta vira erro 500.
+      @fix: Valide antes ($request->validate(['b' => 'required|numeric|not_in:0'])) e divida pelo valor validado.
+    patterns:
+      - pattern-either:
+          - pattern: $A / $REQ->$M(...)
+          - pattern: $A / $REQ->$F
+          - pattern: $A % $REQ->$M(...)
+          - pattern: intdiv($A, $REQ->$M(...))
+      - metavariable-regex:
+          metavariable: $REQ
+          regex: ^\$(request|req)$
+    metadata: *div_meta
+
+  - id: checkop-divisao-por-valor-da-requisicao-csharp
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      $B vem da requisição e divide sem ninguém conferir se é zero: com $B = 0 a conta lança
+      DivideByZeroException e a API responde 500.
+      @fix: Confira antes: if ($B == 0) return BadRequest("..."); ou valide com [Range(1, int.MaxValue)].
+    patterns:
+      - pattern-inside: |
+          class $C : $BASE { ... }
+      - metavariable-regex:
+          metavariable: $BASE
+          regex: (Controller|ControllerBase)$
+      - pattern-inside: |
+          public $RET $M(..., $T $B, ...) { ... }
+      - metavariable-regex:
+          metavariable: $T
+          regex: ^(int|long|short|byte|Int32|Int64|decimal)$
+      - pattern-either:
+          - pattern: $A / $B
+          - pattern: $A % $B
+      - pattern-not-inside: |
+          if (<... $B ...>) { ... }
+          ...
+      - pattern-not-inside: |
+          if (<... $B ...>) $STMT;
+          ...
+      - pattern-not-inside: |
+          if (<... $B ...>) { ... }
+    metadata: *div_meta

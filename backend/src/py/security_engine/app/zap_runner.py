@@ -180,8 +180,30 @@ def _curl_command(request_header: str, request_body: str) -> str | None:
     return " ".join(command)
 
 
+_CONFIDENCE_ORDER = {"confirmed": 4, "high": 3, "medium": 2, "low": 1}
+
+
+def _poc_priority(alerts: list[dict]) -> list[dict]:
+    """Ordem de busca das mensagens: o limite POC_MESSAGES_MAX não pode deixar sem
+    prova justo o achado grave. Primeiro um alerta de cada regra (o mais grave dela),
+    do mais grave para o mais leve; depois as demais ocorrências, na mesma ordem."""
+    def rank(alert: dict) -> tuple[int, int]:
+        risk = int(_risk_code(alert)) if _risk_code(alert).isdigit() else 0
+        return (-risk, -_CONFIDENCE_ORDER.get(str(alert.get("confidence", "")).strip().lower(), 0))
+
+    ordered = sorted(alerts, key=rank)
+    seen: set = set()
+    first_of_rule, rest = [], []
+    for alert in ordered:
+        rule = alert.get("pluginId")
+        (rest if rule in seen else first_of_rule).append(alert)
+        seen.add(rule)
+    return first_of_rule + rest
+
+
 async def _attach_messages(client: httpx.AsyncClient, alerts: list[dict]) -> None:
-    """Busca, em paralelo, a mensagem HTTP de cada alerta (melhor esforço)."""
+    """Busca, em paralelo, a mensagem HTTP de cada alerta (melhor esforço),
+    começando pelos mais graves (ver _poc_priority)."""
     semaphore = asyncio.Semaphore(8)
 
     async def one(alert: dict) -> None:
@@ -195,7 +217,7 @@ async def _attach_messages(client: httpx.AsyncClient, alerts: list[dict]) -> Non
                 return
         alert["_message"] = data.get("message") or {}
 
-    await asyncio.gather(*(one(alert) for alert in alerts[:POC_MESSAGES_MAX]))
+    await asyncio.gather(*(one(alert) for alert in _poc_priority(alerts)[:POC_MESSAGES_MAX]))
 
 
 _SESSION_HEADERS = re.compile(r"^(cookie|authorization|proxy-authorization|x-api-key|x-auth-token)\s*:.*$", re.IGNORECASE | re.MULTILINE)
@@ -216,8 +238,9 @@ def _poc_fields(alert: dict) -> dict:
     response_body = message.get("responseBody") or ""
 
     if not request_header and not response_header:
-        # sem a mensagem: fica só o trecho da evidência, como antes
-        return {"rawRequest": alert.get("request"), "rawResponse": evidence, "reproduction": None}
+        # sem a mensagem: fica só o trecho da evidência, marcado (a tela mostra como "sinal")
+        marked_evidence = f"{MARK_OPEN}{evidence}{MARK_CLOSE}" if evidence else None
+        return {"rawRequest": alert.get("request"), "rawResponse": marked_evidence, "reproduction": None}
 
     request = _redact_session(request_header).rstrip()
     if request_body:
@@ -237,6 +260,15 @@ def _poc_fields(alert: dict) -> dict:
         # não aparece em nenhum dos dois (ex.: cabeçalho de sessão ocultado): mostra à parte
         response += f"\n\nEvidência: {MARK_OPEN}{evidence}{MARK_CLOSE}"
     return {"rawRequest": request, "rawResponse": response, "reproduction": _curl_command(request_header, request_body)}
+
+
+_URL = re.compile(r"https?://[^\s<>\"']+")
+
+
+def _references(raw: str | None) -> str | None:
+    """Links de referência do alerta (o ZAP manda vários, separados por quebra de linha)."""
+    urls = list(dict.fromkeys(u.rstrip(".,;)") for u in _URL.findall(raw or "")))
+    return "\n".join(urls[:5]) or None
 
 
 def _parse_alert(alert: dict) -> Finding:
@@ -264,6 +296,9 @@ def _parse_alert(alert: dict) -> Finding:
         attack=alert.get("attack") or None,
         **_poc_fields(alert),
         remediation=alert.get("solution"),
+        # "Other info" do ZAP: como a regra concluiu (ex.: "a página mudou com a condição AND 1=1")
+        detection=(alert.get("other") or alert.get("otherinfo") or "").strip() or None,
+        references=_references(alert.get("reference")),
         owaspUrl=map_to_owasp_category(tags) if tags else None,
     )
 

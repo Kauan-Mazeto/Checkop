@@ -1,203 +1,121 @@
-<div class="checkop">
-  <div class="grid-background"></div>
-  <div class="scanline-overlay"></div>
+<div class="pub">
+  <main class="pub-auth">
+    <!-- lado da marca (some em telas estreitas) -->
+    <aside class="pub-auth__aside pub-grid-bg">
+      <a class="pub-brand" routerLink="/landing" aria-label="Checkop, página inicial">
+        <img src="/checkop-logo.png" alt="" />
+        Checkop
+      </a>
 
-  <main class="auth-page">
-    <div class="auth-layout">
-      <aside class="auth-showcase fade-up fade-delay-1">
-        <a class="brand" routerLink="/landing" aria-label="Checkop">
-          <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-          <span class="brand-name">Checkop</span>
-        </a>
+      <div class="pub-auth__pitch">
+        <h1>Segurança que acompanha <span class="accent">cada deploy.</span></h1>
+        <p>Entre para ver suas varreduras, comparar com as anteriores e marcar o que já foi corrigido.</p>
+      </div>
 
-        <div class="showcase-content">
-          <div class="environment-label">
-            <span class="environment-tag environment-tag-dev">DEV</span>
-            <span class="environment-plus">+</span>
-            <span class="environment-tag environment-tag-prod">PROD</span>
-            <span class="environment-description">ambientes inteligentes</span>
-          </div>
+      <div class="points">
+        <span class="pub-point">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          Ambiente detectado sozinho: local, homologação ou produção
+        </span>
+        <span class="pub-point">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
+          Cada falha com a evidência e a correção
+        </span>
+        <span class="pub-point">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"></path></svg>
+          Só varre domínios que você comprova serem seus
+        </span>
+      </div>
 
-          <h1 class="showcase-title">
-            Sua plataforma de
-            <span class="accent-text">segurança contínua</span>
-          </h1>
+      <span class="pub-auth__foot">© 2026 Checkop</span>
+    </aside>
 
-          <p class="showcase-description">
-            Acesse sua conta para acompanhar scans, relatórios e vulnerabilidades em tempo real.
-          </p>
+    <!-- formulário -->
+    <section class="pub-auth__main">
+      <a class="pub-auth__back" routerLink="/landing"><span aria-hidden="true">←&nbsp;</span>Voltar para o site</a>
 
-          <div class="terminal-preview">
-            <div class="terminal-header">
-              <span class="terminal-dot terminal-dot-red"></span>
-              <span class="terminal-dot terminal-dot-yellow"></span>
-              <span class="terminal-dot terminal-dot-green"></span>
-              <span class="terminal-title">Checkop — sessão</span>
-            </div>
-
-            <div class="terminal-body">
-              <div>
-                <span class="terminal-prompt">$</span>
-                checkop auth --login
-              </div>
-              <div class="terminal-muted">→ Validando credenciais...</div>
-              <div class="terminal-success">✓ Sessão autenticada com sucesso</div>
-              <div class="terminal-muted">→ Carregando dashboard e scans recentes...</div>
-              <div>
-                <span class="terminal-prompt">$</span>
-                <span class="terminal-cursor"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="showcase-stats">
-            <div class="stat-item">
-              <div class="stat-ring"><span>14</span></div>
-              <span class="stat-label">Vetores</span>
-            </div>
-
-            <div class="stat-item">
-              <div class="stat-ring"><span>&lt;5s</span></div>
-              <span class="stat-label">Scan time</span>
-            </div>
-
-            <div class="stat-item">
-              <div class="stat-ring"><span>2</span></div>
-              <span class="stat-label">Ambientes</span>
-            </div>
-          </div>
+      <div class="pub-auth__panel">
+        <div class="pub-auth__heading">
+          <h2>Entrar na sua conta</h2>
+          <p>Não tem conta? <a routerLink="/register">Criar conta grátis</a></p>
         </div>
 
-        <p class="showcase-footer">© 2026 Checkop — Segurança acessível</p>
-      </aside>
+        <app-google-sign-in [disabled]="isSubmitting" (available)="googleAvailable = $event" (signedIn)="onGoogleSignedIn()" />
 
-      <section class="auth-panel fade-up fade-delay-2">
-        <a class="text-link auth-panel-back" routerLink="/landing">
-          <span aria-hidden="true">←</span>
-          Voltar para o site
-        </a>
+        @if (googleAvailable) {
+          <div class="pub-divider">ou com e-mail</div>
+        }
 
-        <div class="auth-panel-inner">
-          <div class="auth-panel-brand">
-            <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-            <span class="brand-name">Checkop</span>
-          </div>
-
-          <div class="auth-heading">
-            <h2>Bem-vindo de volta</h2>
-            <p>Entre com suas credenciais para acessar sua conta</p>
-          </div>
-
-          <app-google-sign-in [disabled]="isSubmitting" (available)="googleAvailable = $event" (signedIn)="onGoogleSignedIn()" />
-
-          <div *ngIf="googleAvailable" class="auth-divider">
-            <span>ou entre com e-mail</span>
-          </div>
-
-          <form class="auth-form" #loginForm="ngForm" (ngSubmit)="submit(loginForm)" novalidate>
-            <div *ngIf="errorMessage" class="auth-error" role="alert">
-              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                <path
-                  d="M10 1.5 1 17h18L10 1.5Zm0 4.4L15.9 15h-11.8L10 5.9ZM9.25 9v3.5h1.5V9h-1.5Zm0 4.75v1.5h1.5v-1.5h-1.5Z"
-                  fill="currentColor"
-                />
-              </svg>
+        <form class="pub-form" #loginForm="ngForm" (ngSubmit)="submit(loginForm)" novalidate>
+          @if (errorMessage) {
+            <div class="pub-error" role="alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.5"></path></svg>
               {{ errorMessage }}
             </div>
+          }
 
-            <label>
-              E-mail
-
-              <div class="input-group">
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path
-                    d="M2.5 4.5h15A1 1 0 0 1 18.5 5.5v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm0 1.4v.32l7.5 5 7.5-5V5.9l-7.5 5-7.5-5Z"
-                    fill="currentColor"
-                  />
-                </svg>
-
-                <input
-                  id="login-email"
-                  name="email"
-                  type="email"
-                  [(ngModel)]="email"
-                  placeholder="voce@empresa.com"
-                  autocomplete="email"
-                  required
-                  email
-                />
-              </div>
-            </label>
-
-            <label>
-              <div class="label-row">
-                <span>Senha</span>
-                <button class="forgot-link" type="button">Esqueceu a senha?</button>
-              </div>
-
-              <div class="input-group">
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path
-                    d="M10 1.67c-2.03 0-3.67 1.64-3.67 3.67v2H5.5A1.5 1.5 0 0 0 4 8.83v7.5A1.5 1.5 0 0 0 5.5 17.83h9a1.5 1.5 0 0 0 1.5-1.5v-7.5A1.5 1.5 0 0 0 14.5 7.33h-.83v-2c0-2.03-1.64-3.67-3.67-3.67Zm0 1.5c1.2 0 2.17.97 2.17 2.17v2H7.83v-2c0-1.2.97-2.17 2.17-2.17ZM10 11a1.25 1.25 0 0 1 .63 2.33v1.34a.63.63 0 1 1-1.26 0v-1.34A1.25 1.25 0 0 1 10 11Z"
-                    fill="currentColor"
-                  />
-                </svg>
-
-                <input
-                  id="login-password"
-                  name="password"
-                  [type]="showPassword ? 'text' : 'password'"
-                  [(ngModel)]="password"
-                  placeholder="••••••••"
-                  autocomplete="current-password"
-                  required
-                />
-
-                <button
-                  class="input-icon-button"
-                  type="button"
-                  (click)="togglePasswordVisibility()"
-                  [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
-                >
-                  <svg *ngIf="!showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path
-                      d="M10 4.5c-4.5 0-7.6 3.3-8.7 5a1 1 0 0 0 0 1c1.1 1.7 4.2 5 8.7 5s7.6-3.3 8.7-5a1 1 0 0 0 0-1c-1.1-1.7-4.2-5-8.7-5Zm0 8.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-
-                  <svg *ngIf="showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path
-                      d="m2.6 2.6 14.8 14.8-1 1-2.3-2.3A9.9 9.9 0 0 1 10 17c-4.5 0-7.6-3.3-8.7-5a1 1 0 0 1 0-1c.5-.8 1.5-2 2.9-3.1L1.6 3.6l1-1ZM10 7a3 3 0 0 1 3 3c0 .4-.1.8-.2 1.1L9.9 8.2c.03 0 .07 0 .1 0Zm0-3.5c1.7 0 3.2.5 4.5 1.3l-1.2 1.2A8.2 8.2 0 0 0 10 5c-3.3 0-5.9 2.2-7.1 3.7A9.9 9.9 0 0 0 4.4 10c.4.5.9 1.1 1.6 1.6l-1.1 1.1C3.1 11.6 2 10.3 1.3 9.5a1 1 0 0 1 0-1C2.4 6.8 5.5 3.5 10 3.5Zm3.9 3.1 1.1-1.1c1.8 1.1 2.9 2.4 3.6 3.3a1 1 0 0 1 0 1c-1 1.5-3.3 4.2-6.9 4.9L10.5 13.6c2.6-.4 4.5-2.3 5.5-3.6a9.9 9.9 0 0 0-2.1-3.4Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </label>
-
-            <button class="button button-primary button-full" type="submit" [disabled]="isSubmitting">
-              <span *ngIf="isSubmitting" class="spinner" aria-hidden="true"></span>
-              {{ isSubmitting ? 'Entrando...' : 'Entrar' }}
-            </button>
-
-            <p class="auth-switch">
-              Ainda não tem conta?
-              <a routerLink="/register">Cadastre-se</a>
-            </p>
-          </form>
-
-          <div class="security-badge">
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M10 1.5 3 4.2v4.9c0 4.5 3 8.4 7 9.4 4-.9 7-4.9 7-9.4V4.2L10 1.5Zm-1.1 11.3-3-3 1.1-1 1.9 1.9 4.9-4.9 1.1 1-6 6Z"
-                fill="currentColor"
+          <label class="pub-field" for="login-email">
+            E-mail
+            <span class="pub-input">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                [(ngModel)]="email"
+                placeholder="voce@empresa.com"
+                autocomplete="email"
+                required
+                email
               />
-            </svg>
-            Conexão segura • criptografia de ponta a ponta
+            </span>
+          </label>
+
+          <div class="pub-field">
+            <div class="pub-field__row">
+              <label for="login-password">Senha</label>
+              <button class="pub-link-btn" type="button">Esqueceu a senha?</button>
+            </div>
+            <span class="pub-input">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <input
+                id="login-password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                [(ngModel)]="password"
+                placeholder="Sua senha"
+                autocomplete="current-password"
+                required
+              />
+              <button
+                class="pub-icon-btn"
+                type="button"
+                (click)="togglePasswordVisibility()"
+                [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                [attr.aria-pressed]="showPassword"
+              >
+                @if (!showPassword) {
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                } @else {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.3-.5 4.6-1.2"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+                }
+              </button>
+            </span>
           </div>
-        </div>
-      </section>
-    </div>
+
+          <button class="pub-btn pub-btn--primary pub-btn--full" type="submit" [disabled]="isSubmitting">
+            @if (isSubmitting) {
+              <span class="pub-spinner" aria-hidden="true"></span>
+            }
+            {{ isSubmitting ? 'Entrando...' : 'Entrar' }}
+          </button>
+        </form>
+
+        <p class="pub-legal">
+          Ao entrar, você concorda com os <a routerLink="/terms">Termos de uso</a> e a
+          <a routerLink="/privacy">Política de privacidade</a>.
+        </p>
+      </div>
+    </section>
   </main>
 </div>

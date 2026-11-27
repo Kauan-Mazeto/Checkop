@@ -110,7 +110,7 @@ $white-line: #fff;
   flex-direction: column;
   gap: 18px;
   padding: 24px 26px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background: var(--surface);
 
@@ -193,7 +193,7 @@ $white-line: #fff;
   flex-wrap: wrap;
   gap: 2px;
   padding: 3px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
 
   button {
@@ -225,7 +225,7 @@ $white-line: #fff;
   min-width: 220px;
   height: 38px;
   padding: 0 10px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 8px;
   outline: 0;
   background: var(--bg);
@@ -238,7 +238,7 @@ $white-line: #fff;
 }
 
 .white-input {
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.32);
 }
 
 // acessos recentes
@@ -306,7 +306,7 @@ $white-line: #fff;
   flex-direction: column;
   gap: 4px;
   padding: 16px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   color: var(--text);
   text-decoration: none;

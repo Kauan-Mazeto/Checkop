@@ -16,6 +16,7 @@ import privacyRoutes from './routes/privacy_routes.js';
 import sastRoutes from './routes/sast_routes.js';
 import targetRoutes from './routes/target_routes.js';
 import adminRoutes from './routes/admin_routes.js';
+import aiHelpRoutes from './routes/ai_help_routes.js';
 import { scheduleTemplateUpdates } from './lib/template_updates.js';
 import prisma from './lib/prisma.js';
 import { scheduleRetentionPurge } from './lib/retention.js';
@@ -61,12 +62,17 @@ app.use(cors({
 
 const timeoutPadrao = timeout('25s');
 const timeoutSast = timeout('3m'); // o Semgrep pode levar até 120s
-app.use((req, res, next) => (req.path.startsWith('/api/sast') ? timeoutSast : timeoutPadrao)(req, res, next));
+// a Ajuda por IA pode pensar por mais de 25s antes de responder
+const precisaTempo = (path) => path.startsWith('/api/sast') || path.startsWith('/api/ai-help');
+app.use((req, res, next) => (precisaTempo(req.path) ? timeoutSast : timeoutPadrao)(req, res, next));
 app.use(morgan('dev'));
 // 10kb para a API toda; só o /api/sast recebe arquivos de código (até 10mb)
 const jsonPequeno = express.json({ limit: '10kb' });
 const jsonGrande = express.json({ limit: '10mb' });
-app.use((req, res, next) => (req.path.startsWith('/api/sast') ? jsonGrande : jsonPequeno)(req, res, next));
+// conversa da Ajuda por IA: até 20 falas, com as respostas da IA de volta
+const jsonConversa = express.json({ limit: '300kb' });
+const jsonDo = (path) => (path.startsWith('/api/sast') ? jsonGrande : path.startsWith('/api/ai-help') ? jsonConversa : jsonPequeno);
+app.use((req, res, next) => jsonDo(req.path)(req, res, next));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 app.use((req, res, next) => (req.path.startsWith('/api/sast') ? next() : sanitizeMiddleware(req, res, next)));
@@ -78,6 +84,7 @@ app.use('/api/scans', scanRoutes);
 app.use('/api/sast', sastRoutes);
 app.use('/api/privacy', privacyRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/ai-help', aiHelpRoutes);
 
 // fallback, para se nao achar, retornar aqui, sem estourar banco
 app.use((req, res) => {

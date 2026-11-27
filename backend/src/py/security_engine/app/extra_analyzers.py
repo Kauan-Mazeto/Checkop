@@ -489,6 +489,11 @@ _TSC_LOGIC = {
 # vem de faltar o projeto (bibliotecas, tipos do Node, tsconfig), não do código colado
 _TSC_IGNORE = {"2307", "7016", "2580", "2591", "2792", "2503", "2875", "5023", "6046", "6053", "2339", "2551", "2305", "2614"}
 _TS_GLOBALS = ("require", "process", "module", "exports", "__dirname", "__filename", "Buffer", "global")
+# "Nome não definido" (2304) e "...você quis dizer X?" (2552): num trecho colado sem nenhum
+# import, os nomes do framework (Controller, DataSource, app, bcrypt...) só faltam porque os
+# imports ficaram de fora. Com imports no arquivo, o aviso continua valendo.
+_TS_UNDEFINED_NAME = {"2304", "2552"}
+_JS_IMPORT = re.compile(r"^\s*(import\s|export\s+.*\sfrom\s|.*\brequire\s*\()", re.M)
 
 
 async def run_tsc(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> None:
@@ -500,10 +505,14 @@ async def run_tsc(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> None
     if not node or not tsc.is_file():
         out.skipped.append("TypeScript")
         return
+    snippets = {os.path.normcase(_abs(t, tmp_dir)) for t in targets if not _JS_IMPORT.search(files.get(t) or "")}
     code, stdout, stderr = await _run([
         node, str(tsc), "--noEmit", "--pretty", "false", "--skipLibCheck", "--noImplicitReturns",
         "--noFallthroughCasesInSwitch", "--allowUnreachableCode", "false", "--strictNullChecks",
         "--target", "es2022", "--module", "esnext", "--moduleResolution", "bundler", "--lib", "es2022,dom",
+        # decorators de NestJS, Angular, TypeORM e class-validator (@Controller, @Get, @Column...):
+        # sem isso o compilador acusa "erro de sintaxe" em código de framework válido
+        "--experimentalDecorators", "--emitDecoratorMetadata",
         "--jsx", "preserve", *[_abs(t, tmp_dir) for t in targets],
     ], tmp_dir)
     if code is None:
@@ -516,6 +525,8 @@ async def run_tsc(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> None
             continue
         number, message = parsed.group("code"), parsed.group("message")
         if number in _TSC_IGNORE or (number == "2304" and any(f"'{g}'" in message for g in _TS_GLOBALS)):
+            continue
+        if number in _TS_UNDEFINED_NAME and os.path.normcase(_abs(parsed.group("file"), tmp_dir)) in snippets:
             continue
         syntax = number.startswith("1") and len(number) == 4
         title = "Erro de sintaxe" if syntax else _TSC_LOGIC.get(number)
@@ -892,6 +903,7 @@ _PMD_TITLES = {
     "AvoidDecimalLiteralsInBigDecimalConstructor": "BigDecimal criado com double (perde precisão)",
     "SingleMethodSingleton": "Singleton com mais de um getInstance", "ProperCloneImplementation": "clone() mal implementado",
     "AvoidInstanceofChecksInCatchClause": "instanceof dentro do catch", "DontImportSun": "Import de classes internas sun.*",
+    "OnDemandImport": "Import com * (pacote inteiro)",
 }
 
 
@@ -957,6 +969,12 @@ async def run_pmd(tmp_dir: str, files: dict[str, str], out: ExtraResult) -> None
 
 
 _PMD_FIX = {
+    "OnDemandImport": (
+        "Importe só as classes que o arquivo usa (ex.: import org.springframework.web.bind.annotation.RestController;). "
+        "O * traz o pacote inteiro: esconde de onde vem cada classe e pode dar conflito quando dois pacotes têm "
+        "classes com o mesmo nome. A IDE faz isso sozinha (Organize Imports: Ctrl+Shift+O no Eclipse/VS Code, "
+        "Ctrl+Alt+O no IntelliJ)."
+    ),
     "CompareObjectsWithEquals": "Compare o conteúdo com a.equals(b) (ou Objects.equals(a, b), que aceita null). O == compara se é o mesmo objeto na memória, não se o valor é igual.",
     "UseEqualsToCompareStrings": "Use texto1.equals(texto2) (ou equalsIgnoreCase). Com ==, duas Strings iguais criadas separadamente dão false.",
     "ImplicitSwitchFallThrough": "Termine cada case com break (ou return). Se a continuação for de propósito, deixe um comentário // fallthrough.",

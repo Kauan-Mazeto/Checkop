@@ -134,6 +134,7 @@ model User {
   loginAttempts            LoginAttempt[]
   targets                  Target[]
   auditLogs                AuditLog[]
+  codeAnalyses             CodeAnalysis[]
 }
 
 model LoginAttempt {
@@ -208,6 +209,10 @@ model Finding {
   rawRequest  String?
   rawResponse String?
   remediation String?
+  // como a ferramenta concluiu que é falha (otherinfo do ZAP, matcher do Nuclei)
+  detection   String?
+  // links de referência da ferramenta, um por linha
+  references  String?
   owaspUrl    String?
   createdAt   DateTime        @default(now())
 }
@@ -245,6 +250,30 @@ model Target {
 
   @@unique([userId, hostname, scope])
   @@index([userId])
+}
+
+// Histórico da análise de código (Premium). Guarda SÓ o resumo do resultado:
+// nomes e linguagens dos arquivos, contagens e, por achado, título, severidade,
+// categoria, arquivo, linha, regra e ferramentas. NUNCA o código, o trecho
+// vulnerável, a correção ou a descrição (Política de Privacidade, item 2.4).
+model CodeAnalysis {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depth           String
+  /// JSON: [{ name, language, lines }]
+  files           String
+  findingsCount   Int
+  /// JSON: { CRITICAL, HIGH, MEDIUM, LOW, INFO }
+  severityCounts  String
+  /// JSON: { SECURITY, LOGIC, SYNTAX, DEPENDENCY, QUALITY }
+  categoryCounts  String
+  /// JSON: [{ title, severity, category, file, line, ruleId, tools }]
+  findings        String
+  durationSeconds Float
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // Registro de ações relevantes (RF-16). Guardado por 6 meses mesmo após a

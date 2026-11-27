@@ -52,6 +52,13 @@ export const NAV_GROUPS: NavGroup[] = [
         locked: (user) => !planOf(user).canAnalyzeCode,
         match: (u) => u.startsWith('/code-analysis'),
       },
+      {
+        path: '/ai-help',
+        label: 'Ajuda por IA',
+        // Premium + créditos de IA
+        locked: (user) => planOf(user).id !== 'PREMIUM',
+        match: (u) => u.startsWith('/ai-help'),
+      },
     ],
   },
   {
@@ -164,7 +171,7 @@ const saveHighContrast = (value: boolean): void => {
               {{ terms.acceptedVersion ? 'substitui a versão ' + terms.acceptedVersion + ' que você aceitou.' : 'ainda não foi aceita na sua conta.' }}
               Para continuar usando o Checkop, leia e aceite a nova versão.
             </p>
-            <a class="link" routerLink="/terms" target="_blank" rel="noopener">Ler os Termos de Uso (abre em outra aba)</a>
+            <a class="link" routerLink="/terms" target="_blank" rel="noopener">Ler os Termos de Uso</a>
             <app-check [(checked)]="termsAgreed">
               <strong>Li e aceito os Termos de Uso</strong>
               e a Política de Privacidade, que faz parte deles.

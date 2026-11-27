@@ -10,6 +10,10 @@ const router = express.Router();
 
 router.use(authMiddleware);
 router.post('/analyze', requirePlan('PREMIUM'), sastLimiter, sastController.analyzeCode);
+// histórico (só o resumo de cada análise, nunca o código)
+router.get('/history', requirePlan('PREMIUM'), sastController.listHistory);
+router.delete('/history', requirePlan('PREMIUM'), sastController.clearHistory);
+router.delete('/history/:id', requirePlan('PREMIUM'), sastController.deleteHistoryItem);
 router.get('/ai-config', sastController.getAiConfig);
 router.post('/fix', requirePlan('PREMIUM'), aiFixLimiter, validate(aiFixSchema), sastController.fixWithAi);
 // correção do arquivo inteiro: Premium + créditos de IA (pagos à parte)

@@ -105,10 +105,22 @@ def _parse_line(raw_line: str) -> Finding | None:
         # template com nota mas sem vetor: vale a nota publicada pelo autor
         cvss = {**cvss, "cvssScore": resolve_cvss_score(classification), "cvssSource": "TEMPLATE"}
 
-    # templates quase nunca trazem "remediation"; as referências ajudam a corrigir (RF-21)
+    # templates quase nunca trazem "remediation"; as referências vão em campo próprio
+    # (links clicáveis na tela), não coladas no texto da correção (RF-21)
     remediation = info.get("remediation")
-    if not remediation and references:
-        remediation = "Referências: " + ", ".join(references[:3])
+    reference_urls = [str(r).strip() for r in references if str(r).strip().startswith(("http://", "https://"))]
+
+    # como o Nuclei concluiu: o template só reporta quando o matcher bate na resposta.
+    # Em inglês, como o resto do texto das ferramentas (a tradução é feita na leitura).
+    template_id = entry.get("template-id") or "template"
+    matcher = entry.get("matcher-name")
+    extracted = [str(x) for x in _as_list(entry.get("extracted-results"))][:3]
+    detection = f'The Nuclei template "{template_id}" matched the response'
+    if matcher:
+        detection += f' (matcher "{matcher}")'
+    detection += "."
+    if extracted:
+        detection += " Captured value: " + ", ".join(extracted) + "."
 
     # o que o template capturou (versão, segredo, caminho...) marcado onde aparece:
     # na resposta, ou na requisição quando a prova está nela
@@ -138,6 +150,8 @@ def _parse_line(raw_line: str) -> Finding | None:
         rawRequest=request,
         rawResponse=response,
         remediation=remediation,
+        detection=detection,
+        references="\n".join(dict.fromkeys(reference_urls[:5])) or None,
         owaspUrl=map_to_owasp_category(tags, cwe_ids),  # RF-47
     )
 

@@ -1,5 +1,7 @@
 // Estilos das telas logadas (dashboard em diante), escopados em .ck-app
 @use 'styles/app-ui';
+// Telas públicas (landing, login e cadastro), escopadas em .pub
+@use 'styles/public-ui';
 
 html,
 body {
@@ -15,6 +17,17 @@ body {
 app-root {
   display: block;
   min-height: 100vh;
+}
+
+// Sem barra de rolagem visível em nenhuma parte do site: continua rolando pela
+// roda do mouse, pelo touchpad, pelo toque e pelo teclado
+* {
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // Edge antigo
+}
+
+*::-webkit-scrollbar {
+  display: none; // Chrome, Edge, Safari
 }
 
 button,

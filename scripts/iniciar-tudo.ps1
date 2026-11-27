@@ -59,7 +59,49 @@ if (-not (Test-Porta 8091)) {
 $zapSaida = Join-Path $env:TEMP 'checkop-zap.log'
 Remove-Item $zapSaida -ErrorAction SilentlyContinue
 Abrir 'ZAP :8091'     8091 $zapBat.DirectoryName                         "& '.\zap.bat' -daemon -host 127.0.0.1 -port 8091 -config api.key=$key 2>&1 | Out-String -Stream | Tee-Object -FilePath '$zapSaida'"
-Abrir 'Motor :8010'   8010 (Join-Path $backend 'src\py\security_engine') 'python -m uvicorn app.main:app --host 127.0.0.1 --port 8010'
+# ---------- motor Python ----------
+# Já falhou "sem motivo" (a janela fechava o erro de vista). Agora: Python certo (não o
+# atalho da Microsoft Store), teste de importação antes, log em arquivo e nova tentativa.
+$motorPasta = Join-Path $backend 'src\py\security_engine'
+$motorSaida = Join-Path $env:TEMP 'checkop-motor.log'
+$python = (Get-Command python -All -ErrorAction SilentlyContinue |
+  Where-Object { $_.Source -notmatch 'WindowsApps' } | Select-Object -First 1).Source
+if (-not $python) { $python = (Get-Command py -ErrorAction SilentlyContinue).Source }
+if (-not $python) { throw "Python não encontrado no PATH (instale o Python 3.13 marcando 'Add python.exe to PATH')." }
+
+# a porta 8010 pode cair numa faixa que o Windows (Hyper-V/WSL/Docker) reserva a cada boot
+$reservadas = netsh interface ipv4 show excludedportrange protocol=tcp 2>$null |
+  ForEach-Object { if ($_ -match '^\s*(\d+)\s+(\d+)') { ,@([int]$Matches[1], [int]$Matches[2]) } }
+if ($reservadas | Where-Object { 8010 -ge $_[0] -and 8010 -le $_[1] }) {
+  Write-Host '[!]  A porta 8010 está reservada pelo Windows neste boot; o motor não vai conseguir abri-la.' -ForegroundColor Yellow
+  Write-Host '     Resolva num PowerShell como administrador:  net stop winnat ; net start winnat' -ForegroundColor Yellow
+}
+
+# teste rápido: erro de código ou dependência faltando aparece aqui, não numa janela perdida
+if (-not (Test-Porta 8010)) {
+  $teste = & {
+    $ErrorActionPreference = 'Continue'
+    Push-Location -LiteralPath $motorPasta
+    try { & $python -c 'import app.main' 2>&1 | Out-String } finally { Pop-Location }
+  }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host '[!]  O motor não carrega. Erro:' -ForegroundColor Red
+    $teste.Trim() -split "`n" | Select-Object -Last 12 | ForEach-Object { Write-Host "     $_" -ForegroundColor DarkYellow }
+    Write-Host '     Se for "No module named ...":  cd backend\src\py\security_engine ; python -m pip install -r requirements.txt' -ForegroundColor Yellow
+  }
+}
+
+$motorComando = "& '$python' -m uvicorn app.main:app --host 127.0.0.1 --port 8010 2>&1 | Out-String -Stream | Tee-Object -FilePath '$motorSaida'"
+function Abrir-Motor {
+  Remove-Item $motorSaida -ErrorAction SilentlyContinue
+  Abrir 'Motor :8010' 8010 $motorPasta $motorComando
+}
+function Motor-Vivo {
+  [bool](Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='py.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'uvicorn app\.main' })
+}
+Abrir-Motor
+$motorTentativas = 1
 Abrir 'Backend :8080' 8080 $backend                                      'npm start'
 Abrir 'Front :4200'   4200 (Join-Path $root 'front-end')                 'npx ng serve'
 if (-not $SemLab) {
@@ -80,10 +122,21 @@ while ($pendentes.Count -gt 0 -and (Get-Date) -lt $limite) {
       $pendentes.Remove($nome)
     }
   }
+  # o motor sobe em segundos; se o processo morreu, tenta de novo uma vez
+  if ($pendentes -contains 'Motor' -and $motorTentativas -lt 2 -and ((Get-Date) -gt $limite.AddMinutes(-2.5)) -and -not (Motor-Vivo)) {
+    Write-Host '[!]  O motor caiu ao iniciar; abrindo de novo...' -ForegroundColor Yellow
+    if (Test-Path $motorSaida) { Get-Content $motorSaida -Tail 8 | ForEach-Object { Write-Host "     $_" -ForegroundColor DarkYellow } }
+    Abrir-Motor
+    $motorTentativas++
+  }
   if ($pendentes.Count -gt 0) { Start-Sleep -Seconds 2 }
 }
 foreach ($nome in $pendentes) {
   Write-Host "[!]  $nome não respondeu em 3 min: veja a janela '$nome' para o erro." -ForegroundColor Yellow
+  if ($nome -eq 'Motor' -and (Test-Path $motorSaida)) {
+    Write-Host '     Últimas linhas do motor:' -ForegroundColor Yellow
+    Get-Content $motorSaida -Tail 15 | ForEach-Object { Write-Host "     $_" -ForegroundColor DarkYellow }
+  }
   if ($nome -eq 'ZAP' -and (Test-Path $zapSaida)) {
     Write-Host '     Últimas linhas do ZAP:' -ForegroundColor Yellow
     Get-Content $zapSaida -Tail 15 | ForEach-Object { Write-Host "     $_" -ForegroundColor DarkYellow }

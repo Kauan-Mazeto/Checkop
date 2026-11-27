@@ -7,9 +7,18 @@ import { CommonModule } from '@angular/common';
 import { Component, Input, OnChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Finding, FindingSeverity, Scan } from '../../core/services/scan.service';
-import { SEVERITY_LABEL, SEVERITY_ORDER, owaspExplanation } from '../../shared/ui/labels';
+import { ChartData, ChartOptions } from 'chart.js';
+import { Finding, FindingSeverity, Scan, ScanStats } from '../../core/services/scan.service';
+import { ChartComponent } from '../../shared/components/chart/chart.component';
+import {
+  STACKED_COLUMN_OPTIONS,
+  TriageRun,
+  chartTotal,
+  triageEvolutionBar,
+} from '../../shared/ui/chart-data';
+import { SEVERITY_LABEL, SEVERITY_ORDER, TOOL_LABEL, owaspExplanation } from '../../shared/ui/labels';
 import { PLAN_DEFINITIONS, PLAN_FEATURES, PlanDefinition } from '../../shared/ui/plans';
+import { GuideLink, guideFor, isKnownGuide, owaspLink, summarizeRemediation } from '../scan-detail-page/role-guides';
 
 export type RolePanel = 'qa' | 'dev' | 'pentester' | 'student';
 
@@ -45,90 +54,59 @@ const percent = (count: number, max: number): number => (count / Math.max(1, max
 @Component({
   selector: 'app-qa-panel',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, ChartComponent],
   template: `
-    <section class="card">
-      <header class="card-header">
-        <div><h2>Resultados das análises</h2><p>Vulnerabilidades encontradas, relatórios e URLs analisadas mais de uma vez.</p></div>
-      </header>
-      <div class="card-body grid grid-2">
-        <div class="subcard">
-          <div class="subcard-head"><h3>Por severidade</h3><span>{{ findings.length }} encontradas</span></div>
-          <div *ngIf="findings.length === 0" class="empty-box">Os resultados aparecem aqui quando uma análise terminar.</div>
-          <ul *ngIf="findings.length > 0" class="bars">
-            <li *ngFor="let item of bySeverity">
-              <span class="bar-label">{{ severityLabel[item.severity] }}</span>
-              <span class="bar-track"><span class="bar-fill" [attr.data-severity]="item.severity" [style.width.%]="pct(item.count, maxSeverity)"></span></span>
-              <span class="bar-value">{{ item.count }}</span>
-            </li>
-          </ul>
-        </div>
+    <!-- status da correção e tipos mais frequentes ficam na aba Riscos (sem repetir aqui) -->
+    <div class="dash-grid">
+      <!-- relatórios -->
+      <section class="dash-tile" aria-label="Relatórios">
+        <header class="dash-tile-head"><h3>Relatórios</h3></header>
+        <ng-container *ngIf="plan.canExportReports; else reportsLocked">
+          <p class="dash-note">Abra a análise concluída mais recente e exporte em PDF ou JSON para anexar no chamado.</p>
+          <a *ngIf="latestCompleted" class="button button-outline button-sm" [routerLink]="['/scans', latestCompleted.id]">Abrir último relatório</a>
+          <span *ngIf="!latestCompleted" class="hint">Nenhuma análise concluída ainda.</span>
+        </ng-container>
+        <ng-template #reportsLocked>
+          <p class="dash-note">Relatórios em PDF e JSON ficam no plano Premium.</p>
+          <a class="button button-outline button-sm" routerLink="/plans">Ver planos</a>
+        </ng-template>
+      </section>
 
-        <div class="subcard">
-          <div class="subcard-head"><h3>Por tipo</h3><span>mais frequentes</span></div>
-          <div *ngIf="types.length === 0" class="empty-box">Os tipos identificados serão listados após a análise.</div>
-          <ul *ngIf="types.length > 0" class="bars">
-            <li *ngFor="let item of types">
-              <span class="bar-label" [title]="item.title">{{ item.title }}</span>
-              <span class="bar-track"><span class="bar-fill" [style.width.%]="pct(item.count, maxType)"></span></span>
-              <span class="bar-value">{{ item.count }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="subcard">
-          <h3>Relatórios</h3>
-          <ng-container *ngIf="plan.canExportReports; else reportsLocked">
-            <p>Abra a análise concluída mais recente para exportar o relatório em PDF ou JSON.</p>
-            <div class="actions top-gap">
-              <a *ngIf="latestCompleted" class="button button-outline button-sm" [routerLink]="['/scans', latestCompleted.id]">Abrir relatório</a>
-              <span *ngIf="!latestCompleted" class="hint">Nenhuma análise concluída disponível.</span>
-            </div>
-          </ng-container>
-          <ng-template #reportsLocked>
-            <p>Relatórios em PDF e JSON estão disponíveis no plano Premium.</p>
-            <div class="actions top-gap"><a class="button button-outline button-sm" routerLink="/plans">Ver planos</a></div>
-          </ng-template>
-        </div>
-
-        <div class="subcard">
-          <div class="subcard-head"><h3>URLs analisadas mais de uma vez</h3><span>{{ repeated.length }} URLs</span></div>
-          <div *ngIf="repeated.length === 0" class="empty-box">
-            {{ plan.canViewHistory ? 'Quando uma URL tiver mais de uma análise, ela aparecerá aqui.' : 'Comparar análises da mesma URL exige o histórico do Premium.' }}
-          </div>
-          <ul *ngIf="repeated.length > 0" class="plain-list">
-            <li *ngFor="let item of repeated"><span class="cell-url">{{ item.targetUrl }}</span><span class="badge">{{ item.runs }} execuções</span></li>
-          </ul>
-        </div>
-      </div>
-    </section>
+      <!-- correções ao longo das varreduras: quanto foi corrigido e quanto ainda está aberto -->
+      <section class="dash-tile dash-span-all" aria-label="Evolução das correções">
+        <header class="dash-tile-head"><h3>Evolução das correções</h3><span>corrigidos × abertos em cada varredura recente</span></header>
+        <app-chart type="bar" [data]="evolutionChart" [options]="stackedOptions" [height]="230" [empty]="chartTotal(evolutionChart) === 0"
+          emptyText="Marque os achados como corrigidos (ou falso positivo) no detalhe da varredura para acompanhar a evolução aqui."
+          ariaLabel="Achados corrigidos, descartados e abertos em cada varredura" />
+        <p *ngIf="lastRun" class="dash-note">
+          Na varredura mais recente: <strong>{{ lastRun.fixed }}</strong> corrigidos, <strong>{{ lastRun.dismissed }}</strong> descartados e
+          <strong>{{ lastRun.open }}</strong> abertos.
+        </p>
+      </section>
+    </div>
   `,
 })
 export class QaPanelComponent implements OnChanges {
   @Input() scans: Scan[] = [];
   @Input() findings: Finding[] = [];
+  @Input() stats: ScanStats | null = null;
+  /** abertos × corrigidos × descartados das varreduras concluídas mais recentes */
+  @Input() triageRuns: TriageRun[] = [];
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
 
-  protected readonly severityLabel = SEVERITY_LABEL;
-  protected readonly pct = percent;
+  protected readonly stackedOptions = STACKED_COLUMN_OPTIONS as ChartOptions;
+  protected readonly chartTotal = chartTotal;
 
   // Calculados só quando as entradas mudam. Como getters, cada verificação do
-  // Angular criava objetos novos, o *ngFor recriava as barras, o layout mudava,
-  // o gráfico (ResizeObserver) redesenhava e disparava outra verificação: loop
-  // infinito que congelava o painel.
-  protected bySeverity: { severity: FindingSeverity; count: number }[] = [];
-  protected maxSeverity = 0;
-  protected types: { title: string; count: number }[] = [];
-  protected maxType = 0;
-  protected repeated: { targetUrl: string; runs: number }[] = [];
+  // Angular criava objetos novos, os gráficos (ResizeObserver) redesenhavam e
+  // disparavam outra verificação: loop infinito que congelava o painel.
+  protected evolutionChart: ChartData = triageEvolutionBar([]) as ChartData;
+  protected lastRun: TriageRun | null = null;
   protected latestCompleted: Scan | undefined;
 
   ngOnChanges(): void {
-    this.bySeverity = severityCounts(this.findings);
-    this.maxSeverity = Math.max(0, ...this.bySeverity.map((i) => i.count));
-    this.types = topTypes(this.findings);
-    this.maxType = Math.max(0, ...this.types.map((i) => i.count));
-    this.repeated = repeatedTargets(this.scans);
+    this.evolutionChart = triageEvolutionBar(this.triageRuns) as ChartData;
+    this.lastRun = [...this.triageRuns].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
     this.latestCompleted = this.scans.find((s) => s.status === 'COMPLETED');
   }
 }
@@ -214,10 +192,13 @@ export class DevPanelComponent implements OnChanges {
 
   ngOnChanges(): void {
     this.flagged = this.scans.filter((s) => s.status === 'FAILED' || s.suspiciousEnvironment).slice(0, 5);
-    this.highRisk = this.findings.filter((f) => f.severity === 'CRITICAL' || f.severity === 'HIGH').length;
+    this.highRisk = this.findings.filter(
+      (f) => (f.severity === 'CRITICAL' || f.severity === 'HIGH') && (!f.status || f.status === 'OPEN'),
+    ).length;
     const seen = new Set<string>();
     this.fixes = [...this.findings]
-      .filter((f) => f.remediation)
+      // só o que ainda está aberto: o já corrigido, falso positivo ou ignorado não precisa de sugestão
+      .filter((f) => f.remediation && (!f.status || f.status === 'OPEN'))
       .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
       .filter((f) => !seen.has(f.title) && Boolean(seen.add(f.title)))
       .slice(0, 6);
@@ -231,58 +212,62 @@ export class DevPanelComponent implements OnChanges {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <section class="card">
-      <header class="card-header">
-        <div><h2>Análise técnica</h2><p>Log, payload e saída bruta das varreduras concluídas.</p></div>
-        <div class="filters">
-          <select class="select" aria-label="Filtrar por severidade" [disabled]="findings.length === 0" [(ngModel)]="severityFilter" (ngModelChange)="applyFilters()">
-            <option value="">{{ findings.length === 0 ? 'Severidade: sem dados' : 'Todas as severidades' }}</option>
-            <option *ngFor="let s of severityOptions" [value]="s">{{ severityLabel[s] }}</option>
-          </select>
-          <select class="select" aria-label="Filtrar por ferramenta" [disabled]="findings.length === 0" [(ngModel)]="toolFilter" (ngModelChange)="applyFilters()">
-            <option value="">{{ findings.length === 0 ? 'Ferramenta: sem dados' : 'Todas as ferramentas' }}</option>
-            <option *ngFor="let t of tools" [value]="t">{{ t }}</option>
-          </select>
-        </div>
-      </header>
-      <div class="card-body grid grid-2">
-        <div class="subcard">
-          <h3>Log técnico</h3>
-          <div *ngIf="scans.length === 0" class="empty-box">Timestamp, IPs resolvidos, safeMode e status: aguardando primeira varredura.</div>
+    <!-- CVSS, confiança, endpoints e ferramentas ficam nas abas Riscos, Alvos e Varreduras (sem repetir aqui) -->
+    <div class="dash-grid">
+      <!-- achados com payload e saída bruta -->
+      <section class="dash-tile dash-span-all" aria-label="Achados, payload e saída bruta">
+        <header class="dash-tile-head">
+          <h3>Achados, payload e saída bruta</h3>
+          <div class="filters">
+            <select class="select" aria-label="Filtrar por severidade" [disabled]="findings.length === 0" [(ngModel)]="severityFilter" (ngModelChange)="applyFilters()">
+              <option value="">{{ findings.length === 0 ? 'Severidade: sem dados' : 'Todas as severidades' }}</option>
+              <option *ngFor="let s of severityOptions" [value]="s">{{ severityLabel[s] }}</option>
+            </select>
+            <select class="select" aria-label="Filtrar por ferramenta" [disabled]="findings.length === 0" [(ngModel)]="toolFilter" (ngModelChange)="applyFilters()">
+              <option value="">{{ findings.length === 0 ? 'Ferramenta: sem dados' : 'Todas as ferramentas' }}</option>
+              <option *ngFor="let t of tools" [value]="t">{{ toolLabel[t] || t }}</option>
+            </select>
+          </div>
+        </header>
+        <div *ngIf="filtered.length === 0" class="empty-box">Aguardando a primeira varredura.</div>
+        <ul *ngIf="filtered.length > 0" class="finding-list">
+          <li *ngFor="let f of filtered">
+            <div class="finding-head">
+              <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
+              <strong>{{ f.title }}</strong>
+              <span class="badge">{{ toolLabel[f.tool] || f.tool }}</span>
+            </div>
+            <code *ngIf="f.affectedUrl" class="finding-target">{{ f.affectedUrl }}<ng-container *ngIf="f.parameter"> · {{ f.parameter }}</ng-container></code>
+            <ng-container *ngIf="plan.canSeeDetails; else pocLocked">
+              <details><summary>Payload / requisição</summary><pre>{{ f.rawRequest || 'Indisponível (Modo Seguro ou sem dados).' }}</pre></details>
+              <details><summary>Saída bruta</summary><pre>{{ f.rawResponse || 'Indisponível (Modo Seguro ou sem dados).' }}</pre></details>
+            </ng-container>
+            <ng-template #pocLocked><p class="hint">Payload e saída bruta (PoC) no <a class="link" routerLink="/plans">Premium</a>.</p></ng-template>
+          </li>
+        </ul>
+        <p class="dash-note">Em varreduras de produção (Modo Seguro) o servidor oculta parâmetro, payload e saída bruta.</p>
+      </section>
+
+      <!-- log técnico: recolhido, abre na seta -->
+      <section class="dash-tile dash-span-all fix-list-collapsible" aria-label="Log técnico">
+        <details>
+          <summary><span class="fix-title">Log técnico das varreduras</span><span class="fix-arrow" aria-hidden="true"></span></summary>
+          <div *ngIf="scans.length === 0" class="empty-box">Timestamp, IPs resolvidos, safeMode e status: aguardando a primeira varredura.</div>
           <pre *ngIf="scans.length > 0" class="code logs"><ng-container *ngFor="let scan of scans">[{{ scan.createdAt | date: 'dd/MM HH:mm:ss' }}] {{ scan.objective }} {{ scan.targetUrl }} env={{ scan.environment }} safeMode={{ scan.safeMode }} status={{ scan.status }} ips={{ scan.resolvedIps.join(',') || 'n/a' }}
 </ng-container></pre>
-        </div>
-
-        <div class="subcard">
-          <h3>Achados, payload e saída bruta</h3>
-          <div *ngIf="filtered.length === 0" class="empty-box">Aguardando primeira varredura.</div>
-          <ul *ngIf="filtered.length > 0" class="finding-list">
-            <li *ngFor="let f of filtered">
-              <div class="finding-head">
-                <span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span>
-                <strong>{{ f.title }}</strong>
-                <span class="badge">{{ f.tool }}</span>
-              </div>
-              <code *ngIf="f.affectedUrl" class="finding-target">{{ f.affectedUrl }}<ng-container *ngIf="f.parameter"> · {{ f.parameter }}</ng-container></code>
-              <ng-container *ngIf="plan.canSeeDetails; else pocLocked">
-                <details><summary>Payload / requisição</summary><pre>{{ f.rawRequest || 'Indisponível (Modo Seguro ou sem dados).' }}</pre></details>
-                <details><summary>Saída bruta</summary><pre>{{ f.rawResponse || 'Indisponível (Modo Seguro ou sem dados).' }}</pre></details>
-              </ng-container>
-              <ng-template #pocLocked><p class="hint">Payload e saída bruta (PoC) no <a class="link" routerLink="/plans">Premium</a>.</p></ng-template>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <p class="card-body hint no-top">Em scans de produção (Modo Seguro) o servidor oculta parâmetro, payload e saída bruta.</p>
-    </section>
+        </details>
+      </section>
+    </div>
   `,
 })
 export class PentesterPanelComponent implements OnChanges {
   @Input() scans: Scan[] = [];
   @Input() findings: Finding[] = [];
+  @Input() stats: ScanStats | null = null;
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
 
   protected readonly severityLabel = SEVERITY_LABEL;
+  protected readonly toolLabel = TOOL_LABEL;
   protected readonly severityOptions = SEVERITY_ORDER;
   protected severityFilter: FindingSeverity | '' = '';
   protected toolFilter = '';
@@ -313,23 +298,56 @@ export class PentesterPanelComponent implements OnChanges {
   template: `
     <section class="card">
       <header class="card-header">
-        <div><h2>Aprenda com a análise</h2><p>Entenda o básico antes de interpretar uma varredura.</p></div>
+        <div><h2>Aprenda com a análise</h2><p>O básico para entender uma varredura. Clique para abrir.</p></div>
       </header>
-      <div class="card-body grid grid-2">
-        <div class="subcard"><h3>Modo Seguro e Modo Verboso</h3><p>O Verboso mostra mais detalhes para estudo em ambientes controlados. O Seguro protege informações em produção.</p></div>
-        <div class="subcard"><h3>Passiva e ativa</h3><p>A varredura passiva só observa as respostas. A ativa envia ataques reais e pede a sua autorização.</p></div>
-        <div class="subcard"><h3>Por que verificar o domínio?</h3><p>Testar sistema alheio sem autorização é crime (art. 154-A do Código Penal). Por isso o Checkop pede a prova de que o site é seu.</p></div>
-        <div class="subcard"><h3>Laboratório seguro</h3><p>Rode o OWASP Juice Shop ou o DVWA em <code>localhost</code> e veja as falhas aparecerem sem risco.</p></div>
+      <div class="card-body">
+        <!-- conceitos: fechados por padrão, com a seta para abrir -->
+        <div class="learn-grid fix-list-collapsible">
+          <details *ngFor="let c of concepts" class="subcard learn-item">
+            <summary><span class="fix-title">{{ c.title }}</span><span class="fix-arrow" aria-hidden="true"></span></summary>
+            <p>{{ c.text }}</p>
+            <ul class="learn-links">
+              <li *ngFor="let l of c.links"><a class="link" [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+            </ul>
+          </details>
+        </div>
 
-        <div class="subcard span-2">
+        <div class="subcard top-gap">
           <h3>O que a sua varredura encontrou</h3>
           <div *ngIf="explained.length === 0" class="empty-box">As explicações aparecerão após a primeira varredura.</div>
-          <ul *ngIf="explained.length > 0" class="fix-list">
-            <li *ngFor="let f of explained">
-              <strong><span class="badge sev" [attr.data-severity]="f.severity">{{ severityLabel[f.severity] }}</span> {{ f.title }}</strong>
-              <p *ngIf="explain(f.owaspUrl) as text"><b>O que é:</b> {{ text }}</p>
-              <p *ngIf="f.remediation"><b>Como corrigir:</b> {{ f.remediation }}</p>
-              <p *ngIf="!plan.canSeeDetails" class="hint">Como corrigir: disponível no <a class="link" routerLink="/plans">Premium</a>.</p>
+          <ul *ngIf="explained.length > 0" class="fix-list fix-list-collapsible">
+            <li *ngFor="let e of explained">
+              <details>
+                <summary>
+                  <span class="badge sev" [attr.data-severity]="e.finding.severity">{{ severityLabel[e.finding.severity] }}</span>
+                  <span class="fix-title">{{ e.finding.title }}</span>
+                  <span class="fix-arrow" aria-hidden="true"></span>
+                </summary>
+
+                <div class="learn-part" *ngIf="e.what">
+                  <h4>O que é</h4>
+                  <p>{{ e.what }}</p>
+                </div>
+
+                <div class="learn-part" *ngIf="e.fix.length">
+                  <h4>Como corrigir</h4>
+                  <ul class="learn-steps">
+                    <li *ngFor="let step of e.fix">{{ step }}</li>
+                  </ul>
+                  <details *ngIf="e.full" class="learn-full">
+                    <summary><span class="fix-title">Texto completo da ferramenta</span><span class="fix-arrow" aria-hidden="true"></span></summary>
+                    <p>{{ e.full }}</p>
+                  </details>
+                </div>
+                <p *ngIf="!plan.canSeeDetails" class="hint">Como corrigir: disponível no <a class="link" routerLink="/plans">Premium</a>.</p>
+
+                <div class="learn-part" *ngIf="e.links.length">
+                  <h4>Para estudar</h4>
+                  <ul class="learn-links">
+                    <li *ngFor="let l of e.links"><a class="link" [href]="l.url" target="_blank" rel="noopener noreferrer">{{ l.label }} <span aria-hidden="true">↗</span></a></li>
+                  </ul>
+                </div>
+              </details>
             </li>
           </ul>
         </div>
@@ -342,17 +360,69 @@ export class StudentPanelComponent implements OnChanges {
   @Input() plan: PlanDefinition = PLAN_DEFINITIONS.FREE;
 
   protected readonly severityLabel = SEVERITY_LABEL;
-  protected readonly explain = owaspExplanation;
+
+  /** conceitos básicos, curtos, cada um com a fonte oficial */
+  protected readonly concepts: { title: string; text: string; links: GuideLink[] }[] = [
+    {
+      title: 'Modo Seguro e Modo Verboso',
+      text: 'O Verboso mostra tudo, para estudar em ambiente de teste. O Seguro esconde dados sensíveis em produção.',
+      links: [{ label: 'OWASP · Tratamento de erros', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html' }],
+    },
+    {
+      title: 'Varredura passiva e ativa',
+      text: 'A passiva só observa as respostas. A ativa envia ataques de verdade e por isso pede a sua autorização.',
+      links: [
+        { label: 'OWASP ZAP · Varredura passiva', url: 'https://www.zaproxy.org/docs/desktop/start/features/pscan/' },
+        { label: 'OWASP ZAP · Varredura ativa', url: 'https://www.zaproxy.org/docs/desktop/start/features/ascan/' },
+      ],
+    },
+    {
+      title: 'Por que provar que o domínio é seu?',
+      text: 'Testar o site de outra pessoa sem autorização é crime (art. 154-A do Código Penal).',
+      links: [{ label: 'Lei 12.737/2012 (art. 154-A)', url: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/lei/l12737.htm' }],
+    },
+    {
+      title: 'Onde praticar sem risco',
+      text: 'Use sites feitos para serem atacados, rodando no seu computador (localhost).',
+      links: [
+        { label: 'OWASP Juice Shop', url: 'https://owasp.org/www-project-juice-shop/' },
+        { label: 'DVWA', url: 'https://github.com/digininja/DVWA' },
+        { label: 'PortSwigger Academy (laboratórios grátis)', url: 'https://portswigger.net/web-security' },
+      ],
+    },
+  ];
 
   /** um exemplo por tipo de falha, dos mais graves para os mais leves (calculado só quando muda) */
-  protected explained: Finding[] = [];
+  protected explained: {
+    finding: Finding;
+    what: string | null;
+    fix: string[];
+    full: string | null;
+    links: GuideLink[];
+  }[] = [];
 
   ngOnChanges(): void {
     const seen = new Set<string>();
     this.explained = [...this.findings]
       .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
       .filter((f) => !seen.has(f.title) && Boolean(seen.add(f.title)))
-      .slice(0, 5);
+      .slice(0, 5)
+      .map((finding) => {
+        const guide = guideFor(finding);
+        const known = isKnownGuide(guide);
+        // correção em poucos passos: a do guia da classe (curta, em português) ou o começo
+        // do texto da ferramenta; o texto inteiro fica recolhido, para quem quiser
+        // (a correção é recurso Premium: no Free fica só o aviso)
+        const fix = !this.plan.canSeeDetails ? [] : known && guide.fix.length ? guide.fix : summarizeRemediation(finding.remediation);
+        const links = [...guide.learn, owaspLink(finding.owaspUrl)].filter((l): l is GuideLink => Boolean(l));
+        return {
+          finding,
+          what: known ? guide.what : owaspExplanation(finding.owaspUrl),
+          fix,
+          full: fix.length && finding.remediation && finding.remediation.length > 160 ? finding.remediation : null,
+          links: links.filter((l, i) => links.findIndex((o) => o.url === l.url) === i).slice(0, 3),
+        };
+      });
   }
 }
 
@@ -383,7 +453,6 @@ export class StudentPanelComponent implements OnChanges {
           </ul>
         </article>
       </div>
-      <p class="card-body hint no-top">Valores demonstrativos, sem cobrança no MVP.</p>
     </section>
   `,
 })

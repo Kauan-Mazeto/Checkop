@@ -22,7 +22,7 @@ export const locationsOf = (finding: Finding): FindingLocation[] =>
   finding.locations?.length
     ? finding.locations
     : [{ id: finding.id, affectedUrl: finding.affectedUrl, parameter: finding.parameter, severity: finding.severity, status: finding.status,
-         attack: finding.attack, reproduction: finding.reproduction,
+         attack: finding.attack, reproduction: finding.reproduction, detection: finding.detection, confidence: finding.confidence,
          rawRequest: finding.rawRequest, rawResponse: finding.rawResponse }];
 
 export const hasEvidence = (finding: Finding): boolean => locationsOf(finding).some(locationHasEvidence);
@@ -36,6 +36,8 @@ export interface EvidenceItem {
   parameter?: string | null;
   attack?: string | null;
   reproduction?: string | null;
+  detection?: string | null;
+  confidence?: FindingLocation['confidence'];
   rawRequest?: string | null;
   rawResponse?: string | null;
 }
@@ -55,7 +57,7 @@ export const evidenceItems = (findings: Finding[]): EvidenceItem[] =>
     locationsOf(f)
       .filter(locationHasEvidence)
       .map((l) => ({ id: l.id, title: f.title, severity: l.severity, affectedUrl: l.affectedUrl, parameter: l.parameter,
-                     attack: l.attack, reproduction: l.reproduction,
+                     attack: l.attack, reproduction: l.reproduction, detection: l.detection, confidence: l.confidence ?? f.confidence,
                      rawRequest: clipEvidence(l.rawRequest), rawResponse: clipEvidence(l.rawResponse) })),
   );
 

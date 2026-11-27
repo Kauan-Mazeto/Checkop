@@ -1,0 +1,409 @@
+# Regras do Checkop para os frameworks mais usados de cada linguagem que o registro
+# gratuito do Semgrep não cobre (não existe pacote de Spring, Laravel, NestJS nem
+# Next.js; os de Express, Django, Flask, FastAPI, Rails e Go entram por pacote no
+# sast_runner.py). Ninguém escreve "Java puro" para web: as falhas aparecem no
+# jeito de cada framework receber a requisição e falar com o banco.
+#
+# Conferidas contra exemplos vulneráveis e as versões corrigidas (sem falso positivo).
+rules:
+  # ======================= Java / Spring =======================
+
+  # Dado da requisição (@RequestParam, @PathVariable...) chegando ao SQL do JdbcTemplate,
+  # EntityManager ou JDBC. Modo taint: segue o valor pela concatenação e pelas variáveis.
+  - id: checkop-spring-sql-injection
+    languages: [java]
+    severity: ERROR
+    mode: taint
+    message: >-
+      O valor que chega na requisição entra no SQL por concatenação e o SQL é executado: quem
+      chama a API escolhe o que a consulta faz.
+      @fix: Passe o valor como parâmetro, nunca dentro do texto do SQL:
+      jdbcTemplate.query("... WHERE campo = ?", mapper, valor). Com Spring Data, use um método
+      como findByNome(nome) ou @Query("... WHERE nome = :nome") com @Param.
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  $RET $METHOD(..., @$REQ(...) $TYPE $SOURCE, ...) { ... }
+              - pattern-inside: |
+                  $RET $METHOD(..., @$REQ $TYPE $SOURCE, ...) { ... }
+          - metavariable-regex:
+              metavariable: $REQ
+              regex: ^(RequestParam|PathVariable|RequestBody|RequestHeader|CookieValue|ModelAttribute|MatrixVariable)$
+          - pattern: $SOURCE
+    pattern-sinks:
+      - patterns:
+          - pattern: $DB.$EXEC($SQL, ...)
+          - metavariable-regex:
+              metavariable: $EXEC
+              regex: ^(query|queryForList|queryForObject|queryForRowSet|queryForMap|queryForStream|update|batchUpdate|execute|executeQuery|executeUpdate|executeLargeUpdate|addBatch|prepareStatement|createNativeQuery|createQuery)$
+          - focus-metavariable: $SQL
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: HIGH
+      checkop_url: https://docs.spring.io/spring-framework/reference/data-access/jdbc/core.html
+
+  # Login que responde sucesso sem decidir nada: nenhum if, nenhuma checagem de senha
+  - id: checkop-java-login-sempre-aceita
+    languages: [java]
+    severity: ERROR
+    message: >-
+      $METHOD(...) responde sucesso sem conferir nada: não há nenhuma decisão sobre o usuário e a
+      senha antes do return, então qualquer credencial entra.
+      @fix: Busque o usuário, confira a senha com passwordEncoder.matches(senha, hashSalvo) e só
+      devolva sucesso quando bater; senão, responda 401. Com Spring Security, use o
+      AuthenticationManager em vez de um login feito à mão.
+    patterns:
+      - pattern: |
+          $RET $METHOD(...) {
+            ...
+            return $R;
+          }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: (?i)^(login|logar|logon|signin|entrar|autenticar|authenticate|auth|doLogin|efetuarLogin|fazerLogin)$
+      # só resposta FIXA de sucesso: "return authService.login(...)" repassa a decisão e não entra
+      - metavariable-pattern:
+          metavariable: $R
+          pattern-either:
+            - pattern: '"..."'
+            - pattern: "true"
+            - pattern: Boolean.TRUE
+            - pattern: ResponseEntity.ok("...")
+            - pattern: ResponseEntity.ok().body("...")
+            - pattern: ResponseEntity.ok().build()
+            - pattern: ResponseEntity.status(...).body("...")
+            - pattern: new ResponseEntity<>("...", ...)
+            - pattern: Map.of(...)
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            if (...) { ... }
+            ...
+          }
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            if (...) return ...;
+            ...
+          }
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            return $C ? $A : $B;
+          }
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            $X.authenticate(...);
+            ...
+          }
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            throw $E;
+          }
+    metadata:
+      cwe: ["CWE-287: Improper Authentication"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Login que aceita qualquer senha"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+
+  # Linha inteira do banco (SELECT *, RowSet, Map) devolvida direto na resposta da API
+  - id: checkop-spring-resposta-com-linha-do-banco
+    languages: [java]
+    severity: WARNING
+    message: >-
+      A API devolve o resultado cru da consulta ($DB.$Q): todas as colunas da tabela vão para quem
+      chamou, inclusive as que não deveriam sair (senha, e-mail, dados internos).
+      @fix: Selecione só as colunas necessárias e devolva um DTO com os campos públicos
+      (ex.: record UsuarioDto(Long id, String nome)), nunca a linha inteira.
+    patterns:
+      - pattern-inside: |
+          @$MAPPING(...)
+          $RET $METHOD(...) { ... }
+      - metavariable-regex:
+          metavariable: $MAPPING
+          regex: ^(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping|RequestMapping)$
+      - pattern-either:
+          - pattern: return $DB.$Q(...);
+          - pattern: return $DB.$Q(...).$F(...);
+      - metavariable-regex:
+          metavariable: $Q
+          regex: ^(queryForRowSet|queryForList|queryForMap)$
+    metadata:
+      cwe: ["CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Dados demais na resposta da API"
+      checkop_url: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+
+  # orElseThrow() sem exceção própria num endpoint: vira erro 500 genérico
+  - id: checkop-spring-erro-nao-tratado
+    languages: [java]
+    severity: INFO
+    message: >-
+      $X.orElseThrow() sem argumento lança NoSuchElementException quando o registro não existe:
+      a API responde 500 (erro do servidor) em vez de 404. Se o servidor estiver com
+      server.error.include-stacktrace ligado, a resposta ainda leva o stack trace inteiro.
+      @fix: Diga o que acontece quando não acha: $X.orElseThrow(() -> new
+      ResponseStatusException(HttpStatus.NOT_FOUND)), ou trate as exceções num
+      @RestControllerAdvice. Em produção, mantenha server.error.include-stacktrace=never.
+    patterns:
+      - pattern-inside: |
+          @$MAPPING(...)
+          $RET $METHOD(...) { ... }
+      - metavariable-regex:
+          metavariable: $MAPPING
+          regex: ^(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping|RequestMapping)$
+      - pattern: $X.orElseThrow()
+    metadata:
+      cwe: ["CWE-209: Generation of Error Message Containing Sensitive Information"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Erro não tratado na API"
+      checkop_url: https://docs.spring.io/spring-boot/reference/web/servlet.html#web.servlet.spring-mvc.error-handling
+
+  # ======================= JavaScript / TypeScript (NestJS, TypeORM, Prisma, Sequelize, Knex, Express) =======================
+
+  # SQL montado com ${} ou + nos métodos de consulta crua dos ORMs e drivers
+  - id: checkop-js-orm-sql-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      O SQL passado para $M(...) é montado com valores no meio do texto (template ou +). Se algum
+      valor vier da requisição, é SQL Injection.
+      @fix: Use os parâmetros do driver/ORM em vez de colar o valor no texto: TypeORM
+      query("... = $1", [valor]) ou where("campo = :v", { v: valor }); Prisma $queryRaw com crase
+      (sem o Unsafe); Sequelize query("... = ?", { replacements: [valor] }); Knex raw("... = ?", [valor]).
+    patterns:
+      - pattern: $DB.$M($SQL, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(query|raw|whereRaw|orWhereRaw|havingRaw|orderByRaw|selectRaw|joinRaw|where|andWhere|orWhere|having|orderBy|\$queryRawUnsafe|\$executeRawUnsafe|execute|exec|all|get|run|prepare)$
+      - metavariable-pattern:
+          metavariable: $SQL
+          pattern-either:
+            - pattern: "`...${$X}...`"
+            - pattern: "\"...\" + $X"
+            - pattern: "$X + \"...\""
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: (?is).*\b(select|insert|update|delete|where|from|order\s+by|values)\b.*|.*=.*
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: MEDIUM
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html
+
+  # Rota de login do Express que responde sucesso sem nenhuma decisão antes
+  - id: checkop-express-login-sempre-aceita
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A rota $PATH responde sucesso sem conferir nada: não há nenhuma decisão sobre o usuário e a
+      senha antes da resposta, então qualquer credencial entra.
+      @fix: Busque o usuário, confira a senha com bcrypt.compare(senha, usuario.hash) e responda
+      401 quando não bater; só então devolva sucesso (ou use o Passport / @nestjs/passport).
+    patterns:
+      - pattern-either:
+          - pattern: $APP.post("$PATH", function ($REQ, $RES, ...) { ... })
+          - pattern: $APP.post("$PATH", ($REQ, $RES, ...) => { ... })
+          - pattern: $APP.post("$PATH", async function ($REQ, $RES, ...) { ... })
+          - pattern: $APP.post("$PATH", async ($REQ, $RES, ...) => { ... })
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: (?i).*/(login|logar|signin|sign-in|entrar|autenticar)/?$
+      - pattern-not: $APP.post("$PATH", ($REQ, $RES, ...) => { ... if (...) { ... } ... })
+      - pattern-not: $APP.post("$PATH", async ($REQ, $RES, ...) => { ... if (...) { ... } ... })
+      - pattern-not: $APP.post("$PATH", function ($REQ, $RES, ...) { ... if (...) { ... } ... })
+      - pattern-not: $APP.post("$PATH", async function ($REQ, $RES, ...) { ... if (...) { ... } ... })
+      - pattern-not: $APP.post("$PATH", ($REQ, $RES, ...) => { ... if (...) return ...; ... })
+      - pattern-not: $APP.post("$PATH", async ($REQ, $RES, ...) => { ... if (...) return ...; ... })
+    metadata:
+      cwe: ["CWE-287: Improper Authentication"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Login que aceita qualquer senha"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+
+  # ======================= Python (Flask, Django, FastAPI) =======================
+
+  - id: checkop-python-login-sempre-aceita
+    languages: [python]
+    severity: ERROR
+    message: >-
+      $F() responde sucesso sem conferir nada: não há nenhuma decisão sobre o usuário e a senha
+      antes do return, então qualquer credencial entra.
+      @fix: Busque o usuário e confira a senha com check_password_hash (Flask), check_password ou
+      authenticate (Django), ou passlib/bcrypt (FastAPI); responda 401 quando não bater.
+    patterns:
+      - pattern: |
+          def $F(...):
+            ...
+            return $R
+      - metavariable-regex:
+          metavariable: $F
+          regex: (?i)^(login|logar|logon|signin|sign_in|entrar|autenticar|authenticate|auth|do_login|fazer_login|efetuar_login)$
+      # só resposta FIXA: "return auth_service.login(...)" repassa a decisão e não entra
+      - metavariable-pattern:
+          metavariable: $R
+          pattern-either:
+            - pattern: "\"...\""
+            - pattern: "True"
+            - pattern: "{...}"
+            - pattern: jsonify(...)
+            - pattern: redirect(...)
+            - pattern: HttpResponse("...")
+            - pattern: JsonResponse({...})
+            - pattern: JSONResponse({...})
+      - pattern-not: |
+          def $F(...):
+            ...
+            if $C:
+              ...
+            ...
+      - pattern-not: |
+          def $F(...):
+            ...
+            $U = authenticate(...)
+            ...
+    metadata:
+      cwe: ["CWE-287: Improper Authentication"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Login que aceita qualquer senha"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+
+  # ======================= PHP / Laravel =======================
+
+  - id: checkop-laravel-sql-injection
+    languages: [php]
+    severity: ERROR
+    message: >-
+      O SQL de $M(...) é montado com valores no meio do texto. Com dados da requisição, é SQL Injection.
+      @fix: Use os bindings do Laravel: DB::select("... = ?", [$valor]) e whereRaw("campo = ?", [$valor]).
+      Para ordenar por um campo escolhido pelo usuário, confira contra uma lista fixa e use orderBy($campo).
+    patterns:
+      - pattern-either:
+          - pattern: DB::$M($SQL, ...)
+          - pattern: $Q->$M($SQL, ...)
+          - pattern: $MODEL::$M($SQL, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(select|insert|update|delete|statement|unprepared|raw|whereRaw|orWhereRaw|havingRaw|orderByRaw|selectRaw|groupByRaw)$
+      - metavariable-pattern:
+          metavariable: $SQL
+          pattern-either:
+            - pattern: "\"...$X...\""
+            - pattern: "\"...\" . $X"
+            - pattern: "$X . \"...\""
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: HIGH
+      checkop_url: https://laravel.com/docs/queries#raw-expressions
+
+  - id: checkop-laravel-mass-assignment
+    languages: [php]
+    severity: WARNING
+    message: >-
+      $M($REQ->all()) grava todos os campos que vierem na requisição: quem chama pode mandar campos
+      que não deveria (ex.: is_admin, saldo).
+      @fix: Use $REQ->validated() (com um FormRequest) ou $REQ->only([...campos permitidos]) e defina $fillable no model.
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL::$M($REQ->all(), ...)
+          - pattern: $OBJ->$M($REQ->all(), ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(create|update|fill|forceCreate|forceFill|insert|updateOrCreate|firstOrCreate)$
+    metadata:
+      cwe: ["CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Atribuição em massa"
+      checkop_url: https://laravel.com/docs/eloquent#mass-assignment
+
+  # ======================= C# / ASP.NET Core (Entity Framework) =======================
+
+  - id: checkop-efcore-sql-injection
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      $M(...) executa SQL montado com valores no meio do texto (interpolação ou +). Com dados da
+      requisição, é SQL Injection.
+      @fix: Use FromSqlInterpolated / ExecuteSqlInterpolated (o EF transforma cada valor em
+      parâmetro) ou FromSqlRaw("... = {0}", valor); com SqlCommand, use Parameters.AddWithValue.
+    patterns:
+      - pattern: $DB.$M($SQL, ...)
+      - metavariable-regex:
+          metavariable: $M
+          regex: ^(FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|SqlQueryRaw)$
+      - metavariable-pattern:
+          metavariable: $SQL
+          pattern-either:
+            - pattern: $"...{$X}..."
+            - pattern: "\"...\" + $X"
+            - pattern: "$X + \"...\""
+            - pattern: string.Format(...)
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      category: security
+      confidence: HIGH
+      checkop_url: https://learn.microsoft.com/ef/core/querying/sql-queries
+
+  - id: checkop-aspnet-login-sempre-aceita
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      $METHOD(...) responde sucesso sem conferir nada: não há nenhuma decisão sobre o usuário e a
+      senha antes do return, então qualquer credencial entra.
+      @fix: Confira a senha com o ASP.NET Identity (SignInManager.PasswordSignInAsync) ou com
+      BCrypt.Verify(senha, hash) e devolva Unauthorized() quando não bater.
+    patterns:
+      - pattern: |
+          $RET $METHOD(...) {
+            ...
+            return $R;
+          }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: (?i)^(login|logar|logon|signin|entrar|autenticar|authenticate|auth)(async)?$
+      - metavariable-pattern:
+          metavariable: $R
+          pattern-either:
+            - pattern: Ok(...)
+            - pattern: "\"...\""
+            - pattern: "true"
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            if (...) { ... }
+            ...
+          }
+      - pattern-not: |
+          $RET $METHOD(...) {
+            ...
+            if (...) return ...;
+            ...
+          }
+    metadata:
+      cwe: ["CWE-287: Improper Authentication"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      category: security
+      confidence: MEDIUM
+      checkop_title: "Login que aceita qualquer senha"
+      checkop_url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html

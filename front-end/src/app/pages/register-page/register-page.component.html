@@ -1,149 +1,89 @@
-<div class="checkop">
-  <div class="grid-background"></div>
-  <div class="scanline-overlay"></div>
+<div class="pub">
+  <main class="pub-auth">
+    <!-- lado da marca, com os passos (some em telas estreitas) -->
+    <aside class="pub-auth__aside pub-grid-bg">
+      <a class="pub-brand" routerLink="/landing" aria-label="Checkop, página inicial">
+        <img src="/checkop-logo.png" alt="" />
+        Checkop
+      </a>
 
-  <main class="auth-page">
-    <div class="auth-layout">
-      <aside class="auth-showcase fade-up fade-delay-1">
-        <a class="brand" routerLink="/landing" aria-label="Checkop">
-          <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-          <span class="brand-name">Checkop</span>
-        </a>
+      <div class="pub-auth__pitch">
+        <h1>Três passos até a <span class="accent">primeira varredura.</span></h1>
+        <p>Crie a conta, diga como você trabalha e escolha o plano. Dá para trocar de plano quando quiser.</p>
+      </div>
 
-        <div class="showcase-content">
-          <div class="environment-label">
-            <span class="environment-tag environment-tag-dev">DEV</span>
-            <span class="environment-plus">+</span>
-            <span class="environment-tag environment-tag-prod">PROD</span>
-            <span class="environment-description">ambientes inteligentes</span>
-          </div>
+      <ol class="steps-list">
+        @for (step of steps; track step.id) {
+          <li [class.is-current]="currentStep === step.id">
+            <button
+              type="button"
+              class="steps-list__item"
+              (click)="goToStep(step.id)"
+              [attr.aria-current]="currentStep === step.id ? 'step' : null"
+            >
+              <span
+                class="steps-list__num mono"
+                [class.is-current]="currentStep === step.id"
+                [class.is-done]="currentStep > step.id"
+              >
+                @if (currentStep > step.id) {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                } @else {
+                  0{{ step.id }}
+                }
+              </span>
+              <span class="steps-list__text">
+                <strong>{{ step.label }}</strong>
+                <span>{{ step.hint }}</span>
+              </span>
+            </button>
+          </li>
+        }
+      </ol>
 
-          <h1 class="showcase-title">
-            Comece a testar
-            <span class="accent-text">de graça, agora</span>
-          </h1>
+      <span class="pub-auth__foot">© 2026 Checkop</span>
+    </aside>
 
-          <p class="showcase-description">
-            Crie sua conta, escolha seu perfil e o plano ideal. Rode seu primeiro scan de segurança
-            em poucos minutos.
-          </p>
+    <!-- formulário em passos -->
+    <section class="pub-auth__main">
+      <a class="pub-auth__back" routerLink="/landing"><span aria-hidden="true">←&nbsp;</span>Voltar para o site</a>
 
-          <div class="terminal-preview">
-            <div class="terminal-header">
-              <span class="terminal-dot terminal-dot-red"></span>
-              <span class="terminal-dot terminal-dot-yellow"></span>
-              <span class="terminal-dot terminal-dot-green"></span>
-              <span class="terminal-title">Checkop — cadastro</span>
-            </div>
-
-            <div class="terminal-body">
-              <div>
-                <span class="terminal-prompt">$</span>
-                checkop auth --register
-              </div>
-              <div class="terminal-muted">→ Criando conta...</div>
-              <div class="terminal-success">✓ Conta criada com sucesso</div>
-              <div class="terminal-muted">→ 1 scan básico por dia no plano Free</div>
-              <div>
-                <span class="terminal-prompt">$</span>
-                <span class="terminal-cursor"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="showcase-stats">
-            <div class="stat-item">
-              <div class="stat-ring"><span>R$0</span></div>
-              <span class="stat-label">Para começar</span>
-            </div>
-
-            <div class="stat-item">
-              <div class="stat-ring"><span>5</span></div>
-              <span class="stat-label">Scans/mês</span>
-            </div>
-
-            <div class="stat-item">
-              <div class="stat-ring"><span>&lt;5s</span></div>
-              <span class="stat-label">Scan time</span>
-            </div>
+      <div class="pub-auth__panel">
+        <!-- progresso -->
+        <div class="progress">
+          <span>Passo {{ currentStep }} de 3 · {{ steps[currentStep - 1].label }}</span>
+          <div class="progress__bars" aria-hidden="true">
+            @for (step of steps; track step.id) {
+              <span [class.is-on]="step.id <= currentStep"></span>
+            }
           </div>
         </div>
 
-        <p class="showcase-footer">© 2026 Checkop — Segurança acessível</p>
-      </aside>
-
-      <section class="auth-panel fade-up fade-delay-2">
-        <a class="text-link auth-panel-back" routerLink="/landing">
-          <span aria-hidden="true">←</span>
-          Voltar para o site
-        </a>
-
-        <div class="auth-panel-inner auth-panel-inner-wide">
-          <div class="auth-panel-brand">
-            <img class="brand-logo" src="/checkop-logo.png" alt="Checkop" />
-            <span class="brand-name">Checkop</span>
-          </div>
-
-          <div class="auth-heading">
-            <h2>Crie sua conta</h2>
-            <p>Comece a proteger suas aplicações gratuitamente</p>
-          </div>
-
-          <ol class="step-indicator">
-            <li
-              *ngFor="let step of steps"
-              class="step-indicator-item"
-              [class.is-active]="currentStep === step.id"
-              [class.is-done]="currentStep > step.id"
-              (click)="goToStep(step.id)"
-            >
-              <span class="step-indicator-dot">
-                <svg
-                  *ngIf="currentStep > step.id"
-                  class="icon"
-                  viewBox="0 0 20 20"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M8.1 13.4 4.6 9.9l1.1-1.1 2.4 2.4 6-6 1.1 1.1-7.1 7.1Z"
-                    fill="currentColor"
-                  />
-                </svg>
-                <span *ngIf="currentStep <= step.id">{{ step.id }}</span>
-              </span>
-              <span class="step-indicator-label">{{ step.label }}</span>
-            </li>
-          </ol>
-
-          <div *ngIf="errorMessage" class="auth-error" role="alert">
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M10 1.5 1 17h18L10 1.5Zm0 4.4L15.9 15h-11.8L10 5.9ZM9.25 9v3.5h1.5V9h-1.5Zm0 4.75v1.5h1.5v-1.5h-1.5Z"
-                fill="currentColor"
-              />
-            </svg>
+        @if (errorMessage) {
+          <div class="pub-error" role="alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.5"></path></svg>
             {{ errorMessage }}
           </div>
+        }
 
-          <!-- Etapa 1: dados da conta -->
-          <form *ngIf="currentStep === 1" class="auth-form" (ngSubmit)="nextStep()" novalidate>
-            <app-google-sign-in [disabled]="isSubmitting" (available)="googleAvailable = $event" (signedIn)="onGoogleSignedIn()" />
+        <!-- passo 1: conta -->
+        @if (currentStep === 1) {
+          <div class="pub-auth__heading">
+            <h2>Crie sua conta</h2>
+            <p>Já tem conta? <a routerLink="/login">Entrar</a></p>
+          </div>
 
-            <div *ngIf="googleAvailable" class="auth-divider">
-              <span>ou cadastre-se com e-mail</span>
-            </div>
+          <app-google-sign-in [disabled]="isSubmitting" (available)="googleAvailable = $event" (signedIn)="onGoogleSignedIn()" />
 
-            <label>
+          @if (googleAvailable) {
+            <div class="pub-divider">ou com e-mail</div>
+          }
+
+          <form class="pub-form" (ngSubmit)="nextStep()" novalidate>
+            <label class="pub-field" for="register-name">
               Nome
-
-              <div class="input-group">
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path
-                    d="M10 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 9.5c4.14 0 7.5 2.24 7.5 5v1H2.5v-1c0-2.76 3.36-5 7.5-5Z"
-                    fill="currentColor"
-                  />
-                </svg>
-
+              <span class="pub-input">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"></path></svg>
                 <input
                   id="register-name"
                   name="name"
@@ -154,20 +94,13 @@
                   required
                   minlength="2"
                 />
-              </div>
+              </span>
             </label>
 
-            <label>
+            <label class="pub-field" for="register-email">
               E-mail
-
-              <div class="input-group">
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path
-                    d="M2.5 4.5h15A1 1 0 0 1 18.5 5.5v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm0 1.4v.32l7.5 5 7.5-5V5.9l-7.5 5-7.5-5Z"
-                    fill="currentColor"
-                  />
-                </svg>
-
+              <span class="pub-input">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>
                 <input
                   id="register-email"
                   name="email"
@@ -178,176 +111,130 @@
                   required
                   email
                 />
-              </div>
+              </span>
             </label>
 
-            <label>
-              Senha
-
-              <div class="input-group">
-                <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path
-                    d="M10 1.67c-2.03 0-3.67 1.64-3.67 3.67v2H5.5A1.5 1.5 0 0 0 4 8.83v7.5A1.5 1.5 0 0 0 5.5 17.83h9a1.5 1.5 0 0 0 1.5-1.5v-7.5A1.5 1.5 0 0 0 14.5 7.33h-.83v-2c0-2.03-1.64-3.67-3.67-3.67Zm0 1.5c1.2 0 2.17.97 2.17 2.17v2H7.83v-2c0-1.2.97-2.17 2.17-2.17ZM10 11a1.25 1.25 0 0 1 .63 2.33v1.34a.63.63 0 1 1-1.26 0v-1.34A1.25 1.25 0 0 1 10 11Z"
-                    fill="currentColor"
-                  />
-                </svg>
-
+            <div class="pub-field">
+              <label for="register-password">Senha</label>
+              <span class="pub-input">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
                 <input
                   id="register-password"
                   name="password"
                   [type]="showPassword ? 'text' : 'password'"
                   [(ngModel)]="password"
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder="Mínimo de 8 caracteres"
                   autocomplete="new-password"
+                  aria-describedby="register-password-hint"
                   required
                   minlength="8"
                 />
-
                 <button
-                  class="input-icon-button"
+                  class="pub-icon-btn"
                   type="button"
                   (click)="togglePasswordVisibility()"
                   [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                  [attr.aria-pressed]="showPassword"
                 >
-                  <svg *ngIf="!showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path
-                      d="M10 4.5c-4.5 0-7.6 3.3-8.7 5a1 1 0 0 0 0 1c1.1 1.7 4.2 5 8.7 5s7.6-3.3 8.7-5a1 1 0 0 0 0-1c-1.1-1.7-4.2-5-8.7-5Zm0 8.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-
-                  <svg *ngIf="showPassword" class="icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path
-                      d="m2.6 2.6 14.8 14.8-1 1-2.3-2.3A9.9 9.9 0 0 1 10 17c-4.5 0-7.6-3.3-8.7-5a1 1 0 0 1 0-1c.5-.8 1.5-2 2.9-3.1L1.6 3.6l1-1ZM10 7a3 3 0 0 1 3 3c0 .4-.1.8-.2 1.1L9.9 8.2c.03 0 .07 0 .1 0Zm0-3.5c1.7 0 3.2.5 4.5 1.3l-1.2 1.2A8.2 8.2 0 0 0 10 5c-3.3 0-5.9 2.2-7.1 3.7A9.9 9.9 0 0 0 4.4 10c.4.5.9 1.1 1.6 1.6l-1.1 1.1C3.1 11.6 2 10.3 1.3 9.5a1 1 0 0 1 0-1C2.4 6.8 5.5 3.5 10 3.5Zm3.9 3.1 1.1-1.1c1.8 1.1 2.9 2.4 3.6 3.3a1 1 0 0 1 0 1c-1 1.5-3.3 4.2-6.9 4.9L10.5 13.6c2.6-.4 4.5-2.3 5.5-3.6a9.9 9.9 0 0 0-2.1-3.4Z"
-                      fill="currentColor"
-                    />
-                  </svg>
+                  @if (!showPassword) {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  } @else {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.3-.5 4.6-1.2"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path></svg>
+                  }
                 </button>
-              </div>
+              </span>
+              <span id="register-password-hint" class="pub-hint">Use pelo menos 8 caracteres.</span>
+            </div>
 
-              <span class="field-hint">Use pelo menos 8 caracteres.</span>
-            </label>
-
-            <label class="checkbox-row" for="register-terms">
-              <input
-                id="register-terms"
-                name="termsAccepted"
-                type="checkbox"
-                [(ngModel)]="termsAccepted"
-                required
-              />
+            <label class="pub-checkbox" for="register-terms">
+              <input id="register-terms" name="termsAccepted" type="checkbox" [(ngModel)]="termsAccepted" required />
               <span>
-                Aceito os <a routerLink="/terms" target="_blank" rel="noopener">termos de uso</a> e a
-                <a routerLink="/privacy" target="_blank" rel="noopener">política de privacidade</a>.
+                Li e aceito os <a routerLink="/terms" target="_blank" rel="noopener">Termos de uso</a> e a
+                <a routerLink="/privacy" target="_blank" rel="noopener">Política de privacidade</a>.
               </span>
             </label>
 
-            <button class="button button-primary button-full" type="submit">
-              Continuar
-              <span aria-hidden="true">→</span>
-            </button>
-
-            <p class="auth-switch">
-              Já tem conta?
-              <a routerLink="/login">Entrar</a>
-            </p>
+            <button class="pub-btn pub-btn--primary pub-btn--full" type="submit">Continuar</button>
           </form>
+        }
 
-          <!-- Etapa 2: perfil -->
-          <div *ngIf="currentStep === 2" class="auth-form">
-            <div class="role-field">
-              Qual é o seu perfil?
-              <span class="field-hint">Isso ajusta os relatórios e tutoriais que você vê.</span>
-
-              <div class="role-grid">
-                <button
-                  *ngFor="let role of roles"
-                  type="button"
-                  class="role-selector"
-                  [class.selected]="selectedRole === role.id"
-                  (click)="selectRole(role.id)"
-                >
-                  {{ role.label }}
-                </button>
-              </div>
-            </div>
-
-            <div class="step-actions">
-              <button class="button button-outline" type="button" (click)="prevStep()">
-                <span aria-hidden="true">←</span>
-                Voltar
-              </button>
-
-              <button class="button button-primary" type="button" (click)="nextStep()">
-                Continuar
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
+        <!-- passo 2: perfil -->
+        @if (currentStep === 2) {
+          <div class="pub-auth__heading">
+            <h2>Como você trabalha?</h2>
+            <p>Isso ajusta os relatórios e as explicações que você vê.</p>
           </div>
 
-          <!-- Etapa 3: plano -->
-          <div *ngIf="currentStep === 3" class="auth-form">
-            <div class="plan-field">
-              Escolha seu plano
-              <span class="field-hint">Você pode trocar de plano quando quiser. Valores demonstrativos, sem cobrança.</span>
-
-              <div class="plan-list">
-                <button
-                  *ngFor="let plan of plans"
-                  type="button"
-                  class="plan-selector"
-                  [class.selected]="selectedPlan === plan.id"
-                  [disabled]="!plan.available"
-                  [attr.aria-pressed]="selectedPlan === plan.id"
-                  (click)="selectPlan(plan.id)"
-                >
-                  <span *ngIf="plan.badge" class="plan-badge">{{ plan.badge }}</span>
-                  <span *ngIf="!plan.available" class="plan-badge plan-badge-soon">Em breve</span>
-
-                  <span class="plan-selector-heading">
-                    <strong>{{ plan.name }}</strong>
-                    <span class="plan-selector-price">
-                      {{ plan.price }}
-                      <small>{{ plan.period }}</small>
-                    </span>
-                  </span>
-
-                  <ul class="plan-selector-features">
-                    <li *ngFor="let feature of plan.included">✓ {{ feature }}</li>
-                  </ul>
-                </button>
-              </div>
-            </div>
-
-            <div class="step-actions">
-              <button class="button button-outline" type="button" (click)="prevStep()">
-                <span aria-hidden="true">←</span>
-                Voltar
-              </button>
-
+          <div class="role-grid" role="radiogroup" aria-label="Perfil de uso">
+            @for (role of roles; track role.id) {
               <button
-                class="button button-primary"
                 type="button"
-                [disabled]="isSubmitting"
-                (click)="submit()"
+                role="radio"
+                class="pub-pick"
+                [class.is-selected]="selectedRole === role.id"
+                [attr.aria-checked]="selectedRole === role.id"
+                (click)="selectRole(role.id)"
               >
-                <span *ngIf="isSubmitting" class="spinner" aria-hidden="true"></span>
-                {{ isSubmitting ? 'Criando conta...' : 'Criar conta' }}
+                <strong>{{ role.label }}</strong>
+                <span class="pick-hint">{{ role.hint }}</span>
               </button>
-            </div>
+            }
           </div>
 
-          <div class="security-badge">
-            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M10 1.5 3 4.2v4.9c0 4.5 3 8.4 7 9.4 4-.9 7-4.9 7-9.4V4.2L10 1.5Zm-1.1 11.3-3-3 1.1-1 1.9 1.9 4.9-4.9 1.1 1-6 6Z"
-                fill="currentColor"
-              />
-            </svg>
-            Conexão segura • criptografia de ponta a ponta
+          <div class="actions">
+            <button class="pub-btn pub-btn--ghost" type="button" (click)="prevStep()">Voltar</button>
+            <button class="pub-btn pub-btn--primary actions__main" type="button" (click)="nextStep()">Continuar</button>
           </div>
-        </div>
-      </section>
-    </div>
+        }
+
+        <!-- passo 3: plano -->
+        @if (currentStep === 3) {
+          <div class="pub-auth__heading">
+            <h2>Escolha o plano</h2>
+            <p>Você pode trocar quando quiser. Valores demonstrativos, sem cobrança.</p>
+          </div>
+
+          <div class="plan-list" role="radiogroup" aria-label="Plano">
+            @for (plan of plans; track plan.id) {
+              <button
+                type="button"
+                role="radio"
+                class="pub-pick"
+                [class.is-selected]="selectedPlan === plan.id"
+                [disabled]="!plan.available"
+                [attr.aria-checked]="selectedPlan === plan.id"
+                (click)="selectPlan(plan.id)"
+              >
+                <span class="plan-head">
+                  <strong>
+                    {{ plan.name }}
+                    @if (plan.badge) {
+                      <span class="plan-badge">{{ plan.badge }}</span>
+                    }
+                    @if (!plan.available) {
+                      <span class="plan-badge plan-badge--soon">Em breve</span>
+                    }
+                  </strong>
+                  @if (plan.available) {
+                    <span class="plan-price">{{ plan.price }}<small>{{ plan.period }}</small></span>
+                  }
+                </span>
+                <span class="pick-hint">{{ plan.included.join(' · ') }}</span>
+              </button>
+            }
+          </div>
+
+          <div class="actions">
+            <button class="pub-btn pub-btn--ghost" type="button" (click)="prevStep()">Voltar</button>
+            <button class="pub-btn pub-btn--primary actions__main" type="button" [disabled]="isSubmitting" (click)="submit()">
+              @if (isSubmitting) {
+                <span class="pub-spinner" aria-hidden="true"></span>
+              }
+              {{ isSubmitting ? 'Criando conta...' : 'Criar conta' }}
+            </button>
+          </div>
+        }
+      </div>
+    </section>
   </main>
 </div>

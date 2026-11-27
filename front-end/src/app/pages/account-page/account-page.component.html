@@ -125,8 +125,9 @@
         </header>
         <div class="block-row">
           <p>
-            Inclui a conta, o histórico de aceites dos Termos, os domínios, as varreduras com os achados, os acessos e os registros de
-            auditoria. Ficam de fora só o hash da senha e os códigos de redefinição. O código enviado para análise não é guardado.
+            Inclui a conta, o histórico de aceites dos Termos, os domínios, as varreduras com os achados, o resumo das análises de código,
+            os acessos e os registros de auditoria. Ficam de fora só o hash da senha e os códigos de redefinição. O código enviado para
+            análise e as conversas da Ajuda por IA não são guardados.
           </p>
           <button class="button button-outline" type="button" (click)="downloadMyData()" [disabled]="isDownloadingData">
             <span *ngIf="isDownloadingData" class="spinner" aria-hidden="true"></span>

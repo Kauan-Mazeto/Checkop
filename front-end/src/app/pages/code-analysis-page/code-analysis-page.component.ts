@@ -115,8 +115,10 @@ export class CodeAnalysisPageComponent implements OnInit {
   }
   protected severityChart: ChartData | null = null;
   private analyzedFiles: Record<string, string> = {};
-  /** correção com IA disponível neste servidor (há credencial da Anthropic) */
+  /** correção com IA disponível neste servidor (há chave de um provedor de IA) */
   protected aiEnabled = false;
+  /** quem recebe o código na correção com IA */
+  protected aiProvider = 'o provedor de IA';
 
   // correção do arquivo inteiro: paga à parte, com créditos de IA
   protected aiCredits = 0;
@@ -140,6 +142,7 @@ export class CodeAnalysisPageComponent implements OnInit {
       this.sastService.aiConfig().subscribe({
         next: (config) => {
           this.aiEnabled = config.enabled;
+          this.aiProvider = config.provider ?? 'o provedor de IA';
           this.aiCredits = config.credits;
           this.fullFixCost = config.fullFixCost;
           this.creditPacks = config.packs;

@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { TERMS_OF_USE } from '../lib/terms_of_use.js';
 import { PRIVACY_POLICY } from '../lib/privacity.js';
 import { latestTermsAcceptance, recordTermsAcceptance, termsStatus } from '../lib/terms_status.js';
+import { toHistoryItem } from '../lib/code_analysis_history.js';
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
   `checkop-dummy-${Date.now()}-${Math.random()}`,
@@ -451,7 +452,7 @@ const changePlan = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: plan === 'PREMIUM' ? 'Plano Premium ativado (demonstração, sem cobrança).' : 'Plano alterado para Free.',
+      message: plan === 'PREMIUM' ? 'Plano Premium ativado.' : 'Plano alterado para Free.',
       user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan },
     });
   } catch (error) {
@@ -542,7 +543,7 @@ const acceptTerms = async (req, res) => {
 const exportMyData = async (req, res) => {
   try {
     const userId = req.userId;
-    const [user, termsAcceptances, targets, scans, loginAttempts, auditLogs] = await Promise.all([
+    const [user, termsAcceptances, targets, scans, loginAttempts, auditLogs, codeAnalyses] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -575,6 +576,7 @@ const exportMyData = async (req, res) => {
         orderBy: { createdAt: 'asc' },
         select: { action: true, resourceType: true, resourceId: true, ipAddress: true, userAgent: true, details: true, createdAt: true },
       }),
+      prisma.codeAnalysis.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     ]);
 
     if (!user) {
@@ -590,7 +592,7 @@ const exportMyData = async (req, res) => {
         privacyPolicyVersion: PRIVACY_POLICY.version,
         notIncluded: [
           'Hash da senha, códigos de redefinição de senha e controle de sessão (segredos de autenticação).',
-          'Código-fonte enviado para análise: não é armazenado pelo Checkop.',
+          'Código-fonte enviado para análise: não é armazenado pelo Checkop (do resultado fica só o resumo, em codeAnalyses).',
         ],
       },
       account: { ...account, signInWithGoogle: Boolean(googleId) },
@@ -602,6 +604,7 @@ const exportMyData = async (req, res) => {
       })),
       loginAttempts,
       auditLogs,
+      codeAnalyses: codeAnalyses.map(toHistoryItem),
     };
 
     await logAudit(req, { action: AUDIT_ACTIONS.DATA_EXPORTED, resourceType: 'user', resourceId: userId });

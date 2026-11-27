@@ -67,8 +67,11 @@ export interface FindingLocation {
   attack?: string | null;
   /** comando para reproduzir (curl) */
   reproduction?: string | null;
+  /** como a ferramenta concluiu que é falha neste local */
+  detection?: string | null;
   severity: FindingSeverity;
   cvssScore?: number | null;
+  confidence?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CONFIRMED' | null;
   /** triagem de cada local (o agrupamento manda junto) */
   status?: FindingStatus;
   rawRequest?: string | null;
@@ -97,6 +100,10 @@ export interface Finding {
   owaspUrl: string | null;
   description?: string | null;
   remediation: string | null;
+  /** como a ferramenta concluiu que é falha (Premium; fora do Modo Seguro) */
+  detection?: string | null;
+  /** links de referência da ferramenta, um por linha */
+  references?: string | null;
   rawRequest?: string | null;
   rawResponse?: string | null;
   compliance: ComplianceNote[];

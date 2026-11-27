@@ -1,0 +1,199 @@
+<app-shell>
+  <header class="page-header">
+    <div>
+      <h1>Ajuda por IA <span class="badge badge-pro">PRO</span></h1>
+      <p>Pergunte sobre uma varredura ou uma análise de código. Você vê o que será enviado antes de enviar.</p>
+    </div>
+  </header>
+
+  @if (!isPremium) {
+    <section class="card">
+      <div class="empty">
+        <strong>A Ajuda por IA é um recurso Premium</strong>
+        <p>Ela explica os achados, ajuda a priorizar e a corrigir, usando créditos de IA.</p>
+        <a class="button button-primary button-sm" routerLink="/plans">Ver planos</a>
+      </div>
+    </section>
+  } @else if (loading) {
+    <p class="hint" role="status">Carregando suas varreduras e análises...</p>
+  } @else if (loadError) {
+    <div class="alert alert-error" role="alert">{{ loadError }}</div>
+  } @else if (sources) {
+    @if (!sources.enabled) {
+      <div class="alert alert-error" role="alert">A Ajuda por IA não está configurada neste servidor (falta a chave de um provedor de IA no .env: GEMINI_API_KEY ou ANTHROPIC_API_KEY).</div>
+    }
+
+    <div class="ai-layout">
+      <!-- ===== escolha do item e prévia do que vai ser enviado ===== -->
+      <aside class="ai-side" aria-label="Sobre o que perguntar">
+        <section class="card ai-card">
+          <nav class="ai-kind" role="tablist" aria-label="Tipo">
+            <button type="button" role="tab" [class.active]="kind === 'scan'" [attr.aria-selected]="kind === 'scan'" (click)="setKind('scan')">Varreduras</button>
+            <button type="button" role="tab" [class.active]="kind === 'code'" [attr.aria-selected]="kind === 'code'" (click)="setKind('code')">Análises de código</button>
+          </nav>
+
+          <ul class="ai-items" role="listbox" [attr.aria-label]="kind === 'scan' ? 'Varreduras' : 'Análises de código'">
+            @for (item of items; track item.id) {
+              <li>
+                <button type="button" role="option" [class.active]="item.id === selectedId" [attr.aria-selected]="item.id === selectedId" (click)="select(item.id)">
+                  <strong class="mono">{{ item.label }}</strong>
+                  <small>{{ item.date | date: 'dd/MM HH:mm' }} · {{ item.meta }}</small>
+                </button>
+              </li>
+            } @empty {
+              <li class="ai-empty">
+                @if (kind === 'scan') {
+                  Nenhuma varredura concluída ainda. <a class="link" routerLink="/scans/new">Criar uma</a>
+                } @else {
+                  Nenhuma análise de código no histórico. <a class="link" routerLink="/code-analysis">Analisar código</a>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="card ai-card ai-credits" aria-label="Créditos de IA">
+          <div>
+            <strong>{{ credits }}</strong>
+            <span>{{ credits === 1 ? 'crédito de IA' : 'créditos de IA' }}</span>
+          </div>
+          <p class="hint">Cada pergunta usa {{ cost }} crédito. Se a IA não responder, o crédito volta.</p>
+          <button type="button" class="button button-outline button-sm" (click)="showPacks = !showPacks">Comprar créditos</button>
+          @if (creditMessage) {
+            <div class="alert alert-success" role="status">{{ creditMessage }}</div>
+          }
+          @if (showPacks) {
+            <div class="packs">
+              <p class="hint">Créditos de IA são vendidos à parte do plano.</p>
+              <div class="pack-list">
+                @for (pack of packs; track pack.id) {
+                  <button type="button" class="pack" (click)="buyCredits(pack)" [disabled]="buyingPackId !== null">
+                    <strong>{{ pack.credits }} créditos</strong>
+                    <span>{{ pack.priceLabel }}</span>
+                    <small>{{ buyingPackId === pack.id ? 'Adicionando...' : 'Comprar' }}</small>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+      </aside>
+
+      <!-- ===== conversa ===== -->
+      <section class="card ai-chat" aria-label="Conversa">
+        @if (!selectedId) {
+          <div class="empty">
+            <strong>Escolha {{ kind === 'scan' ? 'uma varredura' : 'uma análise de código' }} ao lado</strong>
+            <p>A IA responde com base no resumo do item escolhido. O código-fonte e as evidências técnicas das varreduras não são enviados.</p>
+          </div>
+        } @else if (contextLoading) {
+          <p class="hint" role="status">Preparando o resumo...</p>
+        } @else if (contextError) {
+          <div class="alert alert-error" role="alert">{{ contextError }}</div>
+        } @else if (context) {
+          <header class="ai-chat-head">
+            <div>
+              <h2>{{ context.title }}</h2>
+              <span class="hint">A conversa não é salva: ela some ao sair desta tela.</span>
+            </div>
+            @if (turns.length) {
+              <button type="button" class="button button-outline button-sm" (click)="newConversation()">Nova conversa</button>
+            }
+          </header>
+
+          <!-- o que vai para o provedor de IA: o mesmo texto que o servidor envia -->
+          <details class="ai-preview" [open]="!consent">
+            <summary>O que será enviado para {{ provider }} ({{ context.text.length.toLocaleString('pt-BR') }} caracteres)</summary>
+            <p class="hint">
+              A cada pergunta, <strong>{{ provider }}</strong> recebe: <strong>a sua pergunta</strong>, <strong>as mensagens anteriores desta conversa</strong>,
+              o seu perfil e o resumo abaixo.
+              @if (isFreeTier) {
+                <strong>Atenção:</strong> no plano gratuito do Gemini, o Google pode usar o conteúdo enviado para melhorar os produtos dele, inclusive com revisão humana. Não escreva dados pessoais nem segredos nas perguntas.
+              } @else {
+                Pelos termos da Anthropic, dados enviados pela API não são usados para treinar os modelos.
+              }
+              <a class="link" routerLink="/privacy" target="_blank">Política de Privacidade, item 2.5</a>
+            </p>
+            <pre class="ai-preview-text" tabindex="0">{{ context.text }}</pre>
+          </details>
+
+          @if (!consent) {
+            <label class="ai-consent">
+              <input type="checkbox" [(ngModel)]="consent" />
+              <span>Entendi: a pergunta e o resumo acima serão enviados para {{ provider }}, e cada pergunta usa {{ cost }} crédito de IA.</span>
+            </label>
+          }
+
+          <div class="ai-thread" #thread aria-live="polite">
+            @for (turn of turns; track $index) {
+              <article class="ai-msg" [class.from-user]="turn.role === 'user'">
+                <span class="ai-msg-who">{{ turn.role === 'user' ? 'Você' : 'Checkop IA' }}</span>
+                @if (turn.role === 'user') {
+                  <p>{{ turn.content }}</p>
+                } @else {
+                  @for (block of turn.blocks; track $index) {
+                    @switch (block.kind) {
+                      @case ('h') {
+                        <h3><ng-container *ngTemplateOutlet="rich; context: { $implicit: block.text }" /></h3>
+                      }
+                      @case ('code') {
+                        <pre class="ai-code"><code>{{ block.text }}</code></pre>
+                      }
+                      @case ('ul') {
+                        <ul>
+                          @for (item of block.items; track $index) {
+                            <li><ng-container *ngTemplateOutlet="rich; context: { $implicit: item }" /></li>
+                          }
+                        </ul>
+                      }
+                      @case ('ol') {
+                        <ol>
+                          @for (item of block.items; track $index) {
+                            <li><ng-container *ngTemplateOutlet="rich; context: { $implicit: item }" /></li>
+                          }
+                        </ol>
+                      }
+                      @default {
+                        <p><ng-container *ngTemplateOutlet="rich; context: { $implicit: block.text }" /></p>
+                      }
+                    }
+                  }
+                  @if (turn.truncated) {
+                    <p class="hint">A resposta foi cortada por tamanho. Peça para continuar ou para resumir.</p>
+                  }
+                }
+              </article>
+            } @empty {
+              <div class="ai-suggest">
+                <span class="hint">Sugestões:</span>
+                @for (s of suggestions; track s) {
+                  <button type="button" class="chip-button" (click)="useSuggestion(s)">{{ s }}</button>
+                }
+              </div>
+            }
+            @if (sending) {
+              <article class="ai-msg ai-typing" role="status"><span class="ai-msg-who">Checkop IA</span><p>Pensando...</p></article>
+            }
+          </div>
+
+          @if (chatError) {
+            <div class="alert alert-error" role="alert">{{ chatError }}</div>
+          }
+
+          <form class="ai-ask" (ngSubmit)="send()">
+            <label class="sr-only" for="ai-question">Sua pergunta</label>
+            <textarea id="ai-question" name="question" rows="3" [(ngModel)]="question" [maxlength]="maxQuestion" (keydown)="onKeydown($event)"
+              [disabled]="!consent || sending" [placeholder]="consent ? 'Escreva sua pergunta (Enter envia, Shift+Enter quebra a linha)' : 'Confirme acima o que será enviado para perguntar'"></textarea>
+            <div class="ai-ask-foot">
+              <span class="hint">{{ question.length }}/{{ maxQuestion }} · usa {{ cost }} crédito</span>
+              <button type="submit" class="button button-primary button-sm" [disabled]="!canAsk || !sources.enabled">{{ sending ? 'Enviando...' : 'Perguntar' }}</button>
+            </div>
+          </form>
+        }
+      </section>
+    </div>
+  }
+
+  <!-- negrito e código dentro de um texto da resposta (sem HTML do texto) -->
+  <ng-template #rich let-text>@for (seg of inline(text); track $index) {@if (seg.bold) {<strong>{{ seg.text }}</strong>} @else if (seg.code) {<code>{{ seg.text }}</code>} @else {<span>{{ seg.text }}</span>}}</ng-template>
+</app-shell>

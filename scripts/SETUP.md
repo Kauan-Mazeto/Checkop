@@ -326,8 +326,15 @@ Preencha `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` e `MAIL_FROM`. No Gm
 ### Tradução dos achados
 Sem configuração, usa o MyMemory (grátis, cerca de 5 mil caracteres por dia). Para mais qualidade, crie uma chave grátis do DeepL e coloque em `DEEPL_API_KEY`. Ou coloque seu e-mail em `MYMEMORY_EMAIL`, que sobe o limite para 50 mil.
 
-### Correção com IA (Claude)
-Crie uma chave em https://console.anthropic.com e coloque em `ANTHROPIC_API_KEY`. Isso libera **"Gerar correção com IA"** em cada achado e **"Corrigir o arquivo inteiro com IA"**, que usa créditos (compra demonstrativa na própria tela). O uso da API da Anthropic é cobrado na conta dona da chave.
+### IA: correção de código e Ajuda por IA
+Liberam **"Gerar correção com IA"**, **"Corrigir o arquivo inteiro com IA"** e a tela **Ajuda por IA** (plano Premium + créditos de IA, compra demonstrativa na própria tela). Escolha **um** provedor no `backend\.env`:
+
+| Provedor | Custo | Como pegar a chave | No `.env` |
+|---|---|---|---|
+| **Google Gemini** | plano gratuito, sem cartão | https://aistudio.google.com/apikey → *Create API key* (não ative o faturamento) | `AI_PROVIDER=gemini` e `GEMINI_API_KEY=...` |
+| **Anthropic (Claude)** | pago por uso, crédito pré-pago | https://platform.claude.com → *Settings → API Keys* | `AI_PROVIDER=anthropic` e `ANTHROPIC_API_KEY=...` |
+
+> O modelo padrão do Gemini é `gemini-3.5-flash-lite`. Para trocar, use `GEMINI_MODEL=...`. No plano gratuito, o Google pode usar o conteúdo enviado para melhorar os produtos dele; por isso, não use código com dados reais.
 
 ---
 
@@ -385,7 +392,8 @@ Depois **reinicie o motor e o backend**; eles não recarregam código sozinhos. 
 | Análise de código falha | Semgrep fora do PATH ou sem internet (ele baixa as regras oficiais) | `semgrep --version`; confira a conexão |
 | Botão do Google não aparece | Sem `GOOGLE_CLIENT_ID` | Seção 10 |
 | Google: "Erro 401 disabled_client" / "acesso bloqueado" | Client desativado, ou e-mail fora dos usuários de teste | Crie outro client ou adicione o e-mail (seção 10) |
-| Botões de IA não aparecem | Sem `ANTHROPIC_API_KEY`, ou plano Free | Seção 10; mude para Premium |
+| Botões de IA não aparecem | Sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`, ou plano Free | Seção 10; mude para Premium |
+| IA responde "Não foi possível gerar a resposta" | Modelo do Gemini indisponível para a chave, ou limite gratuito | Veja o erro no terminal do backend; troque `GEMINI_MODEL` |
 | `npm` / `node` não reconhecido | Node fora do PATH | Reinstale o Node e reabra o terminal |
 | Script `.ps1` bloqueado | Política de execução do Windows | Use `powershell -ExecutionPolicy Bypass -File ...` como indicado |
 | Tela travada (nada clica) | Versão antiga da página em cache | **Ctrl+Shift+R** |

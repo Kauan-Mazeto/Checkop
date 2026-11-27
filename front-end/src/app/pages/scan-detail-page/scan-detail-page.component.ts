@@ -8,7 +8,21 @@ import { AccountService } from '../../core/services/account.service';
 import { AuthService, UserRole } from '../../core/services/auth.service';
 import { Finding, FindingSeverity, FindingStatus, ScanComparison, ScanDetail, ScanObjective, ScanService, ZapAuthOptions, hasResults } from '../../core/services/scan.service';
 import { ROLE_VIEWS, RoleView, roleView } from '../../shared/ui/role-views';
-import { CvssPart, FlawGuide, GuideLink, buildTicket, cweLink, explainCvss, guideFor, owaspLink, standardLinks } from './role-guides';
+import {
+  CvssPart,
+  FlawGuide,
+  GuideLink,
+  buildTicket,
+  cweLink,
+  explainCvss,
+  fixReferenceLinks,
+  guideFor,
+  isKnownGuide,
+  owaspLink,
+  standardLinks,
+  summarizeRemediation,
+  toolReferenceLinks,
+} from './role-guides';
 import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 import { ChartComponent } from '../../shared/components/chart/chart.component';
 import { CheckComponent } from '../../shared/components/check/check.component';
@@ -159,6 +173,39 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
   /** Pentester: parâmetros atingidos nos locais da falha */
   protected attackParams: string[] = [];
 
+  // ---------- aba "Como corrigir" ----------
+  /** o que fazer, em poucos itens: o guia da classe da falha ou o começo do texto da ferramenta */
+  protected fixSummary: string[] = [];
+  /** o resumo veio do guia do Checkop (true) ou do texto da ferramenta (false) */
+  protected fixFromGuide = false;
+  /** referências e exemplos de correção (OWASP, ferramenta, CWE) */
+  protected fixLinks: GuideLink[] = [];
+  /** mostra o texto completo da ferramenta (recolhido por padrão) */
+  protected showFullFix = false;
+  /** o texto da ferramenta tem mais do que o resumo mostra */
+  protected fixHasMore = false;
+
+  /** A aba só existe quando há o que mostrar: paywall, resumo ou referência específica. */
+  protected hasFixTab(f: Finding | null): boolean {
+    if (!f) return false;
+    if (f.premiumLocked) return true;
+    return this.fixSummary.length > 0 || (this.guide !== null && isKnownGuide(this.guide)) || toolReferenceLinks(f.references).length > 0;
+  }
+
+  /** Trecho da resposta (ou da requisição) que a ferramenta apontou como prova. */
+  protected signalOf(e: EvidenceItem | null): string | null {
+    const text = `${e?.rawResponse ?? ''}\n${e?.rawRequest ?? ''}`;
+    return text.match(/>>> ([\s\S]*?) <<</)?.[1]?.trim() || null;
+  }
+
+  /** O que a confiança da ferramenta quer dizer, para quem vai decidir se corrige. */
+  protected readonly confidenceNote: Record<string, string> = {
+    LOW: 'Confiança baixa: a ferramenta viu só um sinal indireto (por exemplo, um erro 500 depois do ataque), não a prova da falha. Repita a requisição e confira antes de tratar como falha real.',
+    MEDIUM: 'Confiança média: o comportamento bate com a falha, mas vale confirmar repetindo a requisição.',
+    HIGH: 'Confiança alta: a resposta mostra o comportamento típico da falha.',
+    CONFIRMED: 'Confirmado: a resposta bateu com a prova exigida pela regra da ferramenta.',
+  };
+
   /** Sub-aba própria do perfil: só ela aparece (Admin vê as três). */
   protected roleTab(tab: 'learn' | 'ticket' | 'exploit'): boolean {
     const owner = { learn: 'STUDENT', ticket: 'QA', exploit: 'PENTESTER' }[tab];
@@ -171,10 +218,20 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
       this.studyLinks = this.standards = this.cvssParts = [];
       this.attackParams = [];
       this.ticketText = '';
+      this.fixSummary = this.fixLinks = [];
       return;
     }
     const guide = guideFor(finding);
     this.guide = guide;
+    // correção: o guia da classe (curto e em português) vale mais que o texto genérico da regra
+    this.fixFromGuide = isKnownGuide(guide) && guide.fix.length > 0 && !finding.premiumLocked;
+    this.fixSummary = finding.premiumLocked ? [] : this.fixFromGuide ? guide.fix : summarizeRemediation(finding.remediation);
+    this.fixLinks = finding.premiumLocked ? [] : fixReferenceLinks(finding, guide);
+    this.showFullFix = false;
+    this.fixHasMore =
+      !finding.premiumLocked &&
+      Boolean(finding.remediation?.trim()) &&
+      (this.fixFromGuide || summarizeRemediation(finding.remediation, 99).length > this.fixSummary.length);
     const unique = (links: (GuideLink | null)[]) =>
       links.filter((l, i, all): l is GuideLink => Boolean(l) && all.findIndex((o) => o?.url === l!.url) === i);
     this.studyLinks = unique([owaspLink(finding.owaspUrl), ...guide.learn, cweLink(guide.cwe)]);
@@ -408,15 +465,17 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     this.selected = finding;
     this.selectedEvidence = finding ? evidenceItems([finding]) : [];
     this.occurrenceIndex = 0;
+    // antes de escolher a aba: a "Como corrigir" só existe se houver conteúdo
+    this.buildRoleContent(finding);
     const roleTabs: DetailTab[] = ['learn', 'ticket', 'exploit'];
     const tabMissing =
+      (this.detailTab === 'fix' && !this.hasFixTab(finding)) ||
       (this.detailTab === 'evidence' && this.selectedEvidence.length === 0) ||
       (this.detailTab === 'compliance' && !finding?.compliance.length) ||
       (roleTabs.includes(this.detailTab) && !this.roleTab(this.detailTab as 'learn' | 'ticket' | 'exploit'));
     if (!keepTab || tabMissing) this.detailTab = this.preferredDetailTab();
     this.viewerTab = this.firstViewerTab(this.currentEvidence);
     this.buildViewer();
-    this.buildRoleContent(finding);
   }
 
   protected setDetailTab(tab: DetailTab): void {
@@ -467,7 +526,8 @@ export class ScanDetailPageComponent implements OnInit, OnDestroy {
     if (this.role === 'STUDENT') return 'learn';
     if (this.role === 'QA') return 'ticket';
     if (this.role === 'PENTESTER') return 'exploit';
-    return 'fix';
+    if (this.hasFixTab(this.selected)) return 'fix';
+    return this.selectedEvidence.length > 0 && this.isPremium ? 'evidence' : 'locations';
   }
 
   private firstViewerTab(e: EvidenceItem | null): ViewerTab {

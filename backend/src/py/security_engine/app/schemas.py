@@ -33,6 +33,10 @@ class Finding(BaseModel):
     rawRequest: str | None = None
     rawResponse: str | None = None
     remediation: str | None = None
+    # como a ferramenta concluiu que é falha (otherinfo do ZAP, matcher do Nuclei)
+    detection: str | None = None
+    # links de referência da própria ferramenta, um por linha
+    references: str | None = None
     # análise de código: as linhas do achado já corrigidas, calculadas sobre o código enviado
     fixedCode: str | None = None
     # ferramentas que apontaram o achado (Semgrep, PMD, ESLint...)

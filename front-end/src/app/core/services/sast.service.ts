@@ -51,6 +51,32 @@ export interface SastResult {
   durationSeconds: number;
   /** ferramentas que analisaram, as não instaladas neste servidor e avisos */
   tools?: { depth?: SastDepth; used: string[]; skipped: string[]; warnings: string[] };
+  /** id da análise no histórico (só o resumo é guardado); null se não deu para gravar */
+  historyId?: string | null;
+}
+
+/** Achado como fica no histórico: sem código, trecho, correção nem descrição. */
+export interface SastHistoryFinding {
+  title: string;
+  severity: FindingSeverity;
+  category: SastCategory;
+  file: string;
+  line: number | null;
+  ruleId: string | null;
+  tools: string[];
+}
+
+/** Resumo de uma análise guardado no servidor (backend/src/lib/code_analysis_history.js). */
+export interface SastHistoryItem {
+  id: string;
+  createdAt: string;
+  depth: SastDepth;
+  durationSeconds: number;
+  findingsCount: number;
+  files: { name: string; language: string; lines: number }[];
+  severityCounts: Record<FindingSeverity, number>;
+  categoryCounts: Record<SastCategory, number>;
+  findings: SastHistoryFinding[];
 }
 
 // Espelha backend/src/validators/sast_validator.js (aiFixSchema).
@@ -74,6 +100,8 @@ export interface AiCreditPack {
 
 export interface AiConfig {
   enabled: boolean;
+  /** quem recebe o código: "Anthropic (Claude)" ou "Google (Gemini...)"; null sem IA */
+  provider?: string | null;
   /** saldo de créditos para a correção do arquivo inteiro (paga à parte do plano) */
   credits: number;
   fullFixCost: number;
@@ -109,7 +137,7 @@ export const SAST_MAX_TOTAL_BYTES = 9 * 1024 * 1024;
 export class SastService {
   private readonly http = inject(HttpClient);
 
-  /** O servidor tem credencial da Anthropic para a correção com IA? */
+  /** O servidor tem credencial de um provedor de IA (Anthropic ou Gemini) para a correção com IA? */
   aiConfig(): Observable<AiConfig> {
     return this.http
       .get<AiConfig>(`${API_BASE_URL}/sast/ai-config`, { withCredentials: true })
@@ -134,6 +162,27 @@ export class SastService {
   suggestFix(request: AiFixRequest): Observable<AiFixResult> {
     return this.http
       .post<AiFixResult>(`${API_BASE_URL}/sast/fix`, request, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** GET /api/sast/history — resumos das análises, da mais nova para a mais antiga (Premium). */
+  history(): Observable<{ analyses: SastHistoryItem[]; limit: number }> {
+    return this.http
+      .get<{ analyses: SastHistoryItem[]; limit: number }>(`${API_BASE_URL}/sast/history`, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** DELETE /api/sast/history/:id — apaga uma análise do histórico. */
+  deleteHistoryItem(id: string): Observable<void> {
+    return this.http
+      .delete<void>(`${API_BASE_URL}/sast/history/${encodeURIComponent(id)}`, { withCredentials: true })
+      .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
+  }
+
+  /** DELETE /api/sast/history — apaga o histórico inteiro. */
+  clearHistory(): Observable<{ deleted: number }> {
+    return this.http
+      .delete<{ deleted: number }>(`${API_BASE_URL}/sast/history`, { withCredentials: true })
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => toApiError(error))));
   }
 

@@ -1,185 +1,58 @@
-import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PLAN_CARDS } from '../../shared/ui/plans';
 
-type AppView = 'landing' | 'dashboard';
-type DashboardTab = 'overview' | 'scans' | 'reports' | 'logs';
-
-interface ScanVulnerability {
-  type: string;
+interface SampleFinding {
+  severity: 'Alto' | 'Médio';
+  title: string;
   path: string;
-  severity: 'critical' | 'medium';
-  fix: string;
 }
 
 @Component({
-  selector: 'app-shieldtest',
+  selector: 'app-landing-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [RouterLink],
   templateUrl: './landing-page.component.html',
   styleUrl: './landing-page.component.scss',
 })
 export class LandingPageComponent {
-  protected readonly appName = 'ShieldTest';
+  // planos: shared/ui/plans.ts, os mesmos do cadastro
   protected readonly planCards = PLAN_CARDS;
 
-  protected currentView: AppView = 'landing';
-  protected dashboardTab: DashboardTab = 'overview';
-
-  protected isNewScanModalOpen = false;
-  protected isScanning = false;
-
-  protected selectedRole: string | null = null;
-  protected scanUrl = '';
-  protected scanResult: {
-    environment: 'DEV' | 'PROD';
-    vulnerabilities: ScanVulnerability[];
-    passes: string[];
-  } | null = null;
-
-  protected readonly roles = [
-    { id: 'qa', label: 'QA' },
-    { id: 'dev', label: 'Dev' },
-    { id: 'pentester', label: 'Pentester' },
-    { id: 'student', label: 'Estudante' },
+  // prévia do produto no topo: achados reais do laboratório (backend/lab)
+  protected readonly sampleFindings: SampleFinding[] = [
+    { severity: 'Alto', title: 'Injeção de SQL', path: '/item?id=' },
+    { severity: 'Alto', title: 'XSS refletido', path: '/search?q=' },
+    { severity: 'Alto', title: 'Arquivo .env exposto', path: '/.env' },
+    { severity: 'Médio', title: 'Redirecionamento aberto', path: '/redirect' },
+    { severity: 'Médio', title: 'Formulário sem token anti-CSRF', path: '/conta' },
   ];
 
-  protected readonly recentScans = [
-    {
-      url: 'meuapp.com',
-      environment: 'PROD',
-      status: '2 críticas',
-      statusType: 'critical',
-      vulnerabilities: 'SQLi, XSS',
-      date: 'Hoje',
-    },
-    {
-      url: 'api.staging.io',
-      environment: 'DEV',
-      status: 'Seguro',
-      statusType: 'safe',
-      vulnerabilities: '—',
-      date: 'Ontem',
-    },
-    {
-      url: 'loja.dev.local',
-      environment: 'DEV',
-      status: '1 média',
-      statusType: 'medium',
-      vulnerabilities: 'CORS',
-      date: '3 dias',
-    },
+  // as etapas 2 e 3 (key) são o diferencial: só varre domínio comprovado e respeita o ambiente
+  protected readonly steps = [
+    { title: 'Você informa a URL', text: 'Entra na plataforma e diz qual site quer testar.', key: false },
+    { title: 'Prova que o domínio é seu', text: 'Por registro DNS, arquivo ou meta tag, e aceita o termo de responsabilidade.', key: true },
+    { title: 'O ambiente é identificado', text: 'Local, homologação ou produção. Em produção, só testes seguros.', key: true },
+    { title: 'As ferramentas entram em ação', text: 'ZAP e Nuclei rodam o tipo de teste que você escolheu.', key: false },
+    { title: 'Os achados são unificados', text: 'Um formato só, sem duplicatas, com nota CVSS e referência OWASP.', key: false },
+    { title: 'Você recebe o relatório', text: 'Painel, histórico e exportação em PDF e JSON.', key: false },
   ];
 
-  protected readonly logLines = [
-    '[2025-01-15 14:32:01] Initiating scan on meuapp.com',
-    '[2025-01-15 14:32:01] Detecting environment... PROD',
-    '[2025-01-15 14:32:02] Testing vector: SQL Injection',
-    "[2025-01-15 14:32:02] VULN FOUND: SQLi @ /api/users?id=1' OR '1'='1",
-    "[2025-01-15 14:32:02] → Payload: ' UNION SELECT null,email,password FROM users--",
-    '[2025-01-15 14:32:03] Testing vector: XSS (Reflected)',
-    '[2025-01-15 14:32:03] VULN FOUND: XSS @ /search?q=<script>alert(1)</script>',
-    '[2025-01-15 14:32:04] PASS: CSRF tokens validated',
-    '[2025-01-15 14:32:04] PASS: Security headers present',
-    '[2025-01-15 14:32:04] PASS: HTTPS enforced with HSTS',
-    '[2025-01-15 14:32:05] Scan complete: 2 critical, 0 medium, 12 passed',
+  protected readonly tools = [
+    { name: 'OWASP ZAP', text: 'Ataca o site como um invasor: XSS, SQL Injection, cabeçalhos.' },
+    { name: 'Nuclei', text: 'Testa milhares de falhas conhecidas (CVEs) e configurações expostas.' },
+    { name: 'Subfinder', text: 'Descobre os subdomínios do alvo.' },
+    { name: 'Semgrep', text: 'Lê o código-fonte atrás de falhas de segurança.' },
+    { name: 'Gitleaks', text: 'Acha senhas e chaves de API esquecidas no código.' },
+    { name: 'OSV-Scanner', text: 'Aponta bibliotecas com vulnerabilidades conhecidas.' },
+    { name: 'IA (Claude ou Gemini)', text: 'Sugere a correção do código vulnerável e tira dúvidas sobre os resultados, quando você pede.' },
+    { name: 'DeepL', text: 'Traduz os achados das ferramentas para português.' },
   ];
 
-  protected navigateTo(view: AppView): void {
-    this.currentView = view;
-
-    if (view === 'dashboard') {
-      this.dashboardTab = 'overview';
-    }
-  }
-
-  protected selectRole(role: string): void {
-    this.selectedRole = role;
-  }
-
-  protected switchDashboardTab(tab: DashboardTab): void {
-    this.dashboardTab = tab;
-  }
-
-  protected openNewScan(): void {
-    this.isNewScanModalOpen = true;
-  }
-
-  protected closeNewScan(): void {
-    this.isNewScanModalOpen = false;
-  }
-
-  protected startScanFromModal(): void {
-    this.isNewScanModalOpen = false;
-    this.dashboardTab = 'scans';
-
-    setTimeout(() => {
-      document.querySelector<HTMLInputElement>('#scan-url')?.focus();
-    });
-  }
-
-  protected runScan(): void {
-    if (!this.scanUrl.trim() || this.isScanning) {
-      return;
-    }
-
-    this.isScanning = true;
-    this.scanResult = null;
-
-    setTimeout(() => {
-      const isDevelopment = /localhost|dev|staging|127\.0\.0\.1|\.local/i.test(this.scanUrl);
-
-      this.scanResult = {
-        environment: isDevelopment ? 'DEV' : 'PROD',
-        vulnerabilities: [
-          {
-            type: 'SQL Injection',
-            path: '/api/users',
-            severity: 'critical',
-            fix: 'Use consultas parametrizadas',
-          },
-          {
-            type: 'XSS refletido',
-            path: '/search?q=',
-            severity: 'critical',
-            fix: 'Sanitize os dados e use CSP',
-          },
-        ],
-        passes: ['CSRF Tokens', 'Security Headers', 'HTTPS/HSTS', 'Rate Limiting'],
-      };
-
-      this.isScanning = false;
-    }, 1800);
-  }
-
-  protected downloadReport(name: string): void {
-    const content = [
-      'ShieldTest - Relatório de Segurança',
-      '='.repeat(40),
-      `Aplicação: ${name}`,
-      `Data: ${new Date().toLocaleDateString('pt-BR')}`,
-      '',
-      '[DEMO] Este é um relatório de exemplo.',
-    ].join('\n');
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-
-    anchor.href = url;
-    anchor.download = `shieldtest-${name}-report.txt`;
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-  }
-
-  protected trackById(_: number, item: { id: string }): string {
-    return item.id;
-  }
-
-  protected trackByText(_: number, item: string): string {
-    return item;
-  }
+  protected readonly audiences = [
+    { name: 'QA', text: 'Evidência pronta para abrir o chamado: onde, como reproduzir e qual a gravidade.', icon: 'qa' },
+    { name: 'Desenvolvedor', text: 'A linha do problema e a correção no código, antes de ir para produção.', icon: 'dev' },
+    { name: 'Pentester', text: 'Payload usado, requisição crua e prova de conceito de cada achado.', icon: 'pentester' },
+    { name: 'Estudante', text: 'Explicação de cada falha e referências da OWASP para aprender corrigindo.', icon: 'student' },
+  ];
 }

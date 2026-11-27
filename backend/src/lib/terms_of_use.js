@@ -8,8 +8,8 @@
 // Formato: markdown simples lido por front-end/src/app/shared/ui/markdown.ts
 // (#, ##, ###, listas com "-", destaque com "> " e negrito com **texto**).
 export const TERMS_OF_USE = {
-  version: '2.1',
-  lastUpdated: '2026-11-17',
+  version: '2.2',
+  lastUpdated: '2026-11-27',
   content: `
 # Termos de Uso
 
@@ -48,7 +48,7 @@ Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Lei
 
 4.3. Nesta versão acadêmica, **os valores exibidos são demonstrativos e não há cobrança**: a troca entre os planos Free e Premium é gratuita e pode ser feita a qualquer momento na própria Plataforma. Caso venha a existir cobrança, as condições comerciais serão apresentadas previamente e dependerão de novo aceite.
 
-4.4. A **correção do arquivo inteiro com IA** não está incluída em nenhum plano: ela é paga à parte, com **créditos de IA** comprados em pacotes. Cada correção completa de um arquivo consome 1 (um) crédito, debitado no momento do pedido e devolvido automaticamente se a correção não for gerada. Nesta versão acadêmica a compra de créditos também é demonstrativa, sem cobrança.
+4.4. A **correção do arquivo inteiro com IA** não está incluída em nenhum plano: ela é paga à parte, com **créditos de IA** comprados em pacotes. Cada correção completa de um arquivo consome 1 (um) crédito, e cada pergunta na **Ajuda por IA** também consome 1 (um) crédito; o crédito é debitado no momento do pedido e devolvido automaticamente se a resposta não for gerada. Nesta versão acadêmica a compra de créditos também é demonstrativa, sem cobrança.
 
 ## 5. Uso autorizado: somente alvos seus ou autorizados
 5.1. O Usuário somente pode indicar como Alvo sistemas dos quais seja o responsável ou para os quais possua **autorização expressa e prévia** de quem é o responsável.
@@ -71,9 +71,13 @@ Estes Termos de Uso regulam o acesso e a utilização da plataforma Checkop. Lei
 ## 7. Análise de código
 7.1. Ao enviar código-fonte para análise, o Usuário declara ter o direito de fazê-lo e se compromete a não enviar código de terceiros sem autorização.
 
-7.2. O código enviado é processado apenas para gerar a análise e não é armazenado no banco de dados da Plataforma após a resposta. Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
+7.2. O código enviado é processado apenas para gerar a análise e não é armazenado no banco de dados da Plataforma após a resposta (do resultado fica só o resumo descrito no item 7.5). Evite enviar senhas, chaves ou dados pessoais reais; caso a análise encontre segredos no código, recomenda-se revogá-los.
 
-7.3. A **correção com IA** é opcional e só acontece quando o Usuário pede: achado por achado, apenas as linhas em volta do achado são enviadas à Anthropic (modelo Claude); na correção do arquivo inteiro (item 4.4), o arquivo analisado inteiro e a lista de achados dele. A sugestão é automática e pode conter erros; o Usuário deve revisá-la e testá-la antes de aplicá-la.
+7.3. A **correção com IA** é opcional e só acontece quando o Usuário pede: achado por achado, apenas as linhas em volta do achado são enviadas ao provedor de IA configurado no servidor (Anthropic, modelo Claude, ou Google, modelo Gemini, conforme a Política de Privacidade, item 4); na correção do arquivo inteiro (item 4.4), o arquivo analisado inteiro e a lista de achados dele. A sugestão é automática e pode conter erros; o Usuário deve revisá-la e testá-la antes de aplicá-la.
+
+7.4. A **Ajuda por IA** responde perguntas sobre uma varredura ou análise de código escolhida pelo Usuário, enviando ao provedor de IA só a pergunta e o resumo descrito na Política de Privacidade (item 2.5), que a tela mostra antes do envio. As respostas são orientações automáticas, podem conter erros e não substituem a análise de um profissional. A conversa não é guardada pelo Checkop.
+
+7.5. Da análise de código, o Checkop guarda **apenas o resumo** de cada análise (nomes e linguagens dos arquivos, contagens e, por achado, título, severidade, categoria, arquivo, linha, regra e ferramentas), para o histórico e os relatórios do Usuário. O código enviado não é guardado. O Usuário pode apagar esse histórico a qualquer momento.
 
 ## 8. Condutas proibidas
 É vedado ao Usuário:

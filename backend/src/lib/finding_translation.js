@@ -8,7 +8,7 @@ import { SOURCE_LANGUAGE } from '../constants/languages.js';
 // também para as varreduras antigas. Achados do Subfinder já são escritos em
 // português pelo próprio Checkop e não passam pela tradução.
 const TRANSLATED_TOOLS = new Set(['ZAP', 'NUCLEI']);
-const TRANSLATED_FIELDS = ['title', 'description', 'remediation'];
+const TRANSLATED_FIELDS = ['title', 'description', 'remediation', 'detection'];
 
 export const sourceHash = (text) => createHash('sha256').update(text).digest('hex');
 

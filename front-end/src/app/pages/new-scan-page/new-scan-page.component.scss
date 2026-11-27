@@ -99,7 +99,7 @@ $white-line: #fff;
   min-height: 60px;
   padding: 0 18px;
   // contorno branco bem marcado: é o primeiro campo da tela
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 12px;
   background: var(--surface);
   cursor: text;
@@ -218,7 +218,7 @@ $white-line: #fff;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   list-style: none;
 
@@ -260,7 +260,7 @@ $white-line: #fff;
   gap: 12px;
 
   .objective-row {
-    border: 1px solid $white-line;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
   }
 }
@@ -319,7 +319,7 @@ $white-line: #fff;
   flex-direction: column;
   gap: 16px;
   padding: 20px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background: var(--surface);
 
@@ -394,7 +394,7 @@ $white-line: #fff;
   justify-content: center;
   width: 21px;
   height: 21px;
-  border: 1.5px solid $white-line;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text);

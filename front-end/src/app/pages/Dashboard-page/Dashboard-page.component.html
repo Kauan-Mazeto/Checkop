@@ -6,7 +6,7 @@
       <p class="d-who">
         <span class="chip">Perfil {{ roleLabel[user?.role ?? 'STUDENT'] }}</span>
         <span class="chip" [class.chip-premium]="plan.id === 'PREMIUM'">Plano {{ plan.name }}</span>
-        <span class="meta-text">O perfil escolhe o seu painel; o plano, os recursos liberados.</span>
+        <span class="meta-text">O perfil escolhe o seu painel e a visualização. Já o plano escolhido define os recursos da sua conta.</span>
       </p>
     </div>
     <div class="d-actions">
@@ -35,6 +35,13 @@
   <div *ngIf="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
   <div *ngIf="exportError" class="alert alert-error" role="alert">{{ exportError }}</div>
 
+  <!-- ===== abas: cada parte do painel cabe numa tela, sem rolar a página inteira ===== -->
+  <nav class="d-tabs" role="tablist" aria-label="Seções do painel">
+    <!-- cada perfil tem as suas abas (TABS_BY_ROLE) -->
+    <button *ngFor="let tab of tabs" type="button" role="tab" [class.active]="view === tab.id" [attr.aria-selected]="view === tab.id" (click)="setView(tab.id)">{{ tab.label }}</button>
+  </nav>
+
+  <ng-container *ngIf="view === 'overview'">
   <!-- ===== números ===== -->
   <section class="kpis" aria-label="Indicadores">
     <div class="kpi">
@@ -65,10 +72,10 @@
     </div>
   </section>
 
-  <!-- ===== bento ===== -->
-  <div class="bento">
+  <!-- ===== visão geral ===== -->
+  <div class="ov-grid">
     <!-- varreduras recentes (bloco grande) -->
-    <section class="tile tile-recent" aria-label="Varreduras recentes">
+    <section class="dash-tile ov-recent" aria-label="Varreduras recentes">
       <header class="tile-head">
         <h2>{{ plan.canViewHistory ? 'Varreduras recentes' : 'Último scan' }}</h2>
         <a class="link" routerLink="/scans">{{ plan.canViewHistory ? 'Ver histórico →' : 'Abrir →' }}</a>
@@ -103,48 +110,51 @@
       </p>
     </section>
 
-    <!-- severidade -->
-    <section class="tile" aria-label="Falhas por severidade">
-      <header class="tile-head">
-        <h2>Falhas por severidade</h2>
-        <span class="meta-text">{{ plan.canViewHistory ? 'todas as varreduras' : 'varredura mais recente' }}</span>
-      </header>
-      <app-chart type="doughnut" [data]="severityChart" [options]="doughnutOptions" [empty]="chartTotal(severityChart) === 0" ariaLabel="Falhas por severidade" />
-    </section>
-
-    <!-- OWASP -->
-    <section class="tile tile-wide" aria-label="Categorias OWASP Top 10">
-      <header class="tile-head">
-        <h2>Categorias OWASP Top 10</h2>
-        <span class="meta-text">onde estão as falhas</span>
-      </header>
-      <app-chart type="bar" [data]="owaspChart" [options]="barOptions" [empty]="chartTotal(owaspChart) === 0" ariaLabel="Achados por categoria OWASP" />
-    </section>
-
-    <!-- atalhos -->
-    <section class="tile" aria-label="Atalhos">
-      <header class="tile-head"><h2>Atalhos</h2></header>
-      <nav class="shortcuts">
-        <a routerLink="/scans/new"><strong>Nova varredura</strong><span>Escolha o alvo e o tipo de falha</span></a>
-        <a routerLink="/targets"><strong>Verificar domínio</strong><span>Libera a varredura de um site público</span></a>
-        <a routerLink="/code-analysis"><strong>Analisar código</strong><span>Cole um arquivo e veja as falhas</span></a>
-        <a routerLink="/account"><strong>Trocar de perfil</strong><span>Dev, QA, Pentester ou Estudante</span></a>
-      </nav>
-    </section>
+    <!-- cards com vários relatórios: setas dos lados e bolinhas embaixo trocam o relatório -->
+    <app-report-carousel [slides]="riskSlides" [minHeight]="180" />
+    <app-report-carousel [slides]="trendSlides" [minHeight]="180" />
+    <app-report-carousel class="ov-wide" [slides]="breakdownSlides" [minHeight]="220" />
   </div>
+  </ng-container>
+
+  <!-- ===== abas de relatório ===== -->
+  <!-- Dev e Estudante: só a análise de código (histórico com resumo, sem o código) -->
+  <section *ngIf="view === 'code'" class="role-zone" aria-label="Análise de código">
+    <app-code-report [plan]="plan" [role]="role" />
+  </section>
+
+  <section *ngIf="view === 'risk'" class="role-zone" aria-label="Riscos">
+    <app-risk-report [rows]="findingRows" [scans]="scans" [stats]="stats" [plan]="plan" [scansWithFindings]="scansWithFindings" [role]="role" />
+  </section>
+
+  <section *ngIf="view === 'scans'" class="role-zone" aria-label="Varreduras">
+    <app-scans-report [scans]="scans" [stats]="stats" [role]="role" />
+  </section>
+
+  <section *ngIf="view === 'targets'" class="role-zone" aria-label="Alvos">
+    <app-targets-report [scans]="scans" [rows]="findingRows" [plan]="plan" [role]="role" />
+  </section>
+
+  <!-- Estudante -->
+  <section *ngIf="view === 'learn'" class="role-zone" aria-label="Aprender">
+    <app-learn-report [rows]="findingRows" [stats]="stats" />
+  </section>
+
+  <section *ngIf="view === 'progress'" class="role-zone" aria-label="Seu progresso">
+    <app-progress-report [rows]="findingRows" [scans]="scans" [stats]="stats" [triageRuns]="triageRuns" />
+  </section>
 
   <!-- ===== painel do perfil (RF-11): só um destes aparece ===== -->
-  <section class="role-zone" aria-label="Painel do seu perfil">
-    <h2 class="section-title">Seu painel · {{ roleLabel[user?.role ?? 'STUDENT'] }}</h2>
+  <section *ngIf="view === 'role'" class="role-zone" aria-label="Painel do seu perfil">
     <ng-container [ngSwitch]="panel">
-      <app-qa-panel *ngSwitchCase="'qa'" [scans]="scans" [findings]="findings" [plan]="plan" />
+      <app-qa-panel *ngSwitchCase="'qa'" [scans]="scans" [findings]="findings" [stats]="stats" [triageRuns]="triageRuns" [plan]="plan" />
       <app-dev-panel *ngSwitchCase="'dev'" [scans]="scans" [findings]="findings" [plan]="plan" />
-      <app-pentester-panel *ngSwitchCase="'pentester'" [scans]="scans" [findings]="findings" [plan]="plan" />
+      <app-pentester-panel *ngSwitchCase="'pentester'" [scans]="scans" [findings]="findings" [stats]="stats" [plan]="plan" />
       <app-student-panel *ngSwitchCase="'student'" [findings]="findings" [plan]="plan" />
     </ng-container>
   </section>
 
-  <section class="role-zone">
+  <section *ngIf="view === 'plan'" class="role-zone" aria-label="Seu plano">
     <app-plans-panel [plan]="plan" />
   </section>
 </app-shell>

@@ -16,6 +16,8 @@ export interface FlawGuide {
   /** nome da classe em português */
   name: string;
   cwe: number | null;
+  /** como corrigir, em 1 ou 2 frases (aba "Como corrigir"); vazio = usa o texto da ferramenta */
+  fix: string[];
   /** o que é, em linguagem simples */
   what: string;
   /** o que um atacante consegue */
@@ -60,6 +62,10 @@ const CLASSES: ClassRule[] = [
     match: /sql[\s-]*inj|sqli\b|injeção de sql/i,
     guide: {
       name: 'Injeção de SQL', cwe: 89,
+      fix: [
+        "Use consultas parametrizadas (prepared statements) em todo acesso ao banco: o valor do usuário vai como parâmetro, nunca concatenado no SQL.",
+        "Não mostre mensagens de erro do banco para o usuário.",
+      ],
       what: 'O texto que o usuário envia entra direto na consulta ao banco. Com aspas e comandos SQL, ele muda o que a consulta faz.',
       impact: 'Ler ou apagar dados de outros usuários, entrar sem senha e, em alguns bancos, executar comandos no servidor.',
       verify: 'Envie no parâmetro um apóstrofo (\') ou o payload usado na evidência e observe erro de banco, resposta diferente ou atraso.',
@@ -80,6 +86,10 @@ const CLASSES: ClassRule[] = [
     match: /xss|cross[\s-]*site[\s-]*scripting/i,
     guide: {
       name: 'Cross-Site Scripting (XSS)', cwe: 79,
+      fix: [
+        "Escape a saída conforme o contexto (HTML, atributo, JavaScript, URL); prefira o escape automático do framework.",
+        "Adicione uma Content-Security-Policy que bloqueie scripts inline.",
+      ],
       what: 'A página mostra o que o usuário enviou sem escapar o HTML. Um <script> enviado vira código rodando no navegador de quem abre a página.',
       impact: 'Roubar a sessão (cookie), agir como a vítima, trocar o conteúdo da página e capturar o que ela digita.',
       verify: 'Envie no parâmetro o payload da evidência (ou <script>alert(1)</script>) e veja se ele volta na página sem escape.',
@@ -99,6 +109,10 @@ const CLASSES: ClassRule[] = [
     match: /csrf|cross[\s-]*site[\s-]*request|anti-csrf/i,
     guide: {
       name: 'Falsificação de requisição (CSRF)', cwe: 352,
+      fix: [
+        "Exija um token anti-CSRF em todo formulário e requisição que altera dados.",
+        "Marque o cookie de sessão com SameSite=Lax ou Strict.",
+      ],
       what: 'O formulário não tem um token próprio da sessão. Outro site consegue fazer o navegador da vítima enviar o formulário por ela.',
       impact: 'Trocar senha ou e-mail, fazer compras ou transferências em nome de quem está logado.',
       verify: 'Envie o formulário a partir de outra origem (ou sem o token) e veja se o servidor aceita.',
@@ -115,6 +129,10 @@ const CLASSES: ClassRule[] = [
     match: /ssrf|server[\s-]*side[\s-]*request/i,
     guide: {
       name: 'SSRF', cwe: 918,
+      fix: [
+        "Só acesse URLs de uma lista de domínios permitidos e recuse endereços internos (127.0.0.1, 10.x, 192.168.x, 169.254.169.254).",
+        "Não siga redirecionamentos nem devolva a resposta bruta para o usuário.",
+      ],
       what: 'O servidor busca uma URL que o usuário escolhe. O atacante aponta para endereços internos que só o servidor alcança.',
       impact: 'Ler serviços internos, metadados da nuvem (credenciais) e atacar outras máquinas da rede.',
       verify: 'Troque a URL do parâmetro por um endereço interno (127.0.0.1, 169.254.169.254) e veja se o servidor responde com o conteúdo.',
@@ -131,6 +149,9 @@ const CLASSES: ClassRule[] = [
     match: /redirect|redirecionamento/i,
     guide: {
       name: 'Redirecionamento aberto', cwe: 601,
+      fix: [
+        "Redirecione só para caminhos internos ou para uma lista fixa de destinos; recuse URLs absolutas vindas do usuário.",
+      ],
       what: 'A aplicação redireciona para qualquer endereço recebido no parâmetro, inclusive sites de terceiros.',
       impact: 'Phishing com um link que começa no seu domínio confiável e leva a um site falso.',
       verify: 'Troque o destino do parâmetro por um site externo e veja se o navegador é levado até ele.',
@@ -144,6 +165,10 @@ const CLASSES: ClassRule[] = [
     match: /path[\s-]*traversal|directory[\s-]*traversal|\blfi\b|local file|inclusão de arquivo/i,
     guide: {
       name: 'Path traversal / inclusão de arquivo', cwe: 22,
+      fix: [
+        "Não monte caminho de arquivo com o texto do usuário: use um identificador e uma lista de arquivos permitidos.",
+        "Normalize o caminho e confira que ele continua dentro da pasta autorizada.",
+      ],
       what: 'O nome de arquivo vem do usuário. Com ../ ele sai da pasta permitida e lê qualquer arquivo do servidor.',
       impact: 'Ler senhas, chaves e código-fonte do servidor.',
       verify: 'Envie ../../etc/passwd (ou o payload da evidência) no parâmetro e veja se o conteúdo do arquivo aparece.',
@@ -160,6 +185,10 @@ const CLASSES: ClassRule[] = [
     match: /command[\s-]*inj|injeção de comando|remote[\s-]*code|\brce\b|os command/i,
     guide: {
       name: 'Injeção de comandos', cwe: 78,
+      fix: [
+        "Não passe texto do usuário para o shell: use a API da linguagem ou execute o programa com os argumentos separados (ex.: execFile no Node).",
+        "Valide a entrada num formato estrito (ex.: só IP ou domínio).",
+      ],
       what: 'O que o usuário envia vira parte de um comando do sistema operacional.',
       impact: 'Executar qualquer comando no servidor: assumir a máquina, ler e apagar tudo.',
       verify: 'Envie o payload da evidência (ex.: ; sleep 5) e veja se a resposta atrasa ou traz a saída do comando.',
@@ -176,6 +205,10 @@ const CLASSES: ClassRule[] = [
     match: /template[\s-]*inj|ssti/i,
     guide: {
       name: 'Injeção de template (SSTI)', cwe: 1336,
+      fix: [
+        "Não monte o template com texto do usuário: passe o valor como variável do template.",
+        "Use o modo sandbox do motor de templates, se houver.",
+      ],
       what: 'O texto do usuário vira parte do template, e o motor de templates executa o que estiver nele.',
       impact: 'Normalmente leva a execução de código no servidor.',
       verify: 'Envie {{7*7}} no parâmetro e veja se a página mostra 49.',
@@ -192,6 +225,10 @@ const CLASSES: ClassRule[] = [
     match: /xxe|xml external/i,
     guide: {
       name: 'XXE (entidade externa em XML)', cwe: 611,
+      fix: [
+        "Desative DTD e entidades externas no parser XML.",
+        "Se puder, aceite JSON em vez de XML.",
+      ],
       what: 'O leitor de XML aceita entidades externas, que fazem o servidor abrir arquivos ou URLs indicados no XML.',
       impact: 'Ler arquivos do servidor e fazer requisições internas (SSRF).',
       verify: 'Envie um XML com <!ENTITY x SYSTEM "file:///etc/passwd"> e veja se o conteúdo volta.',
@@ -208,6 +245,9 @@ const CLASSES: ClassRule[] = [
     match: /clickjacking|anti-clickjacking|x-frame-options|frame-ancestors/i,
     guide: {
       name: 'Clickjacking', cwe: 1021,
+      fix: [
+        "Envie Content-Security-Policy: frame-ancestors 'self' (ou X-Frame-Options: DENY).",
+      ],
       what: 'A página pode ser aberta dentro de um iframe de outro site, escondida embaixo de botões falsos.',
       impact: 'Fazer a vítima clicar sem saber em ações da sua aplicação (confirmar, excluir, transferir).',
       verify: 'Abra a página dentro de um <iframe> num arquivo HTML local e veja se ela carrega.',
@@ -225,6 +265,9 @@ const CLASSES: ClassRule[] = [
     match: /content[\s-]*security[\s-]*policy|\bcsp\b/i,
     guide: {
       name: 'Content-Security-Policy ausente', cwe: 693,
+      fix: [
+        "Envie o cabeçalho Content-Security-Policy, começando por default-src 'self' e liberando só as origens que o site usa.",
+      ],
       what: 'Sem CSP, o navegador executa qualquer script que aparecer na página, de qualquer origem.',
       impact: 'Um XSS em qualquer lugar do site fica muito mais fácil de explorar.',
       verify: 'Veja nos cabeçalhos da resposta se existe Content-Security-Policy (DevTools > Rede).',
@@ -241,6 +284,9 @@ const CLASSES: ClassRule[] = [
     match: /cookie|httponly|samesite|secure flag/i,
     guide: {
       name: 'Cookie sem proteção', cwe: 1004,
+      fix: [
+        "Marque os cookies de sessão com HttpOnly, Secure e SameSite=Lax (ou Strict).",
+      ],
       what: 'O cookie (normalmente o de sessão) foi criado sem os atributos que o protegem: HttpOnly, Secure e SameSite.',
       impact: 'Sem HttpOnly, um XSS rouba a sessão; sem Secure, ela vaza em HTTP; sem SameSite, facilita CSRF.',
       verify: 'Veja o cabeçalho Set-Cookie na resposta (DevTools > Aplicativo > Cookies) e confira os atributos.',
@@ -257,6 +303,9 @@ const CLASSES: ClassRule[] = [
     match: /na url|in url|query string|sensitive information in url|informações confidenciais na url/i,
     guide: {
       name: 'Dado sensível na URL', cwe: 598,
+      fix: [
+        "Envie senhas, tokens e dados pessoais no corpo de um POST ou em cabeçalho, nunca na URL.",
+      ],
       what: 'Senha, token ou dado pessoal vai na própria URL (?senha=...).',
       impact: 'A URL fica no histórico, em logs de servidor e proxy e no cabeçalho Referer enviado a outros sites.',
       verify: 'Veja a URL das requisições (DevTools > Rede) e procure senha ou token nos parâmetros.',
@@ -267,9 +316,13 @@ const CLASSES: ClassRule[] = [
     },
   },
   {
-    match: /x-powered-by|server leaks|versão do servidor|comentários suspeitos|suspicious comments|divulgação de informa|information disclosure|vaza informa/i,
+    match: /x-powered-by|server leaks|versão do servidor|comentários suspeitos|suspicious comments|divulgação de informa|information disclosure|vaza informa|error disclosure|private ip|banner information|information leak|stack trace|debug (error|message)/i,
     guide: {
       name: 'Exposição de informação', cwe: 200,
+      fix: [
+        "Desligue mensagens de erro detalhadas e cabeçalhos de versão (Server, X-Powered-By) em produção.",
+        "Mostre ao usuário uma mensagem genérica e deixe o detalhe só no log.",
+      ],
       what: 'A resposta mostra detalhes internos: tecnologia e versão, comentários do desenvolvedor, mensagens de erro.',
       impact: 'Facilita o próximo passo do ataque: com a versão exata, basta procurar falhas conhecidas dela.',
       verify: 'Veja a linha marcada na evidência (cabeçalho ou comentário) na resposta da página.',
@@ -286,6 +339,9 @@ const CLASSES: ClassRule[] = [
     match: /x-content-type-options|strict-transport|hsts|permissions[\s-]*policy|referrer[\s-]*policy|cabeçalho|header/i,
     guide: {
       name: 'Cabeçalho de segurança ausente', cwe: 693,
+      fix: [
+        "Configure o cabeçalho apontado no servidor ou no proxy (ex.: X-Content-Type-Options: nosniff, Strict-Transport-Security).",
+      ],
       what: 'Falta um cabeçalho HTTP que liga uma proteção do navegador (tipo de conteúdo, HTTPS obrigatório, permissões...).',
       impact: 'Cada cabeçalho fecha uma porta: sem eles, ataques como MIME sniffing ou rebaixamento para HTTP ficam possíveis.',
       verify: 'Veja os cabeçalhos da resposta (DevTools > Rede) e confira se o cabeçalho citado está lá.',
@@ -299,9 +355,13 @@ const CLASSES: ClassRule[] = [
     },
   },
   {
-    match: /\.git|backup|arquivo exposto|exposed file|directory listing|listagem/i,
+    match: /\.git|git config|backup|arquivo exposto|exposed file|directory listing|directory browsing|listagem|\.env\b|env file|file discovery|source code disclosure/i,
     guide: {
       name: 'Arquivo ou pasta exposta', cwe: 538,
+      fix: [
+        "Tire o arquivo do servidor e bloqueie o acesso a arquivos ocultos e de backup (.env, .git, .bak).",
+        "Troque qualquer senha ou chave que estava no arquivo.",
+      ],
       what: 'Um arquivo que não deveria ser público (pasta .git, backup, configuração) pode ser baixado pelo navegador.',
       impact: 'Baixar o código-fonte, senhas e chaves que estão nesses arquivos.',
       verify: 'Abra a URL da evidência no navegador e veja se o arquivo é entregue.',
@@ -312,9 +372,13 @@ const CLASSES: ClassRule[] = [
     },
   },
   {
-    match: /cve-\d|componente vulnerável|vulnerable component|outdated|versão vulnerável/i,
+    match: /cve-\d|componente vulnerável|vulnerable component|outdated|versão vulnerável|known vulnerabilit/i,
     guide: {
       name: 'Componente com vulnerabilidade conhecida', cwe: 1104,
+      fix: [
+        "Atualize o componente para a versão corrigida indicada no CVE.",
+        "Se não der para atualizar agora, aplique a mitigação publicada pelo fornecedor.",
+      ],
       what: 'A versão de um software ou biblioteca usada tem uma falha pública (CVE), com exploração conhecida.',
       impact: 'Depende da CVE; muitas permitem invadir sem esforço, com exploits prontos na internet.',
       verify: 'Confira a versão instalada e compare com a versão corrigida informada na CVE.',
@@ -328,6 +392,9 @@ const CLASSES: ClassRule[] = [
     match: /cors|cross[\s-]*origin/i,
     guide: {
       name: 'CORS permissivo', cwe: 942,
+      fix: [
+        "Libere só origens confiáveis numa lista fixa; nunca devolva o Origin recebido junto com Access-Control-Allow-Credentials: true.",
+      ],
       what: 'O servidor libera que outros sites leiam as respostas da API usando a sessão da vítima.',
       impact: 'Um site malicioso lê dados privados da vítima pela sua API.',
       verify: 'Envie a requisição com Origin: https://exemplo-malicioso.com e veja se Access-Control-Allow-Origin devolve essa origem.',
@@ -341,6 +408,9 @@ const CLASSES: ClassRule[] = [
     match: /tls|ssl|certificad/i,
     guide: {
       name: 'TLS/SSL fraco', cwe: 326,
+      fix: [
+        "Desative TLS 1.0/1.1 e cifras fracas; use TLS 1.2 ou superior com certificado válido.",
+      ],
       what: 'A conexão HTTPS aceita protocolo ou cifra antigos, ou o certificado tem problema.',
       impact: 'Quem está no caminho (Wi-Fi público, provedor) pode ler ou alterar o tráfego.',
       verify: 'Teste o domínio no SSL Labs (ssllabs.com/ssltest) e confira protocolos e cifras.',
@@ -353,7 +423,7 @@ const CLASSES: ClassRule[] = [
 ];
 
 const GENERIC: FlawGuide = {
-  name: 'Falha de segurança', cwe: null,
+  name: 'Falha de segurança', cwe: null, fix: [],
   what: 'A ferramenta encontrou um comportamento que foge da boa prática de segurança (veja a descrição do achado).',
   impact: 'Depende do caso: a descrição e a severidade indicam o risco.',
   verify: 'Repita a requisição da evidência e confira o trecho marcado na resposta.',
@@ -377,6 +447,58 @@ export const owaspLink = (owasp: string | null | undefined): GuideLink | null =>
 
 export const cweLink = (cwe: number | null): GuideLink | null =>
   cwe ? { label: `CWE-${cwe} (MITRE)`, url: `https://cwe.mitre.org/data/definitions/${cwe}.html` } : null;
+
+/** Guia de uma classe conhecida (não o genérico). */
+export const isKnownGuide = (guide: FlawGuide): boolean => guide !== GENERIC;
+
+// ---------- aba "Como corrigir" ----------
+
+/**
+ * Resumo do texto de correção da ferramenta: até `max` itens curtos.
+ * Serve para qualquer ferramenta: quebra por linha e por frase, tira marcadores
+ * de lista e corta itens longos. O texto completo continua disponível na tela.
+ */
+export const summarizeRemediation = (text: string | null | undefined, max = 3): string[] => {
+  if (!text?.trim()) return [];
+  const items = text
+    .split(/\r?\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ú"'(])/))
+    .map((item) => item.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim())
+    .filter((item) => item.length >= 12 && !/^(refer[eê]ncias?|references?)\s*:/i.test(item));
+  const unique = [...new Set(items)];
+  return unique.slice(0, max).map((item) => (item.length > 220 ? `${item.slice(0, 217).trimEnd()}...` : item));
+};
+
+/** Links de referência que a própria ferramenta mandou (um por linha). */
+export const toolReferenceLinks = (references: string | null | undefined): GuideLink[] =>
+  (references ?? '')
+    .split(/\s+/)
+    .filter((url) => /^https?:\/\//.test(url))
+    .map((url) => {
+      try {
+        const u = new URL(url);
+        const path = u.pathname.length > 1 ? decodeURIComponent(u.pathname).replace(/\/$/, '') : '';
+        const short = path.length > 48 ? `${path.slice(0, 45)}...` : path;
+        return { label: `${u.hostname.replace(/^www\./, '')}${short}`, url };
+      } catch {
+        return null;
+      }
+    })
+    .filter((l): l is GuideLink => Boolean(l));
+
+/**
+ * Referências da correção, para qualquer achado: os guias da OWASP da classe da falha,
+ * os links da própria ferramenta, a categoria OWASP Top 10 e o CWE. Sem repetir URL.
+ */
+export const fixReferenceLinks = (finding: Finding, guide: FlawGuide, max = 5): GuideLink[] => {
+  const links = [
+    ...guide.learn.filter((l) => l.url.includes('cheatsheetseries') && isKnownGuide(guide)),
+    ...toolReferenceLinks(finding.references),
+    owaspLink(finding.owaspUrl),
+    cweLink(guide.cwe),
+  ].filter((l): l is GuideLink => Boolean(l));
+  return links.filter((l, i) => links.findIndex((o) => o.url === l.url) === i).slice(0, max);
+};
 
 /** Padrões que comprovam a falha (QA) e referências oficiais. */
 export const standardLinks = (finding: Finding, guide: FlawGuide): GuideLink[] => {

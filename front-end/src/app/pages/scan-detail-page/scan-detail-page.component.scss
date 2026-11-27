@@ -184,36 +184,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   }
 }
 
-// ---------- sem barras de rolagem visíveis (a rolagem continua pela roda/toque) ----------
-.pane,
-.tabs,
-.detail-tabs {
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-// o visor de código rola para o lado: barra fina e discreta em vez da padrão
-.viewer-code {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.18);
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-}
+// sem barras de rolagem: a regra é global (src/styles.scss)
 
 // =========================================================
 // Cabeçalho
@@ -313,7 +284,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   grid-template-columns: 300px minmax(0, 1fr) 270px;
   height: max(560px, calc(100vh - 260px));
   // contorno branco: destaca a área de trabalho do fundo escuro
-  border: 1.5px solid #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   background: var(--surface);
   overflow: hidden;
@@ -368,7 +339,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   height: 34px;
   padding: 0 10px;
   // contorno branco: os campos da lista se destacam do fundo escuro
-  border: 1.5px solid #fff;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 8px;
   background: var(--bg);
   color: var(--muted);
@@ -429,7 +400,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
     min-width: 0;
     height: 30px;
     padding: 0 8px;
-    border: 1.5px solid #fff;
+    border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 6px;
     outline: 0;
     background: var(--bg);
@@ -608,17 +579,144 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   }
 }
 
-.fix-block {
+// ---------- como corrigir ----------
+.fix-summary,
+.fix-refs {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+
+  h4 {
+    margin: 0;
+    color: var(--faint);
+    font-size: 11.5px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+}
+
+.fix-summary ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
   padding: 14px 16px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
+  list-style: none;
+
+  li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--text-2);
+    font-size: 14px;
+    line-height: 1.55;
+  }
 
   svg {
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 3px;
     color: var(--success);
+  }
+}
+
+.fix-full {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.fix-full__text {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 13px;
+  white-space: pre-line;
+}
+
+// ---------- como foi encontrado ----------
+.confidence-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.how-found {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  h4 {
+    margin: 0;
+    color: var(--faint);
+    font-size: 11.5px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+}
+
+.how-found__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(130px, auto) minmax(0, 1fr);
+    gap: 4px 14px;
+    align-items: baseline;
+    font-size: 13.5px;
+    line-height: 1.55;
+
+    @media (max-width: 640px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  code {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--inset);
+    overflow-wrap: anywhere;
+  }
+}
+
+.how-found__signal {
+  justify-self: start;
+  color: var(--text);
+}
+
+.how-found__confidence {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+
+  &.is-low {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--warning-soft);
+    color: var(--text-2);
   }
 }
 
@@ -644,20 +742,6 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   display: flex;
   gap: 6px;
   margin-left: auto;
-}
-
-.attack-line {
-  margin: 0;
-
-  code {
-    margin-left: 6px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    background: var(--brand-soft);
-    color: var(--brand-text);
-    font-size: 12.5px;
-    word-break: break-all;
-  }
 }
 
 .viewer {
@@ -1233,7 +1317,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   select {
     height: 30px;
     padding: 0 8px;
-    border: 1.5px solid #fff;
+    border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 6px;
     outline: 0;
     background: var(--bg);
@@ -1346,7 +1430,7 @@ $hairline-soft: rgba(255, 255, 255, 0.05);
   margin: 0;
   padding: 14px 16px;
   overflow: auto;
-  border: 1.5px solid #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   background: var(--surface);
   color: var(--text-2);

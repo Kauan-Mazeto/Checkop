@@ -116,6 +116,12 @@
           <span class="kpi-value" [class.text-danger]="views.length > 0" [class.text-success]="views.length === 0">{{ views.length }}</span>
           <span class="kpi-hint">análise em {{ result.durationSeconds | number: '1.0-1' }} s</span>
           <button type="button" class="link clear-result" (click)="clearResult()">Limpar resultado</button>
+          <!-- o resumo desta análise ficou no histórico: dá para comparar e perguntar à IA -->
+          <span *ngIf="result.historyId" class="kpi-hint">
+            Resumo salvo no histórico (sem o código).
+            <a class="link" routerLink="/ai-help" [queryParams]="{ kind: 'code', id: result.historyId }">Perguntar à IA</a> ·
+            <a class="link" routerLink="/dashboard" [queryParams]="{ aba: 'code' }">Comparar no painel</a>
+          </span>
           <span *ngIf="result.tools?.depth" class="kpi-hint">Análise {{ result.tools!.depth === 'COMPLETE' ? 'completa' : 'essencial' }}</span>
           <span *ngIf="result.tools?.used?.length" class="kpi-hint tools-used">Analisado por: {{ result.tools!.used.join(', ') }}</span>
           <span *ngIf="result.tools?.skipped?.length" class="kpi-hint">Não instalado neste servidor: {{ result.tools!.skipped.join(', ') }}</span>
@@ -133,7 +139,7 @@
         <header class="card-header">
           <div>
             <h2>Corrigir o arquivo inteiro com IA <span class="badge badge-pro">EXTRA</span></h2>
-            <p>O Claude (Anthropic) recebe o arquivo e os {{ views.length }} achado(s) e devolve o código completo já corrigido. Pago à parte do plano: {{ fullFixCost }} crédito por arquivo.</p>
+            <p>{{ aiProvider }} recebe o arquivo e os {{ views.length }} achado(s) e devolve o código completo já corrigido. Pago à parte do plano: {{ fullFixCost }} crédito por arquivo.</p>
           </div>
           <span class="credits" [class.empty]="aiCredits < fullFixCost">{{ aiCredits }} crédito(s)</span>
         </header>
@@ -151,7 +157,7 @@
 
           <!-- pacotes de créditos (compra demonstrativa, sem cobrança) -->
           <div *ngIf="showPacks" class="packs">
-            <p class="hint">Créditos de IA são vendidos à parte do plano. Valores demonstrativos: o TCC não cobra.</p>
+            <p class="hint">Créditos de IA são vendidos à parte do plano.</p>
             <div class="pack-list">
               <button *ngFor="let pack of creditPacks" type="button" class="pack" (click)="buyCredits(pack)" [disabled]="buyingPackId !== null">
                 <strong>{{ pack.credits }} créditos</strong>
@@ -261,7 +267,7 @@
                 <span *ngIf="v.ai.loading" class="spinner spinner-muted" aria-hidden="true"></span>
                 {{ v.ai.loading ? 'Gerando correção...' : 'Gerar correção com IA' }}
               </button>
-              <span class="hint">Envia só as linhas em volta deste achado ao Claude (Anthropic) para sugerir o código corrigido.</span>
+              <span class="hint">Envia só as linhas em volta deste achado para {{ aiProvider }} para sugerir o código corrigido.</span>
             </div>
             <div *ngIf="v.ai.error" class="alert alert-error" role="alert">{{ v.ai.error }}</div>
 

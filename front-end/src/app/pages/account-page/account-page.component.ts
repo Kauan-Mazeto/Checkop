@@ -179,7 +179,7 @@ export class AccountPageComponent implements OnInit {
       next: (user) => {
         this.isChangingPlan = false;
         this.user = { ...this.user!, plan: user.plan };
-        this.planMessage = plan === 'PREMIUM' ? 'Premium ativado (demonstração, sem cobrança).' : 'Você voltou para o plano Free.';
+        this.planMessage = plan === 'PREMIUM' ? 'Premium ativado.' : 'Você voltou para o plano Free.';
       },
       error: (error: ApiError) => {
         this.isChangingPlan = false;

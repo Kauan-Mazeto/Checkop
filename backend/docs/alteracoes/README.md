@@ -24,6 +24,14 @@ Cada pasta aqui documenta **uma alteração** do projeto: o problema encontrado,
 | 09 | [Alertas antigos do ZAP e uma varredura por usuário](09-alertas-do-zap-e-limite-por-usuario/README.md) | Implementado e testado | 2026-11-22 |
 | 10 | [Novo aceite dos Termos e "Baixar meus dados"](10-novo-aceite-dos-termos-e-baixar-meus-dados/README.md) | Implementado e testado | 2026-11-22 |
 | 11 | [ZAP que não subia no iniciar.cmd](11-zap-preso-ao-iniciar/README.md) | Implementado e testado | 2026-11-26 |
+| 12 | [Laboratório com um exemplo de cada falha](12-laboratorio-com-todas-as-falhas/README.md) | Implementado; validação com Nuclei/ZAP pendente | 2026-11-26 |
+| 13 | [Novo visual da landing, do login e do cadastro](13-landing-login-e-cadastro/README.md) | Implementado (compila) | 2026-11-26 |
+| 14 | ["Como foi encontrado" e "Como corrigir" para qualquer achado](14-como-foi-encontrado-e-como-corrigir/README.md) | Implementado (compila) | 2026-11-26 |
+| 15 | [Análise de código: frameworks principais, sem duplicatas](15-analise-de-codigo-frameworks-e-duplicatas/README.md) | Implementado e conferido com exemplos | 2026-11-26 |
+| 16 | [Senha gravada sem hash e divisão por zero](16-senha-sem-hash-e-divisao-por-zero/README.md) | Implementado e conferido com exemplos | 2026-11-26 |
+| 17 | [Painel em abas, relatórios e gráficos por perfil](17-painel-em-abas-e-graficos-por-perfil/README.md) | Implementado e conferido com dados reais | 2026-11-26 |
+| 18 | [Histórico da análise de código (só o resumo) e aba no Painel](18-historico-da-analise-de-codigo/README.md) | Implementado (compila; conferido com exemplo) | 2026-11-27 |
+| 19 | [Ajuda por IA](19-ajuda-por-ia/README.md) | Implementado (compila); chamada real à IA pendente | 2026-11-27 |
 
 ## Como rodar os testes
 
